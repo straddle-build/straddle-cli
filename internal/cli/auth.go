@@ -9,8 +9,8 @@ import (
 	"runtime"
 
 	"github.com/spf13/cobra"
-	"github.com/straddle-build/cli/internal/cliutil"
-	"github.com/straddle-build/cli/internal/config"
+	"github.com/straddle-build/straddle-cli/internal/cliutil"
+	"github.com/straddle-build/straddle-cli/internal/config"
 )
 
 func newAuthCmd(flags *rootFlags) *cobra.Command {

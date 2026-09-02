@@ -15,7 +15,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/straddle-build/cli/internal/store"
+	"github.com/straddle-build/straddle-cli/internal/store"
 )
 
 // straddleStatusDetails mirrors the status_details object Straddle attaches to

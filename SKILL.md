@@ -19,8 +19,8 @@ metadata:
 This skill drives the `straddle` binary. **You must verify the CLI is installed before invoking any command from this skill.** If it is missing, install it first (in preference order):
 
 1. Homebrew (macOS): `brew install straddle-build/tap/straddle`
-2. Shell installer (macOS/Linux): `curl -fsSL https://raw.githubusercontent.com/straddle-build/cli/main/install.sh | sh`
-3. npm: `npm i -g @straddleio/cli` (or run ad hoc via `npx @straddleio/cli <command>`)
+2. Shell installer (macOS/Linux): `curl -fsSL https://raw.githubusercontent.com/straddle-build/straddle-cli/main/install.sh | sh`
+3. npm: `npm i -g @straddlecom/cli` (or run ad hoc via `npx @straddlecom/cli <command>`)
 
 Verify: `straddle --version`
 

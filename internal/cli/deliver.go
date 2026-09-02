@@ -98,7 +98,7 @@ func deliverWebhook(url string, body []byte, compact bool) error {
 		return fmt.Errorf("building webhook request: %w", err)
 	}
 	req.Header.Set("Content-Type", contentType)
-	req.Header.Set("User-Agent", "github.com/straddle-build/cli/deliver")
+	req.Header.Set("User-Agent", "github.com/straddle-build/straddle-cli/deliver")
 
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)

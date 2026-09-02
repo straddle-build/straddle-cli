@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/straddle-build/cli/internal/apisync"
+	"github.com/straddle-build/straddle-cli/internal/apisync"
 	"sigs.k8s.io/yaml"
 )
 

@@ -1,9 +1,13 @@
 {
-  "name": "@straddleio/cli",
+  "name": "@straddlecom/cli",
   "version": "0.0.0",
-  "description": "Straddle CLI (straddle) — installs the platform binary from GitHub Releases",
+  "description": "Straddle CLI for Pay by Bank and Embed APIs, local payments data, and analytics",
   "license": "Apache-2.0",
-  "repository": "github:straddle-build/cli",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/straddle-build/straddle-cli.git",
+    "directory": "npm"
+  },
   "bin": {
     "straddle": "bin/straddle.js"
   },

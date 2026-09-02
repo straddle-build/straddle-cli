@@ -6,16 +6,15 @@ name: Release
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   release:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      # Step-level guards test these so a missing secret skips the
-      # dependent publish step instead of failing the whole release.
+      # Homebrew remains optional until the tap credential is configured.
       HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -35,16 +34,16 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-node@v6
-        if: env.NPM_TOKEN != ''
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Use npm with trusted publishing support
+        run: npm install --global npm@11
 
       - name: Publish npm wrapper
-        if: env.NPM_TOKEN != ''
         working-directory: npm
         run: |
           npm version --no-git-tag-version "${GITHUB_REF_NAME#v}"
           npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -20,8 +20,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"github.com/straddle-build/cli/internal/client"
-	"github.com/straddle-build/cli/internal/cliutil"
+	"github.com/straddle-build/straddle-cli/internal/client"
+	"github.com/straddle-build/straddle-cli/internal/cliutil"
 )
 
 var As = errors.As

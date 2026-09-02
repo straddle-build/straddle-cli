@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Launcher for @straddleio/cli: executes the vendored straddle binary,
+// Launcher for @straddlecom/cli: executes the vendored straddle binary,
 // installing it first if the postinstall never ran (--ignore-scripts).
 'use strict';
 
@@ -14,7 +14,7 @@ if (!fs.existsSync(binPath)) {
   const installer = path.join(__dirname, '..', 'install.js');
   const result = spawnSync(process.execPath, [installer], { stdio: 'inherit' });
   if (result.status !== 0 || !fs.existsSync(binPath)) {
-    console.error('@straddleio/cli: binary install failed; see errors above');
+    console.error('@straddlecom/cli: binary install failed; see errors above');
     process.exit(result.status === null || result.status === 0 ? 1 : result.status);
   }
 }

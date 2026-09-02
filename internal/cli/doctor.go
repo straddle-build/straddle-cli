@@ -13,10 +13,10 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/straddle-build/cli/internal/client"
-	"github.com/straddle-build/cli/internal/cliutil"
-	"github.com/straddle-build/cli/internal/config"
-	"github.com/straddle-build/cli/internal/store"
+	"github.com/straddle-build/straddle-cli/internal/client"
+	"github.com/straddle-build/straddle-cli/internal/cliutil"
+	"github.com/straddle-build/straddle-cli/internal/config"
+	"github.com/straddle-build/straddle-cli/internal/store"
 )
 
 // looksLikeDoctorInterstitial reports whether the response body matches a known

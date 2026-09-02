@@ -20,8 +20,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/straddle-build/cli/internal/config"
-	"github.com/straddle-build/cli/internal/straddleacct"
+	"github.com/straddle-build/straddle-cli/internal/config"
+	"github.com/straddle-build/straddle-cli/internal/straddleacct"
 )
 
 // straddleAccountHeader scopes a platform API call to one embedded account.

@@ -12,7 +12,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/straddle-build/cli/internal/apisync"
+	"github.com/straddle-build/straddle-cli/internal/apisync"
 )
 
 func main() {

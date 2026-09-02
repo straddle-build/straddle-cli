@@ -9,8 +9,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/straddle-build/cli/internal/config"
-	"github.com/straddle-build/cli/internal/straddleacct"
+	"github.com/straddle-build/straddle-cli/internal/config"
+	"github.com/straddle-build/straddle-cli/internal/straddleacct"
 )
 
 func TestApplyStraddleAccount(t *testing.T) {

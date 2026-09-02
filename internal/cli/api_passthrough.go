@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/straddle-build/cli/internal/client"
+	"github.com/straddle-build/straddle-cli/internal/client"
 )
 
 func normalizeRawAPIMethod(method string) (string, bool) {

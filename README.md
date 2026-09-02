@@ -17,7 +17,7 @@ brew install straddle-build/tap/straddle
 ### Shell installer (macOS / Linux)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/straddle-build/cli/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/straddle-build/straddle-cli/main/install.sh | sh
 ```
 
 Installs the latest release to `~/.local/bin` (override with `STRADDLE_INSTALL_DIR`) after verifying its checksum against the release's `checksums.txt`.
@@ -25,26 +25,26 @@ Installs the latest release to `~/.local/bin` (override with `STRADDLE_INSTALL_D
 ### npm / npx
 
 ```bash
-npx @straddleio/cli doctor   # run without installing
-npm i -g @straddleio/cli     # install the straddle binary globally
+npx @straddlecom/cli --help   # try without a global installation
+npm i -g @straddlecom/cli     # install the straddle command globally
 ```
 
-> Publishing with the next patch release — the npm token is being provisioned. Use the shell installer above meanwhile.
+Requires Node.js 18 or newer. The npm package downloads the matching Go binary from GitHub Releases and verifies its SHA-256 checksum. See [npm installation details](npm/README.md).
 
 ### Pre-built binaries
 
-Download an archive for your platform from the [releases page](https://github.com/straddle-build/cli/releases). On macOS, clear the Gatekeeper quarantine: `xattr -d com.apple.quarantine <binary>`. On Unix, mark it executable: `chmod +x <binary>`.
+Download an archive for your platform from the [releases page](https://github.com/straddle-build/straddle-cli/releases). On macOS, clear the Gatekeeper quarantine: `xattr -d com.apple.quarantine <binary>`. On Unix, mark it executable: `chmod +x <binary>`.
 
 ### Go
 
 ```bash
-go install github.com/straddle-build/cli/cmd/straddle@latest
+go install github.com/straddle-build/straddle-cli/cmd/straddle@latest
 ```
 
 ### From source
 
 ```bash
-git clone https://github.com/straddle-build/cli && cd cli && make build   # -> bin/straddle
+git clone https://github.com/straddle-build/straddle-cli && cd straddle-cli && make build   # -> bin/straddle
 ```
 
 ### Agent skill
@@ -52,7 +52,7 @@ git clone https://github.com/straddle-build/cli && cd cli && make build   # -> b
 The repo-root [`SKILL.md`](SKILL.md) teaches coding agents (Claude Code, Codex, Cursor, and friends) how to drive this CLI. Install it with the [`skills`](https://github.com/vercel-labs/skills) CLI:
 
 ```bash
-npx skills add straddle-build/cli
+npx skills add straddle-build/straddle-cli
 ```
 
 ## Authentication

@@ -16,8 +16,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/straddle-build/cli/internal/cliutil"
-	"github.com/straddle-build/cli/internal/store"
+	"github.com/straddle-build/straddle-cli/internal/cliutil"
+	"github.com/straddle-build/straddle-cli/internal/store"
 )
 
 // unresolvedPathKeyRE matches `{key}` placeholders left in a sync path

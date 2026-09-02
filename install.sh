@@ -1,15 +1,15 @@
 #!/bin/sh
-# Straddle CLI installer — https://github.com/straddle-build/cli
+# Straddle CLI installer — https://github.com/straddle-build/straddle-cli
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/straddle-build/cli/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/straddle-build/straddle-cli/main/install.sh | sh
 #
 # Installs the latest released `straddle` binary into
 # ${STRADDLE_INSTALL_DIR:-$HOME/.local/bin} after verifying its sha256
 # against the release's checksums.txt.
 set -eu
 
-REPO="straddle-build/cli"
+REPO="straddle-build/straddle-cli"
 INSTALL_DIR="${STRADDLE_INSTALL_DIR:-$HOME/.local/bin}"
 
 fail() {
