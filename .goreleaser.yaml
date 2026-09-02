@@ -11,7 +11,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/straddle-build/cli/internal/cli.version={{ .Version }}
+      - -s -w -X github.com/straddle-build/straddle-cli/internal/cli.version={{ .Version }}
     targets:
       - darwin_amd64
       - darwin_arm64
@@ -44,7 +44,7 @@ homebrew_casks:
       owner: straddle-build
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    homepage: "https://github.com/straddle-build/cli"
+    homepage: "https://github.com/straddle-build/straddle-cli"
     description: "Human and agent friendly CLI for the Straddle API"
     binaries:
       - straddle

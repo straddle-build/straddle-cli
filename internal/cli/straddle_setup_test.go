@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/straddle-build/cli/internal/straddleacct"
+	"github.com/straddle-build/straddle-cli/internal/straddleacct"
 )
 
 func TestSetupSetsIntegrationType(t *testing.T) {

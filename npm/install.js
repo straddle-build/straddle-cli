@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Postinstall for @straddleio/cli: downloads the straddle binary for this
+// Postinstall for @straddlecom/cli: downloads the straddle binary for this
 // platform from GitHub Releases, verifies its sha256 against the release
 // checksums.txt, and unpacks it into vendor/. Node builtins only.
 'use strict';
@@ -11,10 +11,10 @@ const { spawnSync } = require('node:child_process');
 
 const pkg = require('./package.json');
 
-const REPO = 'straddle-build/cli';
+const REPO = 'straddle-build/straddle-cli';
 
 function fail(msg) {
-  console.error(`@straddleio/cli install: ${msg}`);
+  console.error(`@straddlecom/cli install: ${msg}`);
   process.exit(1);
 }
 
@@ -39,7 +39,7 @@ async function download(url) {
 async function main() {
   const version = pkg.version;
   if (!version || version === '0.0.0') {
-    fail('package version is unstamped; install a released @straddleio/cli version');
+    fail('package version is unstamped; install a released @straddlecom/cli version');
   }
   const { os, arch } = goPlatform();
   const ext = os === 'windows' ? 'zip' : 'tar.gz';
@@ -92,7 +92,7 @@ async function main() {
   if (!fs.existsSync(binPath)) fail(`archive did not contain ${bin}`);
   fs.chmodSync(binPath, 0o755);
   fs.rmSync(archivePath, { force: true });
-  console.log(`@straddleio/cli: installed straddle v${version} (${os}/${arch})`);
+  console.log(`@straddlecom/cli: installed straddle v${version} (${os}/${arch})`);
 }
 
 main().catch((err) => fail(err && err.message ? err.message : String(err)));

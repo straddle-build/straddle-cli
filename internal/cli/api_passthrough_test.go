@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/straddle-build/cli/internal/straddleacct"
+	"github.com/straddle-build/straddle-cli/internal/straddleacct"
 )
 
 func runRootForAPITest(t *testing.T, args []string, stdin string) (string, string, error) {

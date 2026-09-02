@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/straddle-build/cli/internal/client"
-	"github.com/straddle-build/cli/internal/config"
+	"github.com/straddle-build/straddle-cli/internal/client"
+	"github.com/straddle-build/straddle-cli/internal/config"
 )
 
 // version is stamped by GoReleaser via ldflags

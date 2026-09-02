@@ -46,10 +46,23 @@ Configure `API_SYNC_BOT_TOKEN` with contents and pull-request write access. It c
 Releases are cut from `main` by tag. A merged version-specific `automation/api-sync-*` PR creates the next patch tag automatically; other releases may still be tagged manually.
 
 1. Push a `vX.Y.Z` tag, or merge the generated contract synchronization PR.
-2. `.github/workflows/release.yml` runs tests, then GoReleaser publishes the GitHub release (6 os/arch archives + `checksums.txt`) and publishes the `@straddleio/cli` npm wrapper when `NPM_TOKEN` is configured. GoReleaser publishes the Homebrew cask when `HOMEBREW_TAP_GITHUB_TOKEN` is configured.
-3. `install.sh` and `go install github.com/straddle-build/cli/cmd/straddle@latest` resolve the new release with no further action.
+2. `.github/workflows/release.yml` runs tests, then GoReleaser publishes the GitHub release (6 os/arch archives + `checksums.txt`) and publishes the `@straddlecom/cli` npm wrapper using npm trusted publishing. An npm publication failure fails the workflow. GoReleaser publishes the Homebrew cask when `HOMEBREW_TAP_GITHUB_TOKEN` is configured.
+3. `install.sh` and `go install github.com/straddle-build/straddle-cli/cmd/straddle@latest` resolve the new release with no further action.
 
 Local dry run: `make release-snapshot` builds everything into `dist/` without publishing.
+
+### npm setup (once per package)
+
+The CLI is `@straddlecom/cli`; `@straddlecom/straddle` remains the TypeScript SDK. npm permissions belong to each package, so the SDK's trusted-publisher connection does not authorize CLI releases.
+
+Before the first automated CLI release, an npm maintainer must publish `@straddlecom/cli@1.0.2` from `npm/`, aligned with Scalar contract 1.0.2. Do not bootstrap 0.1.1, any other version, or the placeholder `0.0.0`. Then configure the CLI package's Settings > Trusted Publisher for GitHub Actions:
+
+- Organization: `straddle-build`
+- Repository: `straddle-cli`
+- Workflow filename: `release.yml`
+- Environment: leave blank (the release job does not use a GitHub environment)
+
+Allow `npm publish` in that connection. Subsequent CLI releases authenticate through GitHub OIDC without an `NPM_TOKEN`. See [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/). Verify an actual automated publication before treating npm delivery as connected.
 
 ## Dependency maintenance
 

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/straddle-build/cli/internal/config"
+	"github.com/straddle-build/straddle-cli/internal/config"
 )
 
 // recordingRoundTripper counts how many times its RoundTrip method is
