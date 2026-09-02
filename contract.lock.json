@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "contract_version": "1.0.1",
-  "registry_ref": "@straddle/straddle-api@1.0.1",
-  "published_sha256": "36e4dc19883723ddb76fe6036584914aef14f77f5851d8f37b73791fdc93545e"
+  "contract_version": "1.0.2",
+  "registry_ref": "@straddle/straddle-api@1.0.2",
+  "published_sha256": "aa9714ab375c4a678a2c6784fc79e88bd4565b9167555f2152df73c1c8b16512"
 }
