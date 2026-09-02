@@ -55,7 +55,7 @@ Local dry run: `make release-snapshot` builds everything into `dist/` without pu
 
 The CLI is `@straddlecom/cli`; `@straddlecom/straddle` remains the TypeScript SDK. npm permissions belong to each package, so the SDK's trusted-publisher connection does not authorize CLI releases.
 
-Before the first automated CLI release, an npm maintainer must publish the wrapper from `npm/` with its version stamped to an existing GitHub release tag. Do not publish the placeholder `0.0.0`. Then configure the CLI package's Settings > Trusted Publisher for GitHub Actions:
+Before the first automated CLI release, an npm maintainer must publish `@straddlecom/cli@1.0.2` from `npm/`, aligned with Scalar contract 1.0.2. Do not bootstrap 0.1.1, any other version, or the placeholder `0.0.0`. Then configure the CLI package's Settings > Trusted Publisher for GitHub Actions:
 
 - Organization: `straddle-build`
 - Repository: `straddle-cli`
