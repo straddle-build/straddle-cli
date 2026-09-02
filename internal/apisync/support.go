@@ -30,6 +30,18 @@ func UnsupportedReasons(op Operation) []string {
 		default:
 			reasons = append(reasons, "unsupported parameter location "+param.In+" for "+param.Name)
 		}
+		if param.SchemaType != "" && param.SchemaType != "string" && param.SchemaType != "integer" && param.SchemaType != "number" && param.SchemaType != "boolean" {
+			reasons = append(reasons, fmt.Sprintf("%s parameter %q uses unsupported schema type %s", param.In, param.Name, param.SchemaType))
+		}
+		if param.Style != "" {
+			expectedStyle := "form"
+			if param.In == "path" || param.In == "header" {
+				expectedStyle = "simple"
+			}
+			if param.Style != expectedStyle {
+				reasons = append(reasons, fmt.Sprintf("%s parameter %q uses unsupported style %s", param.In, param.Name, param.Style))
+			}
+		}
 	}
 	reasons = append(reasons, generatedParameterUnsupportedReasons(op)...)
 	if strings.TrimSpace(op.RequestBodyRef) != "" {

@@ -20,7 +20,7 @@ func newChargesHoldChargeCmd(flags *rootFlags) *cobra.Command {
 		Aliases:     []string{"update"},
 		Short:       "Place a charge on hold to prevent it from being originated for processing. The status of the charge must be...",
 		Example:     "  straddle charges hold charge 550e8400-e29b-41d4-a716-446655440000",
-		Annotations: map[string]string{"straddle:endpoint": "hold.charge", "straddle:method": "PUT", "straddle:path": "/v1/charges/{id}/hold"},
+		Annotations: map[string]string{"straddle:endpoint": "hold.charge", "straddle:operation-id": "holdCharge", "straddle:method": "PUT", "straddle:path": "/v1/charges/{id}/hold"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()

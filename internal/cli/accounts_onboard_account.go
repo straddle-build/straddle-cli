@@ -24,7 +24,7 @@ func newAccountsOnboardAccountCmd(flags *rootFlags) *cobra.Command {
 		Aliases:     []string{"create"},
 		Short:       "Initiates the onboarding process for a new account. This endpoint can only be used for accounts where at least one...",
 		Example:     "  straddle accounts onboard account 550e8400-e29b-41d4-a716-446655440000",
-		Annotations: map[string]string{"straddle:endpoint": "onboard.account", "straddle:method": "POST", "straddle:path": "/v1/accounts/{account_id}/onboard"},
+		Annotations: map[string]string{"straddle:endpoint": "onboard.account", "straddle:operation-id": "onboardAccount", "straddle:method": "POST", "straddle:path": "/v1/accounts/{account_id}/onboard"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()

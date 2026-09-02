@@ -34,7 +34,7 @@ The main entrypoints and packages are:
 ## What to know before changing code
 
 - The repository is maintained as a standalone Go CLI with source, docs, and release config in this repo.
-- `spec.json` is the API lockfile; `cmd/gen-endpoint` keeps endpoint coverage and drift visible.
+- `spec.yaml` is the exact Scalar contract named by `contract.lock.json`; `cmd/gen-endpoint` keeps endpoint coverage and drift visible.
 - Human CLI output and agent/JSON output are both intentional surfaces and should not drift casually.
 - `Straddle-Account-Id` behavior is business-critical: it depends on the integration type (`account`, `saas`, `marketplace`) and the operation being called.
 - The local SQLite store is part of the product, not a cache detail. Several commands assume it exists after `sync`.

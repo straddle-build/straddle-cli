@@ -4,18 +4,30 @@ package apisync
 import "sort"
 
 type CheckResult struct {
-	OK                   bool              `json:"ok"`
-	SpecOperations       int               `json:"spec_operations"`
-	AnnotatedEndpoints   int               `json:"annotated_endpoints"`
-	Missing              []Operation       `json:"missing,omitempty"`
-	Extra                []Annotation      `json:"extra,omitempty"`
-	DuplicateAnnotations []Duplicate       `json:"duplicate_annotations,omitempty"`
-	InvalidAnnotations   []AnnotationIssue `json:"invalid_annotations,omitempty"`
+	OK                    bool                   `json:"ok"`
+	SpecOperations        int                    `json:"spec_operations"`
+	AnnotatedEndpoints    int                    `json:"annotated_endpoints"`
+	Missing               []Operation            `json:"missing,omitempty"`
+	Extra                 []Annotation           `json:"extra,omitempty"`
+	DuplicateAnnotations  []Duplicate            `json:"duplicate_annotations,omitempty"`
+	InvalidAnnotations    []AnnotationIssue      `json:"invalid_annotations,omitempty"`
+	OperationIDMismatches []OperationIDMismatch  `json:"operation_id_mismatches,omitempty"`
+	UnsupportedOperations []UnsupportedOperation `json:"unsupported_operations,omitempty"`
+}
+
+type OperationIDMismatch struct {
+	Key                 string     `json:"key"`
+	ContractOperationID string     `json:"contract_operation_id"`
+	Annotation          Annotation `json:"annotation"`
 }
 
 type Duplicate struct {
 	Key         string       `json:"key"`
 	Annotations []Annotation `json:"annotations"`
+}
+
+func (result CheckResult) HasBlockingIssues() bool {
+	return len(result.Missing) > 0 || len(result.DuplicateAnnotations) > 0 || len(result.InvalidAnnotations) > 0
 }
 
 func CheckSpecAgainstRepo(specPath, repo string) (CheckResult, error) {
@@ -27,13 +39,30 @@ func CheckSpecAgainstRepo(specPath, repo string) (CheckResult, error) {
 	if err != nil {
 		return CheckResult{}, err
 	}
-	return CheckCoverage(ops, inv), nil
+	covered := make(map[string]bool, len(inv.Annotations))
+	for _, annotation := range inv.Annotations {
+		if !annotation.Internal {
+			covered[OperationKey(annotation.Method, annotation.Path)] = true
+		}
+	}
+	supported := make([]Operation, 0, len(ops))
+	unsupported := make([]UnsupportedOperation, 0)
+	for _, op := range ops {
+		if reasons := UnsupportedReasons(op); len(reasons) > 0 && !covered[op.Key] {
+			unsupported = append(unsupported, UnsupportedOperation{Operation: op, Reasons: reasons})
+			continue
+		}
+		supported = append(supported, op)
+	}
+	result := CheckCoverage(supported, inv)
+	result.SpecOperations = len(ops)
+	result.UnsupportedOperations = unsupported
+	return result, nil
 }
 
 func CheckCoverage(ops []Operation, inv Inventory) CheckResult {
 	result := CheckResult{
 		SpecOperations:     len(ops),
-		AnnotatedEndpoints: len(inv.Annotations),
 		InvalidAnnotations: append([]AnnotationIssue(nil), inv.Issues...),
 	}
 
@@ -43,10 +72,20 @@ func CheckCoverage(ops []Operation, inv Inventory) CheckResult {
 	}
 	annotationsByKey := make(map[string][]Annotation, len(inv.Annotations))
 	for _, annotation := range inv.Annotations {
+		if annotation.Internal {
+			continue
+		}
+		result.AnnotatedEndpoints++
 		key := OperationKey(annotation.Method, annotation.Path)
 		annotationsByKey[key] = append(annotationsByKey[key], annotation)
-		if _, ok := specByKey[key]; !ok {
+		if op, ok := specByKey[key]; !ok {
 			result.Extra = append(result.Extra, annotation)
+		} else if annotation.OperationID != op.OperationID {
+			result.OperationIDMismatches = append(result.OperationIDMismatches, OperationIDMismatch{
+				Key:                 key,
+				ContractOperationID: op.OperationID,
+				Annotation:          annotation,
+			})
 		}
 	}
 	for _, op := range ops {
@@ -61,6 +100,7 @@ func CheckCoverage(ops []Operation, inv Inventory) CheckResult {
 	}
 	sort.Slice(result.Extra, func(i, j int) bool { return result.Extra[i].File < result.Extra[j].File })
 	sort.Slice(result.DuplicateAnnotations, func(i, j int) bool { return result.DuplicateAnnotations[i].Key < result.DuplicateAnnotations[j].Key })
-	result.OK = len(result.Missing) == 0 && len(result.Extra) == 0 && len(result.DuplicateAnnotations) == 0 && len(result.InvalidAnnotations) == 0
+	sort.Slice(result.OperationIDMismatches, func(i, j int) bool { return result.OperationIDMismatches[i].Key < result.OperationIDMismatches[j].Key })
+	result.OK = len(result.Missing) == 0 && len(result.Extra) == 0 && len(result.DuplicateAnnotations) == 0 && len(result.InvalidAnnotations) == 0 && len(result.OperationIDMismatches) == 0
 	return result
 }

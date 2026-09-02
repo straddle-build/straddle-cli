@@ -20,7 +20,7 @@ func newFundingEventsCreateCmd(flags *rootFlags) *cobra.Command {
 		Use:         "create",
 		Short:       "Simulate a funding event for testing. This endpoint can only be used in the sandbox environment.",
 		Example:     "  straddle funding-events create --funding-event-job-type charges",
-		Annotations: map[string]string{"straddle:endpoint": "funding-events.create", "straddle:method": "POST", "straddle:path": "/v1/funding_events/simulate"},
+		Annotations: map[string]string{"straddle:endpoint": "funding-events.create", "straddle:operation-id": "simulateFundingEvent", "straddle:method": "POST", "straddle:path": "/v1/funding_events/simulate"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !stdinBody {
 				if !cmd.Flags().Changed("funding-event-job-type") && !flags.dryRun {

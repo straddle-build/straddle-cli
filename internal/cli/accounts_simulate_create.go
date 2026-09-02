@@ -19,7 +19,7 @@ func newAccountsSimulateCreateCmd(flags *rootFlags) *cobra.Command {
 		Use:         "create <account_id>",
 		Short:       "Simulate the status transitions for sandbox accounts. This endpoint can only be used for sandbox accounts.",
 		Example:     "  straddle accounts simulate create 550e8400-e29b-41d4-a716-446655440000",
-		Annotations: map[string]string{"straddle:endpoint": "simulate.create", "straddle:method": "POST", "straddle:path": "/v1/accounts/{account_id}/simulate"},
+		Annotations: map[string]string{"straddle:endpoint": "simulate.create", "straddle:operation-id": "simulateAccountOnboarding", "straddle:method": "POST", "straddle:path": "/v1/accounts/{account_id}/simulate"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()

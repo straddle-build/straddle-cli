@@ -29,6 +29,33 @@ jobs:
       - name: Test
         run: go test ./...
 
+      - name: Verify API contract lock
+        run: go run ./cmd/gen-endpoint verify-lock --lock contract.lock.json --spec spec.yaml
+
+      - name: Reject API contract downgrades
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+
+          if ! git cat-file -e "${BASE_SHA}:contract.lock.json" 2>/dev/null; then
+            echo "Base branch has no contract lock; accepting the initial pinned contract."
+            exit 0
+          fi
+
+          base_lock="${RUNNER_TEMP}/base-contract.lock.json"
+          base_spec="${RUNNER_TEMP}/base-spec.yaml"
+          git show "${BASE_SHA}:contract.lock.json" > "${base_lock}"
+          git show "${BASE_SHA}:spec.yaml" > "${base_spec}"
+          go run ./cmd/gen-endpoint verify-lock --lock "${base_lock}" --spec "${base_spec}" >/dev/null
+
+          proposed_version="$(go run ./cmd/gen-endpoint version --spec spec.yaml)"
+          go run ./cmd/gen-endpoint candidate-status \
+            --lock "${base_lock}" \
+            --spec spec.yaml \
+            --version "${proposed_version}" >/dev/null
+
       - name: Lint
         uses: golangci/golangci-lint-action@v9
         with:

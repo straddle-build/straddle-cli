@@ -3,79 +3,432 @@
 package apisync_test
 
 import (
+	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/straddle-build/cli/internal/apisync"
+	"sigs.k8s.io/yaml"
 )
 
 func TestCurrentSpecOperationsAreCoveredByCheckedInAnnotations(t *testing.T) {
 	t.Parallel()
 
 	repo := testRepoRoot(t)
-	ops, err := apisync.LoadSpec(filepath.Join(repo, "spec.json"))
+	result, err := apisync.CheckSpecAgainstRepo(filepath.Join(repo, "spec.yaml"), repo)
 	if err != nil {
-		t.Fatalf("LoadSpec(spec.json): %v", err)
+		t.Fatalf("CheckSpecAgainstRepo: %v", err)
 	}
-	inventory, err := apisync.InventoryRepo(repo)
-	if err != nil {
-		t.Fatalf("InventoryRepo(%q): %v", repo, err)
+	allowReviewDrift := os.Getenv("STRADDLE_API_SYNC_REVIEW") == "true"
+	if !coverageAccepted(result, allowReviewDrift) {
+		t.Fatalf("current spec coverage failed: missing=%d extra=%d duplicate=%d invalid=%d operation_id_mismatch=%d", len(result.Missing), len(result.Extra), len(result.DuplicateAnnotations), len(result.InvalidAnnotations), len(result.OperationIDMismatches))
 	}
-
-	result := apisync.CheckCoverage(ops, inventory)
-	if !result.OK {
-		t.Fatalf("current spec coverage failed: missing=%d extra=%d duplicate=%d invalid=%d", len(result.Missing), len(result.Extra), len(result.DuplicateAnnotations), len(result.InvalidAnnotations))
+	if !unsupportedInventoryAccepted(len(result.UnsupportedOperations), allowReviewDrift) {
+		t.Fatalf("unsupported operations = %d, want two multipart upload operations", len(result.UnsupportedOperations))
 	}
 }
 
-func TestAPISyncWorkflowOnlyUpdatesLockfileForPureSupportedAdditions(t *testing.T) {
+func TestAPISyncReviewModeAllowsOnlyRemovedOrRenamedOperations(t *testing.T) {
 	t.Parallel()
 
-	repo := testRepoRoot(t)
-	data, err := os.ReadFile(filepath.Join(repo, ".github", "workflows", "api-sync.yml"))
-	if err != nil {
-		t.Fatalf("read api sync workflow: %v", err)
+	reviewable := apisync.CheckResult{
+		Extra:                 []apisync.Annotation{{File: "removed.go"}},
+		OperationIDMismatches: []apisync.OperationIDMismatch{{Key: "GET /v1/widgets"}},
 	}
-	workflow := string(data)
-	for _, want := range []string{
-		"      - name: Generate supported endpoint additions\n        if: steps.drift.outputs.supported_additions != '0' && steps.drift.outputs.human_review_count == '0'",
-		"      - name: Update spec lockfile\n        if: steps.drift.outputs.supported_additions != '0' && steps.drift.outputs.human_review_count == '0'",
-		"      - name: Validate generated endpoint coverage\n        if: steps.drift.outputs.supported_additions != '0' && steps.drift.outputs.human_review_count == '0'",
-		"go run ./cmd/gen-endpoint check",
-		"${{ runner.temp }}/api-sync-coverage.json",
-		`echo "- Supported additions: ${{ steps.drift.outputs.supported_additions }}"`,
-	} {
-		if !strings.Contains(workflow, want) {
-			t.Fatalf("api sync workflow missing %q", want)
+	if coverageAccepted(reviewable, false) {
+		t.Fatal("strict coverage accepted review-only drift")
+	}
+	if !coverageAccepted(reviewable, true) {
+		t.Fatal("API sync review mode rejected removed or renamed operations")
+	}
+	reviewable.Missing = []apisync.Operation{{Key: "POST /v1/widgets"}}
+	if coverageAccepted(reviewable, true) {
+		t.Fatal("API sync review mode accepted a missing supported operation")
+	}
+	if unsupportedInventoryAccepted(3, false) {
+		t.Fatal("strict coverage accepted an unexpected unsupported operation")
+	}
+	if !unsupportedInventoryAccepted(3, true) {
+		t.Fatal("API sync review mode rejected an unsupported operation for human review")
+	}
+}
+
+func coverageAccepted(result apisync.CheckResult, allowReviewDrift bool) bool {
+	if result.HasBlockingIssues() {
+		return false
+	}
+	return allowReviewDrift || result.OK
+}
+
+func unsupportedInventoryAccepted(count int, allowReviewDrift bool) bool {
+	return allowReviewDrift || count == 2
+}
+
+func TestParseSpecLoadsYAMLAndResolvesSharedParameters(t *testing.T) {
+	t.Parallel()
+
+	operations, err := apisync.ParseSpec([]byte(`
+openapi: 3.1.0
+info: {version: 1.2.3}
+paths:
+  /v1/widgets/{id}:
+    get:
+      tags: [widgets]
+      operationId: getWidget
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - {$ref: '#/components/parameters/RequestId'}
+components:
+  parameters:
+    RequestId:
+      name: Request-Id
+      in: header
+      schema: {type: string}
+`))
+	if err != nil {
+		t.Fatalf("ParseSpec: %v", err)
+	}
+	if len(operations) != 1 {
+		t.Fatalf("operations = %d, want 1", len(operations))
+	}
+	operation := operations[0]
+	if operation.OperationID != "getWidget" || len(operation.PathParameters) != 1 || len(operation.HeaderParameters) != 1 {
+		t.Fatalf("operation = %#v", operation)
+	}
+	if operation.HeaderParameters[0].Name != "Request-Id" {
+		t.Fatalf("header parameter = %#v, want resolved Request-Id", operation.HeaderParameters[0])
+	}
+}
+
+func TestCheckCoverageUsesOperationIDsAndIgnoresInternalCommands(t *testing.T) {
+	t.Parallel()
+
+	operations := []apisync.Operation{{Key: "GET /v1/widgets", OperationID: "getWidget", Method: "GET", Path: "/v1/widgets"}}
+	inventory := apisync.Inventory{Annotations: []apisync.Annotation{
+		{OperationID: "wrongOperation", Method: "GET", Path: "/v1/widgets", File: "widgets.go"},
+		{Method: "POST", Path: "/v1/internal", File: "internal.go", Internal: true},
+	}}
+	result := apisync.CheckCoverage(operations, inventory)
+	if result.OK || len(result.OperationIDMismatches) != 1 {
+		t.Fatalf("result = %#v, want one operationId mismatch", result)
+	}
+	if len(result.Extra) != 0 || result.AnnotatedEndpoints != 1 {
+		t.Fatalf("internal command affected contract coverage: %#v", result)
+	}
+}
+
+func TestAPISyncWorkflowAlwaysProposesNewPublishedContracts(t *testing.T) {
+	t.Parallel()
+
+	workflow := readWorkflow(t, filepath.Join(testRepoRoot(t), ".github", "workflows", "api-sync.yml"))
+	if len(workflow.On.Schedule) != 1 {
+		t.Fatalf("schedule triggers = %d, want 1", len(workflow.On.Schedule))
+	}
+	if got := workflow.On.RepositoryDispatch.Types; len(got) != 1 || got[0] != "straddle-contract-published" {
+		t.Fatalf("repository dispatch types = %#v", got)
+	}
+	versionInput := workflow.On.WorkflowDispatch.Inputs["contract_version"]
+	if !versionInput.Required || versionInput.Type != "string" {
+		t.Fatalf("contract_version input = %#v, want required string", versionInput)
+	}
+
+	steps := stepsByName(workflow.Jobs["sync"])
+	if steps["Update pinned contract"].If != "steps.contract.outputs.status == 'new'" {
+		t.Fatalf("update condition = %q", steps["Update pinned contract"].If)
+	}
+	generateCondition := steps["Generate supported endpoint additions"].If
+	if generateCondition != "steps.contract.outputs.status == 'new' && steps.drift.outputs.supported_additions != '0'" {
+		t.Fatalf("generation condition = %q", generateCondition)
+	}
+	openPR := steps["Open contract synchronization pull request"]
+	if openPR.Uses != "peter-evans/create-pull-request@v8" {
+		t.Fatalf("PR action = %q", openPR.Uses)
+	}
+	if openPR.If != "steps.contract.outputs.status == 'new' && env.DRY_RUN != 'true' && env.HAS_API_SYNC_BOT_TOKEN == 'true'" {
+		t.Fatalf("PR condition = %q", openPR.If)
+	}
+	branch, ok := openPR.With["branch"].(string)
+	if !ok || branch != "automation/api-sync-${{ steps.release.outputs.version }}" {
+		t.Fatalf("PR branch = %#v, want a contract-version-specific branch", openPR.With["branch"])
+	}
+	for _, step := range workflow.Jobs["sync"].Steps {
+		if step.Name == "Queue generated PR for auto-merge" {
+			t.Fatal("API sync workflow still auto-merges generated changes")
 		}
 	}
 }
 
-func TestAPISyncWorkflowQueuesGeneratedPullRequestForAutoMerge(t *testing.T) {
+func TestAPISyncWorkflowTreatsOnlyOpenPullRequestsAsPending(t *testing.T) {
+	workflow := readWorkflow(t, filepath.Join(testRepoRoot(t), ".github", "workflows", "api-sync.yml"))
+	script := stepsByName(workflow.Jobs["sync"])["Fetch and verify exact Scalar contract"].Run
+
+	tests := []struct {
+		name         string
+		openPR       string
+		wantStatus   string
+		wantGitCalls []string
+		wantGoCalls  []string
+	}{
+		{
+			name:       "closed PR with retained branch is proposed again",
+			wantStatus: "status=new",
+			wantGoCalls: []string{
+				"run ./cmd/gen-endpoint candidate-status --lock contract.lock.json --spec PUBLISHED --version 1.2.3",
+			},
+		},
+		{
+			name:       "open PR with identical contract is pending",
+			openPR:     "42",
+			wantStatus: "status=current",
+			wantGitCalls: []string{
+				"fetch --no-tags origin refs/heads/automation/api-sync-1.2.3:refs/remotes/origin/automation/api-sync-1.2.3",
+				"show refs/remotes/origin/automation/api-sync-1.2.3:contract.lock.json",
+				"show refs/remotes/origin/automation/api-sync-1.2.3:spec.yaml",
+			},
+			wantGoCalls: []string{
+				"run ./cmd/gen-endpoint candidate-status --lock contract.lock.json --spec PUBLISHED --version 1.2.3",
+				"run ./cmd/gen-endpoint verify-lock --lock PENDING_LOCK --spec PENDING_SPEC",
+				"run ./cmd/gen-endpoint candidate-status --lock PENDING_LOCK --spec PUBLISHED --version 1.2.3",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			temp := t.TempDir()
+			output := filepath.Join(temp, "output")
+			gitLog := filepath.Join(temp, "git.log")
+			goLog := filepath.Join(temp, "go.log")
+			runWorkflowScript(t, script, map[string]string{
+				"CONTRACT_VERSION": "1.2.3",
+				"EXPECTED_SHA256":  "",
+				"GITHUB_OUTPUT":    output,
+				"RUNNER_TEMP":      temp,
+				"MOCK_OPEN_PR":     tt.openPR,
+				"MOCK_GIT_LOG":     gitLog,
+				"MOCK_GO_LOG":      goLog,
+			}, map[string]string{
+				"curl": `while [ "$#" -gt 0 ]; do if [ "$1" = "--output" ]; then shift; printf 'info: {version: 1.2.3}\n' > "$1"; exit 0; fi; shift; done`,
+				"gh":   `printf '%s\n' "${MOCK_OPEN_PR}"`,
+				"git":  `printf '%s\n' "$*" >> "${MOCK_GIT_LOG}"; if [ "$1" = "show" ]; then printf 'fixture\n'; fi`,
+				"go": `printf '%s\n' "$*" | sed -e "s#${RUNNER_TEMP}/published.openapi.yaml#PUBLISHED#g" -e "s#${RUNNER_TEMP}/pending-contract.lock.json#PENDING_LOCK#g" -e "s#${RUNNER_TEMP}/pending-spec.yaml#PENDING_SPEC#g" >> "${MOCK_GO_LOG}"
+count_file="${RUNNER_TEMP}/candidate-count"
+if [ "$3" = "candidate-status" ]; then
+  count=0; [ ! -f "${count_file}" ] || count="$(cat "${count_file}")"; count=$((count + 1)); printf '%s' "${count}" > "${count_file}"
+  if [ "${count}" -eq 1 ]; then printf 'new\n'; else printf 'current\n'; fi
+fi`,
+			})
+
+			if got := readLines(t, output)[0]; got != tt.wantStatus {
+				t.Fatalf("status output = %q, want %q", got, tt.wantStatus)
+			}
+			if got := readLinesIfExists(t, gitLog); !reflect.DeepEqual(got, tt.wantGitCalls) {
+				t.Fatalf("git calls = %#v, want %#v", got, tt.wantGitCalls)
+			}
+			if got := readLines(t, goLog); !reflect.DeepEqual(got, tt.wantGoCalls) {
+				t.Fatalf("go calls = %#v, want %#v", got, tt.wantGoCalls)
+			}
+		})
+	}
+}
+
+func TestAPISyncWorkflowVerifiesReviewableDrift(t *testing.T) {
+	workflow := readWorkflow(t, filepath.Join(testRepoRoot(t), ".github", "workflows", "api-sync.yml"))
+	script := stepsByName(workflow.Jobs["sync"])["Verify synchronized CLI"].Run
+	temp := t.TempDir()
+	goLog := filepath.Join(temp, "go.log")
+	runWorkflowScript(t, script, map[string]string{
+		"COVERAGE_JSON": filepath.Join(temp, "coverage.json"),
+		"MOCK_GO_LOG":   goLog,
+	}, map[string]string{
+		"go": `printf 'review=%s args=%s\n' "${STRADDLE_API_SYNC_REVIEW:-}" "$*" >> "${MOCK_GO_LOG}"`,
+	})
+	wantGoCalls := []string{
+		"review= args=run ./cmd/gen-endpoint verify-lock --lock contract.lock.json --spec spec.yaml",
+		"review= args=run ./cmd/gen-endpoint check --spec spec.yaml --repo . --review-drift --agent",
+		"review=true args=test ./...",
+		"review= args=vet ./...",
+	}
+	if got := readLines(t, goLog); !reflect.DeepEqual(got, wantGoCalls) {
+		t.Fatalf("go calls = %#v, want %#v", got, wantGoCalls)
+	}
+}
+
+func TestMergedContractChangeTriggersExistingDistributionWorkflow(t *testing.T) {
 	t.Parallel()
 
 	repo := testRepoRoot(t)
-	data, err := os.ReadFile(filepath.Join(repo, ".github", "workflows", "api-sync.yml"))
-	if err != nil {
-		t.Fatalf("read api sync workflow: %v", err)
+	tagWorkflow := readWorkflow(t, filepath.Join(repo, ".github", "workflows", "api-sync-release.yml"))
+	if got := tagWorkflow.On.Push.Branches; len(got) != 1 || got[0] != "main" {
+		t.Fatalf("release handoff branches = %#v", got)
 	}
-	workflow := string(data)
-	for _, want := range []string{
-		"id: generated_pr",
-		"      - name: Queue generated PR for auto-merge",
-		"if: steps.generated_pr.outputs.pull-request-number != '' && env.DRY_RUN != 'true' && env.HAS_API_SYNC_BOT_TOKEN == 'true'",
-		"GH_TOKEN: ${{ secrets.API_SYNC_BOT_TOKEN }}",
-		"PR_NUMBER: ${{ steps.generated_pr.outputs.pull-request-number }}",
-		"PR_HEAD_SHA: ${{ steps.generated_pr.outputs.pull-request-head-sha }}",
-		"gh pr merge \"${PR_NUMBER}\" --auto --squash --delete-branch --match-head-commit \"${PR_HEAD_SHA}\"",
-	} {
-		if !strings.Contains(workflow, want) {
-			t.Fatalf("api sync workflow missing %q", want)
+	if got := tagWorkflow.On.Push.Paths; len(got) != 1 || got[0] != "contract.lock.json" {
+		t.Fatalf("release handoff paths = %#v", got)
+	}
+	tagJob := tagWorkflow.Jobs["tag"]
+	steps := stepsByName(tagJob)
+	if steps["Create patch release tag"].If != "steps.version.outputs.already_tagged != 'true'" {
+		t.Fatalf("tag creation condition = %q", steps["Create patch release tag"].If)
+	}
+	temp := t.TempDir()
+	gitLog := filepath.Join(temp, "git.log")
+	runWorkflowScript(t, steps["Create patch release tag"].Run, map[string]string{
+		"GITHUB_STEP_SUMMARY": filepath.Join(temp, "summary"),
+		"MOCK_GIT_LOG":        gitLog,
+		"RELEASE_SHA":         "abc123",
+		"RELEASE_TAG":         "v1.2.4",
+	}, map[string]string{"git": `printf '%s\n' "$*" >> "${MOCK_GIT_LOG}"`})
+	wantGitCalls := []string{"tag v1.2.4 abc123", "push origin refs/tags/v1.2.4"}
+	if got := readLines(t, gitLog); !reflect.DeepEqual(got, wantGitCalls) {
+		t.Fatalf("git calls = %#v, want %#v", got, wantGitCalls)
+	}
+
+	releaseWorkflow := readWorkflow(t, filepath.Join(repo, ".github", "workflows", "release.yml"))
+	if got := releaseWorkflow.On.Push.Tags; len(got) != 1 || got[0] != "v*" {
+		t.Fatalf("release tag triggers = %#v", got)
+	}
+}
+
+func TestPullRequestCIRejectsContractDowngrades(t *testing.T) {
+	t.Parallel()
+
+	workflow := readWorkflow(t, filepath.Join(testRepoRoot(t), ".github", "workflows", "ci.yml"))
+	steps := stepsByName(workflow.Jobs["validate"])
+	downgradeCheck := steps["Reject API contract downgrades"]
+	if downgradeCheck.If != "github.event_name == 'pull_request'" {
+		t.Fatalf("downgrade check condition = %q", downgradeCheck.If)
+	}
+	if downgradeCheck.Env["BASE_SHA"] != "${{ github.event.pull_request.base.sha }}" {
+		t.Fatalf("downgrade check base SHA = %q", downgradeCheck.Env["BASE_SHA"])
+	}
+	temp := t.TempDir()
+	goLog := filepath.Join(temp, "go.log")
+	runWorkflowScript(t, downgradeCheck.Run, map[string]string{
+		"BASE_SHA":    "base123",
+		"RUNNER_TEMP": temp,
+		"MOCK_GO_LOG": goLog,
+	}, map[string]string{
+		"git": `if [ "$1" = "cat-file" ]; then exit 0; fi; if [ "$1" = "show" ]; then printf 'fixture\n'; fi`,
+		"go":  `printf '%s\n' "$*" | sed -e "s#${RUNNER_TEMP}/base-contract.lock.json#BASE_LOCK#g" -e "s#${RUNNER_TEMP}/base-spec.yaml#BASE_SPEC#g" >> "${MOCK_GO_LOG}"; if [ "$3" = "version" ]; then printf '1.2.3\n'; fi`,
+	})
+	wantGoCalls := []string{
+		"run ./cmd/gen-endpoint verify-lock --lock BASE_LOCK --spec BASE_SPEC",
+		"run ./cmd/gen-endpoint version --spec spec.yaml",
+		"run ./cmd/gen-endpoint candidate-status --lock BASE_LOCK --spec spec.yaml --version 1.2.3",
+	}
+	if got := readLines(t, goLog); !reflect.DeepEqual(got, wantGoCalls) {
+		t.Fatalf("go calls = %#v, want %#v", got, wantGoCalls)
+	}
+}
+
+type workflowDocument struct {
+	On struct {
+		Schedule []struct {
+			Cron string `json:"cron"`
+		} `json:"schedule"`
+		WorkflowDispatch struct {
+			Inputs map[string]struct {
+				Required bool   `json:"required"`
+				Type     string `json:"type"`
+			} `json:"inputs"`
+		} `json:"workflow_dispatch"`
+		RepositoryDispatch struct {
+			Types []string `json:"types"`
+		} `json:"repository_dispatch"`
+		PullRequest struct {
+			Types []string `json:"types"`
+		} `json:"pull_request"`
+		Push struct {
+			Tags     []string `json:"tags"`
+			Branches []string `json:"branches"`
+			Paths    []string `json:"paths"`
+		} `json:"push"`
+	} `json:"on"`
+	Jobs map[string]workflowJob `json:"jobs"`
+}
+
+type workflowJob struct {
+	If    string         `json:"if"`
+	Steps []workflowStep `json:"steps"`
+}
+
+type workflowStep struct {
+	Name string            `json:"name"`
+	If   string            `json:"if"`
+	Uses string            `json:"uses"`
+	Run  string            `json:"run"`
+	Env  map[string]string `json:"env"`
+	With map[string]any    `json:"with"`
+}
+
+func readWorkflow(t *testing.T, path string) workflowDocument {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read workflow %s: %v", path, err)
+	}
+	jsonData, err := yaml.YAMLToJSON(data)
+	if err != nil {
+		t.Fatalf("parse workflow %s: %v", path, err)
+	}
+	var workflow workflowDocument
+	if err := json.Unmarshal(jsonData, &workflow); err != nil {
+		t.Fatalf("decode workflow %s: %v", path, err)
+	}
+	return workflow
+}
+
+func stepsByName(job workflowJob) map[string]workflowStep {
+	steps := make(map[string]workflowStep, len(job.Steps))
+	for _, step := range job.Steps {
+		steps[step.Name] = step
+	}
+	return steps
+}
+
+func runWorkflowScript(t *testing.T, script string, env map[string]string, stubs map[string]string) {
+	t.Helper()
+	binDir := filepath.Join(t.TempDir(), "bin")
+	if err := os.Mkdir(binDir, 0o755); err != nil {
+		t.Fatalf("create stub bin: %v", err)
+	}
+	for name, body := range stubs {
+		path := filepath.Join(binDir, name)
+		if err := os.WriteFile(path, []byte("#!/bin/bash\nset -euo pipefail\n"+body+"\n"), 0o755); err != nil {
+			t.Fatalf("write %s stub: %v", name, err)
 		}
 	}
+	cmd := exec.Command("bash", "-c", script)
+	cmd.Dir = testRepoRoot(t)
+	cmd.Env = append(os.Environ(), "PATH="+binDir+":"+os.Getenv("PATH"))
+	for key, value := range env {
+		cmd.Env = append(cmd.Env, key+"="+value)
+	}
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("execute workflow step: %v\n%s", err, output)
+	}
+}
+
+func readLines(t *testing.T, path string) []string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	return strings.Split(strings.TrimSpace(string(data)), "\n")
+}
+
+func readLinesIfExists(t *testing.T, path string) []string {
+	t.Helper()
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return nil
+	}
+	return readLines(t, path)
 }
 
 func TestClassifyDriftReportsUnsupportedNonJSONRequestBodyAddition(t *testing.T) {

@@ -21,7 +21,7 @@ func newChargesResubmitCreateCmd(flags *rootFlags) *cobra.Command {
 		Use:         "create <id>",
 		Short:       "Resubmit a failed or reversed charge.",
 		Example:     "  straddle charges resubmit create 550e8400-e29b-41d4-a716-446655440000",
-		Annotations: map[string]string{"straddle:endpoint": "resubmit.create", "straddle:method": "POST", "straddle:path": "/v1/charges/{id}/resubmit"},
+		Annotations: map[string]string{"straddle:endpoint": "resubmit.create", "straddle:operation-id": "resubmitCharge", "straddle:method": "POST", "straddle:path": "/v1/charges/{id}/resubmit"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()

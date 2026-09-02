@@ -31,7 +31,7 @@ func newCustomersUpdateCmd(flags *rootFlags) *cobra.Command {
 		Use:         "update <id>",
 		Short:       "Updates an existing customer's information. This endpoint allows you to modify the customer's contact details, PII,...",
 		Example:     "  straddle customers update 550e8400-e29b-41d4-a716-446655440000 --email user@example.com",
-		Annotations: map[string]string{"straddle:endpoint": "customers.update", "straddle:method": "PUT", "straddle:path": "/v1/customers/{id}"},
+		Annotations: map[string]string{"straddle:endpoint": "customers.update", "straddle:operation-id": "updateCustomer", "straddle:method": "PUT", "straddle:path": "/v1/customers/{id}"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()

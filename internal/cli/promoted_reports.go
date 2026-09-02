@@ -17,7 +17,7 @@ func newReportsPromotedCmd(flags *rootFlags) *cobra.Command {
 		Short:       "Create",
 		Long:        "Shortcut for 'reports create'. Create",
 		Example:     "  straddle reports",
-		Annotations: map[string]string{"straddle:endpoint": "reports.create", "straddle:method": "POST", "straddle:path": "/v1/reports/total_customers_by_status"},
+		Annotations: map[string]string{"straddle:endpoint": "reports.create", "straddle:method": "POST", "straddle:path": "/v1/reports/total_customers_by_status", "straddle:contract": "internal"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := flags.newClient()
 			if err != nil {

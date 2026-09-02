@@ -33,6 +33,7 @@ func TestGeneratedEndpointRegistryInstallsExistingAndHiddenParents(t *testing.T)
 	widgets := generatedTestChild(root, "widgets")
 	if widgets == nil {
 		t.Fatal("generated widgets parent command not found")
+		return
 	}
 	if !widgets.Hidden {
 		t.Fatal("generated widgets parent is not hidden")

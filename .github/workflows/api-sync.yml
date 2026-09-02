@@ -1,294 +1,252 @@
 name: API Sync
 
-on:
+"on":
   schedule:
     - cron: "23 7 * * *"
   workflow_dispatch:
     inputs:
-      spec_url:
-        description: "Optional live OpenAPI spec URL. Overrides STRADDLE_API_SPEC_URL for this run."
-        required: false
+      contract_version:
+        description: "Exact released Scalar contract version (X.Y.Z)."
+        required: true
         type: string
       dry_run:
-        description: "Skip remote PR/issue creation even when API_SYNC_BOT_TOKEN is configured."
+        description: "Verify and generate without opening a pull request."
         required: false
         default: false
         type: boolean
   repository_dispatch:
-    types:
-      - straddle-api-spec-published
-      - api-sync
+    types: [straddle-contract-published]
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: api-sync
   cancel-in-progress: false
 
 env:
-  # ME-343 interim source contract: set STRADDLE_API_SPEC_URL to the current
-  # Stainless/GCS OpenAPI artifact URL as a repo variable or secret. ME-344
-  # should replace that fallback with the Scalar registry URL, or dispatch this
-  # workflow with client_payload.spec_url when the external publisher lands.
-  LIVE_SPEC_URL: ${{ github.event.client_payload.spec_url || github.event.inputs.spec_url || vars.STRADDLE_API_SPEC_URL || secrets.STRADDLE_API_SPEC_URL }}
   DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
-  # Bot-created PRs that need normal PR CI cannot rely on the default
-  # GITHUB_TOKEN. Configure API_SYNC_BOT_TOKEN as a fine-grained PAT or GitHub
-  # App token with contents and pull-request write access when remote mutation is ready.
   HAS_API_SYNC_BOT_TOKEN: ${{ secrets.API_SYNC_BOT_TOKEN != '' && 'true' || 'false' }}
-  # Issue creation is intentionally opt-in until ME-344 finalizes dispatch and
-  # dedupe policy. Set API_SYNC_CREATE_ISSUES=true once the bot token is ready.
-  CREATE_REMOTE_ISSUES: ${{ vars.API_SYNC_CREATE_ISSUES == 'true' && 'true' || 'false' }}
 
 jobs:
   sync:
-    name: Sync generated API endpoints
+    name: Sync published API contract
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          persist-credentials: false
 
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
 
-      - name: Fetch live OpenAPI spec
-        id: fetch_spec
+      - name: Verify checked-in contract
+        run: go run ./cmd/gen-endpoint verify-lock --lock contract.lock.json --spec spec.yaml
+
+      - name: Resolve exact Scalar version
+        id: release
         shell: bash
+        env:
+          DISPATCH_PAYLOAD: ${{ toJson(github.event.client_payload) }}
+          MANUAL_VERSION: ${{ github.event.inputs.contract_version }}
         run: |
           set -euo pipefail
 
-          if [ -z "${LIVE_SPEC_URL}" ]; then
-            echo "LIVE_SPEC_URL is empty." >&2
-            echo "Set repo variable or secret STRADDLE_API_SPEC_URL to the interim Stainless/GCS artifact URL, pass workflow_dispatch input spec_url, or send repository_dispatch client_payload.spec_url." >&2
+          expected_digest=""
+          if [ "${GITHUB_EVENT_NAME}" = "repository_dispatch" ]; then
+            selected_version="$(jq -er '.contract_version' <<<"${DISPATCH_PAYLOAD}")"
+            expected_digest="$(jq -er '.published_sha256' <<<"${DISPATCH_PAYLOAD}")"
+          elif [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            selected_version="${MANUAL_VERSION}"
+          else
+            discovery="${RUNNER_TEMP}/scalar-current.yaml"
+            curl --fail --silent --show-error --proto '=https' --tlsv1.2 --connect-timeout 10 --max-time 60 --retry 3 --retry-all-errors \
+              --output "${discovery}" \
+              "https://registry.scalar.com/@straddle/apis/straddle-api?format=yaml"
+            selected_version="$(go run ./cmd/gen-endpoint version --spec "${discovery}")"
+          fi
+
+          [[ "${selected_version}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
+            echo "Contract version must be exact semver, got: ${selected_version}" >&2
+            exit 1
+          }
+          if [ -n "${expected_digest}" ] && [[ ! "${expected_digest}" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "Published digest must be lowercase SHA-256." >&2
             exit 1
           fi
 
-          live_spec="${RUNNER_TEMP}/live-spec.json"
-          curl --fail --silent --show-error --location --retry 3 --retry-delay 5 --output "${live_spec}" "${LIVE_SPEC_URL}"
-          test -s "${live_spec}"
-          echo "live_spec=${live_spec}" >> "${GITHUB_OUTPUT}"
+          echo "version=${selected_version}" >> "${GITHUB_OUTPUT}"
+          echo "registry_ref=@straddle/straddle-api@${selected_version}" >> "${GITHUB_OUTPUT}"
+          echo "published_sha256=${expected_digest}" >> "${GITHUB_OUTPUT}"
 
-      - name: Classify API drift with generator
+      - name: Fetch and verify exact Scalar contract
+        id: contract
+        shell: bash
+        env:
+          CONTRACT_VERSION: ${{ steps.release.outputs.version }}
+          EXPECTED_SHA256: ${{ steps.release.outputs.published_sha256 }}
+          GH_TOKEN: ${{ secrets.API_SYNC_BOT_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+
+          published="${RUNNER_TEMP}/published.openapi.yaml"
+          curl --fail --silent --show-error --proto '=https' --tlsv1.2 --connect-timeout 10 --max-time 60 --retry 3 --retry-all-errors \
+            --output "${published}" \
+            "https://registry.scalar.com/@straddle/apis/straddle-api@${CONTRACT_VERSION}?format=yaml"
+
+          candidate_args=(candidate-status --lock contract.lock.json --spec "${published}" --version "${CONTRACT_VERSION}")
+          if [ -n "${EXPECTED_SHA256}" ]; then
+            candidate_args+=(--published-sha256 "${EXPECTED_SHA256}")
+          fi
+          status="$(go run ./cmd/gen-endpoint "${candidate_args[@]}")"
+
+          sync_branch="automation/api-sync-${CONTRACT_VERSION}"
+          if [ "${status}" = "new" ]; then
+            open_pr="$(gh pr list --state open --head "${sync_branch}" --json number --jq '.[0].number // empty')"
+            if [ -n "${open_pr}" ]; then
+              git fetch --no-tags origin "refs/heads/${sync_branch}:refs/remotes/origin/${sync_branch}"
+              pending_lock="${RUNNER_TEMP}/pending-contract.lock.json"
+              pending_spec="${RUNNER_TEMP}/pending-spec.yaml"
+              git show "refs/remotes/origin/${sync_branch}:contract.lock.json" > "${pending_lock}"
+              git show "refs/remotes/origin/${sync_branch}:spec.yaml" > "${pending_spec}"
+              go run ./cmd/gen-endpoint verify-lock --lock "${pending_lock}" --spec "${pending_spec}" >/dev/null
+
+              candidate_args=(candidate-status --lock "${pending_lock}" --spec "${published}" --version "${CONTRACT_VERSION}")
+              if [ -n "${EXPECTED_SHA256}" ]; then
+                candidate_args+=(--published-sha256 "${EXPECTED_SHA256}")
+              fi
+              status="$(go run ./cmd/gen-endpoint "${candidate_args[@]}")"
+            fi
+          fi
+
+          echo "status=${status}" >> "${GITHUB_OUTPUT}"
+          echo "published=${published}" >> "${GITHUB_OUTPUT}"
+          echo "sha256=$(sha256sum "${published}" | cut -d ' ' -f 1)" >> "${GITHUB_OUTPUT}"
+
+      - name: Report current contract
+        if: steps.contract.outputs.status == 'current'
+        run: echo "${{ steps.release.outputs.registry_ref }} is already synchronized or pending review with identical bytes." >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Classify contract changes for review
+        if: steps.contract.outputs.status == 'new'
         id: drift
         shell: bash
         env:
-          LIVE_SPEC: ${{ steps.fetch_spec.outputs.live_spec }}
+          PUBLISHED: ${{ steps.contract.outputs.published }}
         run: |
           set -euo pipefail
 
           drift_json="${RUNNER_TEMP}/api-drift.json"
-          go run ./cmd/gen-endpoint drift \
-            --base spec.json \
-            --head "${LIVE_SPEC}" \
-            --repo . \
-            --agent > "${drift_json}"
-
+          go run ./cmd/gen-endpoint drift --base spec.yaml --head "${PUBLISHED}" --repo . --agent > "${drift_json}"
           jq -e 'type == "object"' "${drift_json}" >/dev/null
 
-          supported_additions="$(jq '(.supported_additions // []) | length' "${drift_json}")"
-          changes="$(jq '(.changes // []) | length' "${drift_json}")"
-          removals="$(jq '(.removals // []) | length' "${drift_json}")"
-          unsupported_operations="$(jq '(.unsupported_operations // []) | length' "${drift_json}")"
-          human_review_count="$((changes + removals + unsupported_operations))"
-
           echo "drift_json=${drift_json}" >> "${GITHUB_OUTPUT}"
-          echo "supported_additions=${supported_additions}" >> "${GITHUB_OUTPUT}"
-          echo "changes=${changes}" >> "${GITHUB_OUTPUT}"
-          echo "removals=${removals}" >> "${GITHUB_OUTPUT}"
-          echo "unsupported_operations=${unsupported_operations}" >> "${GITHUB_OUTPUT}"
-          echo "human_review_count=${human_review_count}" >> "${GITHUB_OUTPUT}"
+          echo "supported_additions=$(jq '(.supported_additions // []) | length' "${drift_json}")" >> "${GITHUB_OUTPUT}"
+          echo "changes=$(jq '(.changes // []) | length' "${drift_json}")" >> "${GITHUB_OUTPUT}"
+          echo "removals=$(jq '(.removals // []) | length' "${drift_json}")" >> "${GITHUB_OUTPUT}"
+          echo "unsupported_operations=$(jq '(.unsupported_operations // []) | length' "${drift_json}")" >> "${GITHUB_OUTPUT}"
 
       - name: Generate supported endpoint additions
-        if: steps.drift.outputs.supported_additions != '0' && steps.drift.outputs.human_review_count == '0'
-        shell: bash
+        if: steps.contract.outputs.status == 'new' && steps.drift.outputs.supported_additions != '0'
         env:
-          LIVE_SPEC: ${{ steps.fetch_spec.outputs.live_spec }}
+          PUBLISHED: ${{ steps.contract.outputs.published }}
           DRIFT_JSON: ${{ steps.drift.outputs.drift_json }}
-        run: |
-          set -euo pipefail
+        run: go run ./cmd/gen-endpoint generate --spec "${PUBLISHED}" --repo . --drift "${DRIFT_JSON}" --supported-additions --agent
 
-          # cmd/gen-endpoint owns the endpoint support decision. The workflow
-          # only asks it to apply additions already classified as supported.
-          go run ./cmd/gen-endpoint generate \
-            --spec "${LIVE_SPEC}" \
-            --repo . \
-            --drift "${DRIFT_JSON}" \
-            --supported-additions \
-            --agent
-
-      - name: Update spec lockfile
-        if: steps.drift.outputs.supported_additions != '0' && steps.drift.outputs.human_review_count == '0'
-        shell: bash
+      - name: Update pinned contract
+        if: steps.contract.outputs.status == 'new'
         env:
-          LIVE_SPEC: ${{ steps.fetch_spec.outputs.live_spec }}
+          CONTRACT_VERSION: ${{ steps.release.outputs.version }}
+          PUBLISHED: ${{ steps.contract.outputs.published }}
+          PUBLISHED_SHA256: ${{ steps.contract.outputs.sha256 }}
         run: |
           set -euo pipefail
 
-          cp "${LIVE_SPEC}" spec.json
+          cp "${PUBLISHED}" spec.yaml
+          jq -n \
+            --arg version "${CONTRACT_VERSION}" \
+            --arg digest "${PUBLISHED_SHA256}" \
+            '{schema_version:1,contract_version:$version,registry_ref:("@straddle/straddle-api@" + $version),published_sha256:$digest}' \
+            > contract.lock.json
 
-      - name: Validate generated endpoint coverage
-        if: steps.drift.outputs.supported_additions != '0' && steps.drift.outputs.human_review_count == '0'
-        shell: bash
+      - name: Verify synchronized CLI
+        if: steps.contract.outputs.status == 'new'
+        env:
+          COVERAGE_JSON: ${{ runner.temp }}/api-sync-coverage.json
         run: |
           set -euo pipefail
 
-          coverage_json="${RUNNER_TEMP}/api-sync-coverage.json"
-          go run ./cmd/gen-endpoint check \
-            --spec spec.json \
-            --repo . \
-            --agent > "${coverage_json}"
+          go run ./cmd/gen-endpoint verify-lock --lock contract.lock.json --spec spec.yaml
+          go run ./cmd/gen-endpoint check --spec spec.yaml --repo . --review-drift --agent > "${COVERAGE_JSON}"
+          STRADDLE_API_SYNC_REVIEW=true go test ./...
+          go vet ./...
 
-      - name: Capture generated diff
-        id: generated_diff
-        shell: bash
+      - name: Capture proposed change
+        if: steps.contract.outputs.status == 'new'
+        id: proposed_change
         run: |
           set -euo pipefail
 
           patch_file="${RUNNER_TEMP}/api-sync.patch"
-          if [ -z "$(git status --porcelain -- .)" ]; then
-            echo "has_changes=false" >> "${GITHUB_OUTPUT}"
-            : > "${patch_file}"
-          else
-            # Supported additions are usually new command files. Mark
-            # untracked files as intent-to-add so the patch artifact includes
-            # them without staging a commit for the PR action.
-            git add --intent-to-add -- .
-            git diff --binary -- . > "${patch_file}"
-            echo "has_changes=true" >> "${GITHUB_OUTPUT}"
-          fi
+          git add --intent-to-add -- .
+          git diff --binary -- . > "${patch_file}"
+          test -s "${patch_file}"
           echo "patch_file=${patch_file}" >> "${GITHUB_OUTPUT}"
 
-      - name: Prepare human-review issue body
-        id: human_review
-        if: steps.drift.outputs.human_review_count != '0'
-        shell: bash
-        env:
-          DRIFT_JSON: ${{ steps.drift.outputs.drift_json }}
+      - name: Require automation token
+        if: steps.contract.outputs.status == 'new' && env.DRY_RUN != 'true' && env.HAS_API_SYNC_BOT_TOKEN != 'true'
         run: |
-          set -euo pipefail
+          echo "API_SYNC_BOT_TOKEN is required to open the contract synchronization PR." >&2
+          exit 1
 
-          issue_body="${RUNNER_TEMP}/api-sync-human-review.md"
-          {
-            echo "API spec drift needs human review."
-            echo
-            echo "Generator classification:"
-            echo "- Supported additions: ${{ steps.drift.outputs.supported_additions }}"
-            echo "- Changed operations: ${{ steps.drift.outputs.changes }}"
-            echo "- Removed operations: ${{ steps.drift.outputs.removals }}"
-            echo "- Unsupported new operations: ${{ steps.drift.outputs.unsupported_operations }}"
-            echo
-            echo "Supported additions are auto-generated only when no changed, removed, or unsupported operations are present. Do not hand-edit endpoint drift here; update cmd/gen-endpoint/internal/apisync if the classification is wrong."
-            echo
-            echo "\`\`\`json"
-            cat "${DRIFT_JSON}"
-            echo "\`\`\`"
-          } > "${issue_body}"
-          echo "issue_body=${issue_body}" >> "${GITHUB_OUTPUT}"
-
-      - name: Open supported-additions PR
-        id: generated_pr
-        if: steps.generated_diff.outputs.has_changes == 'true' && env.DRY_RUN != 'true' && env.HAS_API_SYNC_BOT_TOKEN == 'true'
+      - name: Open contract synchronization pull request
+        if: steps.contract.outputs.status == 'new' && env.DRY_RUN != 'true' && env.HAS_API_SYNC_BOT_TOKEN == 'true'
         uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.API_SYNC_BOT_TOKEN }}
-          branch: automation/api-sync
+          branch: automation/api-sync-${{ steps.release.outputs.version }}
           delete-branch: true
-          commit-message: "chore: sync generated API endpoint commands"
-          title: "chore: sync generated API endpoint commands"
+          commit-message: "chore: sync API contract ${{ steps.release.outputs.version }}"
+          title: "chore: sync API contract ${{ steps.release.outputs.version }}"
           body: |
-            Generated supported endpoint additions from the latest OpenAPI spec.
+            Synchronizes the CLI with `${{ steps.release.outputs.registry_ref }}`.
 
-            Source:
-            - Trigger: `${{ github.event_name }}`
-            - Drift command: `go run ./cmd/gen-endpoint drift --base spec.json --head <live-spec> --repo . --agent`
-            - Generate command: `go run ./cmd/gen-endpoint generate --spec <live-spec> --repo . --drift <drift-json> --supported-additions --agent`
+            Review summary:
+            - Supported additions generated: ${{ steps.drift.outputs.supported_additions }}
+            - Existing operations changed: ${{ steps.drift.outputs.changes }}
+            - Operations removed: ${{ steps.drift.outputs.removals }}
+            - Unsupported new operations: ${{ steps.drift.outputs.unsupported_operations }}
 
-            Token note: this PR is created with `API_SYNC_BOT_TOKEN` because the default `GITHUB_TOKEN` does not trigger normal PR CI for bot-authored PRs.
+            This pull request requires normal human review. Merging it triggers the next CLI patch release.
 
-      - name: Queue generated PR for auto-merge
-        if: steps.generated_pr.outputs.pull-request-number != '' && env.DRY_RUN != 'true' && env.HAS_API_SYNC_BOT_TOKEN == 'true'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.API_SYNC_BOT_TOKEN }}
-          PR_NUMBER: ${{ steps.generated_pr.outputs.pull-request-number }}
-          PR_HEAD_SHA: ${{ steps.generated_pr.outputs.pull-request-head-sha }}
-        run: |
-          set -euo pipefail
-          gh pr merge "${PR_NUMBER}" --auto --squash --delete-branch --match-head-commit "${PR_HEAD_SHA}"
+      - name: Report dry-run result
+        if: steps.contract.outputs.status == 'new' && env.DRY_RUN == 'true'
+        run: echo "Dry run completed; the proposed contract change is available in the workflow artifact." >> "${GITHUB_STEP_SUMMARY}"
 
-      - name: Report pending PR creation
-        if: steps.generated_diff.outputs.has_changes == 'true' && (env.DRY_RUN == 'true' || env.HAS_API_SYNC_BOT_TOKEN != 'true')
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          echo "Supported endpoint additions generated a diff, but the workflow did not create a PR." >> "${GITHUB_STEP_SUMMARY}"
-          echo >> "${GITHUB_STEP_SUMMARY}"
-          if [ "${DRY_RUN}" = "true" ]; then
-            echo "Reason: workflow_dispatch dry_run=true." >> "${GITHUB_STEP_SUMMARY}"
-          else
-            echo "Reason: API_SYNC_BOT_TOKEN is not configured. Configure a fine-grained PAT or GitHub App token; do not use the default GITHUB_TOKEN for bot PRs that need normal PR CI." >> "${GITHUB_STEP_SUMMARY}"
-          fi
-
-      - name: Open human-review issue
-        if: steps.drift.outputs.human_review_count != '0' && env.DRY_RUN != 'true' && env.HAS_API_SYNC_BOT_TOKEN == 'true' && env.CREATE_REMOTE_ISSUES == 'true'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.API_SYNC_BOT_TOKEN }}
-          ISSUE_BODY: ${{ steps.human_review.outputs.issue_body }}
-        run: |
-          set -euo pipefail
-
-          gh issue create \
-            --title "API spec drift requires human review" \
-            --body-file "${ISSUE_BODY}"
-
-      - name: Report pending issue creation
-        if: steps.drift.outputs.human_review_count != '0' && (env.DRY_RUN == 'true' || env.HAS_API_SYNC_BOT_TOKEN != 'true' || env.CREATE_REMOTE_ISSUES != 'true')
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          echo "Human-review API drift was detected, but the workflow did not create an issue." >> "${GITHUB_STEP_SUMMARY}"
-          echo >> "${GITHUB_STEP_SUMMARY}"
-          if [ "${DRY_RUN}" = "true" ]; then
-            echo "Reason: workflow_dispatch dry_run=true." >> "${GITHUB_STEP_SUMMARY}"
-          elif [ "${HAS_API_SYNC_BOT_TOKEN}" != "true" ]; then
-            echo "Reason: API_SYNC_BOT_TOKEN is not configured." >> "${GITHUB_STEP_SUMMARY}"
-          else
-            echo "Reason: API_SYNC_CREATE_ISSUES is not set to true, pending ME-344 dispatch/dedupe finalization." >> "${GITHUB_STEP_SUMMARY}"
-          fi
-          echo "Issue body artifact: api-sync-${{ github.run_id }}." >> "${GITHUB_STEP_SUMMARY}"
-
-      - name: Upload API sync artifacts
+      - name: Upload synchronization evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: api-sync-${{ github.run_id }}
+          if-no-files-found: ignore
           path: |
-            ${{ runner.temp }}/live-spec.json
+            ${{ runner.temp }}/published.openapi.yaml
             ${{ runner.temp }}/api-drift.json
             ${{ runner.temp }}/api-sync-coverage.json
             ${{ runner.temp }}/api-sync.patch
-            ${{ runner.temp }}/api-sync-human-review.md
-          if-no-files-found: ignore
 
-      - name: Summarize API sync result
+      - name: Summarize synchronization
         if: always()
-        shell: bash
         run: |
-          set -euo pipefail
-
           echo "## API sync" >> "${GITHUB_STEP_SUMMARY}"
           echo >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Contract: ${{ steps.release.outputs.registry_ref || 'unresolved' }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Status: ${{ steps.contract.outputs.status || 'failed' }}" >> "${GITHUB_STEP_SUMMARY}"
           echo "- Supported additions: ${{ steps.drift.outputs.supported_additions || 'n/a' }}" >> "${GITHUB_STEP_SUMMARY}"
           echo "- Changed operations: ${{ steps.drift.outputs.changes || 'n/a' }}" >> "${GITHUB_STEP_SUMMARY}"
           echo "- Removed operations: ${{ steps.drift.outputs.removals || 'n/a' }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "- Unsupported operations: ${{ steps.drift.outputs.unsupported_operations || 'n/a' }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "- Generated diff: ${{ steps.generated_diff.outputs.has_changes || 'n/a' }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Unsupported additions: ${{ steps.drift.outputs.unsupported_operations || 'n/a' }}" >> "${GITHUB_STEP_SUMMARY}"

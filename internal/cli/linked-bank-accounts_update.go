@@ -22,7 +22,7 @@ func newLinkedBankAccountsUpdateCmd(flags *rootFlags) *cobra.Command {
 		Use:         "update <linked_bank_account_id>",
 		Short:       "Updates an existing linked bank account's information. This can be used to update account details during onboarding...",
 		Example:     "  straddle linked-bank-accounts update 550e8400-e29b-41d4-a716-446655440000",
-		Annotations: map[string]string{"straddle:endpoint": "linked-bank-accounts.update", "straddle:method": "PUT", "straddle:path": "/v1/linked_bank_accounts/{linked_bank_account_id}"},
+		Annotations: map[string]string{"straddle:endpoint": "linked-bank-accounts.update", "straddle:operation-id": "updateLinkedBankAccount", "straddle:method": "PUT", "straddle:path": "/v1/linked_bank_accounts/{linked_bank_account_id}"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()

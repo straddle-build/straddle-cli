@@ -33,7 +33,7 @@ func newCustomersCreateCmd(flags *rootFlags) *cobra.Command {
 		Use:         "create",
 		Short:       "Creates a new customer record and automatically initiates identity, fraud, and risk assessment scores. This endpoint...",
 		Example:     "  straddle customers create --email user@example.com",
-		Annotations: map[string]string{"straddle:endpoint": "customers.create", "straddle:method": "POST", "straddle:path": "/v1/customers"},
+		Annotations: map[string]string{"straddle:endpoint": "customers.create", "straddle:operation-id": "createCustomer", "straddle:method": "POST", "straddle:path": "/v1/customers"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !stdinBody {
 				if !cmd.Flags().Changed("address-address1") && !flags.dryRun {

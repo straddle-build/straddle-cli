@@ -26,7 +26,7 @@ func newBridgeCreateBankAccountPaykeyCmd(flags *rootFlags) *cobra.Command {
 		Use:         "create-bank-account-paykey",
 		Short:       "Use Bridge to create a new paykey using a bank routing and account number as the source. This endpoint allows you to...",
 		Example:     "  straddle bridge create-bank-account-paykey --account-number example-value",
-		Annotations: map[string]string{"straddle:endpoint": "bridge.create-bank-account-paykey", "straddle:method": "POST", "straddle:path": "/v1/bridge/bank_account"},
+		Annotations: map[string]string{"straddle:endpoint": "bridge.create-bank-account-paykey", "straddle:operation-id": "createBankAccountPaykey", "straddle:method": "POST", "straddle:path": "/v1/bridge/bank_account"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !stdinBody {
 				if !cmd.Flags().Changed("account-number") && !flags.dryRun {

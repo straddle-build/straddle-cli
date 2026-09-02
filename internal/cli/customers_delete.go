@@ -16,7 +16,7 @@ func newCustomersDeleteCmd(flags *rootFlags) *cobra.Command {
 		Use:         "delete <id>",
 		Short:       "Permanently removes a customer record from Straddle. This action cannot be undone and should only be used to satisfy...",
 		Example:     "  straddle customers delete 550e8400-e29b-41d4-a716-446655440000",
-		Annotations: map[string]string{"straddle:endpoint": "customers.delete", "straddle:method": "DELETE", "straddle:path": "/v1/customers/{id}"},
+		Annotations: map[string]string{"straddle:endpoint": "customers.delete", "straddle:operation-id": "deleteCustomer", "straddle:method": "DELETE", "straddle:path": "/v1/customers/{id}"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()

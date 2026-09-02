@@ -19,7 +19,7 @@ func newPaykeysCancelUpdateCmd(flags *rootFlags) *cobra.Command {
 		Use:         "update <id>",
 		Short:       "Update",
 		Example:     "  straddle paykeys cancel update 550e8400-e29b-41d4-a716-446655440000",
-		Annotations: map[string]string{"straddle:endpoint": "cancel.update", "straddle:method": "PUT", "straddle:path": "/v1/paykeys/{id}/cancel"},
+		Annotations: map[string]string{"straddle:endpoint": "cancel.update", "straddle:operation-id": "cancelPaykey", "straddle:method": "PUT", "straddle:path": "/v1/paykeys/{id}/cancel"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()

@@ -17,7 +17,7 @@ func newPaykeysUnmaskedGetPaykeyCmd(flags *rootFlags) *cobra.Command {
 		Aliases:     []string{"get"},
 		Short:       "Retrieves the unmasked details of an existing paykey. Supply the unique paykey `id` and Straddle will return the...",
 		Example:     "  straddle paykeys unmasked get-paykey 550e8400-e29b-41d4-a716-446655440000",
-		Annotations: map[string]string{"straddle:endpoint": "unmasked.get-paykey", "straddle:method": "GET", "straddle:path": "/v1/paykeys/{id}/unmasked", "mcp:read-only": "true"},
+		Annotations: map[string]string{"straddle:endpoint": "unmasked.get-paykey", "straddle:operation-id": "getUnmaskedPaykey", "straddle:method": "GET", "straddle:path": "/v1/paykeys/{id}/unmasked", "mcp:read-only": "true"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()

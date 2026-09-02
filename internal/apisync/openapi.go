@@ -9,6 +9,8 @@ import (
 	"os"
 	"sort"
 	"strings"
+
+	"sigs.k8s.io/yaml"
 )
 
 var methodOrder = map[string]int{
@@ -46,11 +48,17 @@ type Parameter struct {
 	In          string `json:"in"`
 	Required    bool   `json:"required,omitempty"`
 	Description string `json:"description,omitempty"`
+	SchemaType  string `json:"schema_type,omitempty"`
+	Style       string `json:"style,omitempty"`
+	Explode     bool   `json:"explode,omitempty"`
 }
 
 type rawDocument struct {
-	OpenAPI string                                `json:"openapi"`
-	Paths   map[string]map[string]json.RawMessage `json:"paths"`
+	OpenAPI    string                                `json:"openapi"`
+	Paths      map[string]map[string]json.RawMessage `json:"paths"`
+	Components struct {
+		Parameters map[string]rawParameter `json:"parameters"`
+	} `json:"components"`
 }
 
 type rawOperation struct {
@@ -63,10 +71,16 @@ type rawOperation struct {
 }
 
 type rawParameter struct {
+	Ref         string `json:"$ref"`
 	Name        string `json:"name"`
 	In          string `json:"in"`
 	Required    bool   `json:"required"`
 	Description string `json:"description"`
+	Style       string `json:"style"`
+	Explode     bool   `json:"explode"`
+	Schema      struct {
+		Type string `json:"type"`
+	} `json:"schema"`
 }
 
 type rawRequestBody struct {
@@ -76,17 +90,44 @@ type rawRequestBody struct {
 }
 
 func LoadSpec(path string) ([]Operation, error) {
-	data, err := os.ReadFile(path) // #nosec G304 -- spec paths are explicit local CLI/workflow inputs.
+	data, err := os.ReadFile(path) // #nosec G304: spec paths are explicit local CLI/workflow inputs.
 	if err != nil {
 		return nil, fmt.Errorf("reading spec %s: %w", path, err)
 	}
 	return ParseSpec(data)
 }
 
+func LoadSpecVersion(path string) (string, error) {
+	data, err := os.ReadFile(path) // #nosec G304: spec paths are explicit local CLI/workflow inputs.
+	if err != nil {
+		return "", fmt.Errorf("reading spec %s: %w", path, err)
+	}
+	jsonData, err := yaml.YAMLToJSON(data)
+	if err != nil {
+		return "", fmt.Errorf("parsing OpenAPI document: %w", err)
+	}
+	var document struct {
+		Info struct {
+			Version string `json:"version"`
+		} `json:"info"`
+	}
+	if err := json.Unmarshal(jsonData, &document); err != nil {
+		return "", fmt.Errorf("parsing OpenAPI document: %w", err)
+	}
+	if !exactVersionPattern.MatchString(document.Info.Version) {
+		return "", fmt.Errorf("OpenAPI info.version must be exact semver")
+	}
+	return document.Info.Version, nil
+}
+
 func ParseSpec(data []byte) ([]Operation, error) {
+	jsonData, err := yaml.YAMLToJSON(data)
+	if err != nil {
+		return nil, fmt.Errorf("parsing OpenAPI document: %w", err)
+	}
 	var doc rawDocument
-	if err := json.Unmarshal(data, &doc); err != nil {
-		return nil, fmt.Errorf("parsing OpenAPI JSON: %w", err)
+	if err := json.Unmarshal(jsonData, &doc); err != nil {
+		return nil, fmt.Errorf("parsing OpenAPI document: %w", err)
 	}
 	if strings.TrimSpace(doc.OpenAPI) == "" {
 		return nil, fmt.Errorf("missing openapi version")
@@ -97,7 +138,7 @@ func ParseSpec(data []byte) ([]Operation, error) {
 
 	ops := make([]Operation, 0)
 	for path, item := range doc.Paths {
-		pathParams, err := parseRawParameters(item["parameters"], path)
+		pathParams, err := parseRawParameters(item["parameters"], path, doc.Components.Parameters)
 		if err != nil {
 			return nil, err
 		}
@@ -122,8 +163,12 @@ func ParseSpec(data []byte) ([]Operation, error) {
 				ReadOnly:    method == "GET" || method == "HEAD",
 				Fingerprint: fingerprintOperation(method, path, raw, item["parameters"]),
 			}
-			for _, p := range append(pathParams, ro.Parameters...) {
-				param := Parameter(p)
+			operationParams, err := resolveRawParameters(ro.Parameters, OperationKey(method, path), doc.Components.Parameters)
+			if err != nil {
+				return nil, err
+			}
+			for _, p := range append(pathParams, operationParams...) {
+				param := Parameter{Name: p.Name, In: p.In, Required: p.Required, Description: p.Description, SchemaType: p.Schema.Type, Style: p.Style, Explode: p.Explode}
 				switch p.In {
 				case "path":
 					op.PathParameters = append(op.PathParameters, param)
@@ -151,7 +196,7 @@ func ParseSpec(data []byte) ([]Operation, error) {
 	return ops, nil
 }
 
-func parseRawParameters(raw json.RawMessage, context string) ([]rawParameter, error) {
+func parseRawParameters(raw json.RawMessage, context string, components map[string]rawParameter) ([]rawParameter, error) {
 	if len(raw) == 0 {
 		return nil, nil
 	}
@@ -159,7 +204,27 @@ func parseRawParameters(raw json.RawMessage, context string) ([]rawParameter, er
 	if err := json.Unmarshal(raw, &params); err != nil {
 		return nil, fmt.Errorf("parsing %s parameters: %w", context, err)
 	}
-	return params, nil
+	return resolveRawParameters(params, context, components)
+}
+
+func resolveRawParameters(params []rawParameter, context string, components map[string]rawParameter) ([]rawParameter, error) {
+	resolved := make([]rawParameter, 0, len(params))
+	for _, param := range params {
+		if param.Ref == "" {
+			resolved = append(resolved, param)
+			continue
+		}
+		const prefix = "#/components/parameters/"
+		if !strings.HasPrefix(param.Ref, prefix) {
+			return nil, fmt.Errorf("unsupported %s parameter reference %s", context, param.Ref)
+		}
+		component, ok := components[strings.TrimPrefix(param.Ref, prefix)]
+		if !ok {
+			return nil, fmt.Errorf("missing %s parameter reference %s", context, param.Ref)
+		}
+		resolved = append(resolved, component)
+	}
+	return resolved, nil
 }
 
 func OperationKey(method, path string) string {
@@ -225,9 +290,9 @@ func deriveEndpoint(operationID string, tags []string) string {
 }
 
 func splitAction(operationID string) (string, string) {
-	prefixes := []string{"Create", "Update", "Delete", "List", "Get", "Hold", "Release", "Cancel", "Resubmit", "Onboard", "Refresh", "Reveal", "Unmask", "Simulate"}
+	prefixes := []string{"Create", "Update", "Delete", "List", "Get", "Hold", "Release", "Cancel", "Resubmit", "Refund", "Upload", "Onboard", "Refresh", "Reveal", "Unmask", "Simulate"}
 	for _, prefix := range prefixes {
-		if strings.HasPrefix(operationID, prefix) && len(operationID) > len(prefix) {
+		if strings.HasPrefix(strings.ToLower(operationID), strings.ToLower(prefix)) && len(operationID) > len(prefix) {
 			return strings.ToLower(prefix), operationID[len(prefix):]
 		}
 	}
