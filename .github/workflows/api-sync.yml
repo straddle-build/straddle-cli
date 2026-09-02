@@ -19,6 +19,7 @@ name: API Sync
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: api-sync
@@ -88,6 +89,7 @@ jobs:
         env:
           CONTRACT_VERSION: ${{ steps.release.outputs.version }}
           EXPECTED_SHA256: ${{ steps.release.outputs.published_sha256 }}
+          GH_TOKEN: ${{ secrets.API_SYNC_BOT_TOKEN || github.token }}
         run: |
           set -euo pipefail
 
@@ -104,33 +106,21 @@ jobs:
 
           sync_branch="automation/api-sync-${CONTRACT_VERSION}"
           if [ "${status}" = "new" ]; then
-            set +e
-            git ls-remote --exit-code --heads origin "refs/heads/${sync_branch}" >/dev/null
-            branch_lookup_status=$?
-            set -e
+            open_pr="$(gh pr list --state open --head "${sync_branch}" --json number --jq '.[0].number // empty')"
+            if [ -n "${open_pr}" ]; then
+              git fetch --no-tags origin "refs/heads/${sync_branch}:refs/remotes/origin/${sync_branch}"
+              pending_lock="${RUNNER_TEMP}/pending-contract.lock.json"
+              pending_spec="${RUNNER_TEMP}/pending-spec.yaml"
+              git show "refs/remotes/origin/${sync_branch}:contract.lock.json" > "${pending_lock}"
+              git show "refs/remotes/origin/${sync_branch}:spec.yaml" > "${pending_spec}"
+              go run ./cmd/gen-endpoint verify-lock --lock "${pending_lock}" --spec "${pending_spec}" >/dev/null
 
-            case "${branch_lookup_status}" in
-              0)
-                git fetch --no-tags origin "refs/heads/${sync_branch}:refs/remotes/origin/${sync_branch}"
-                pending_lock="${RUNNER_TEMP}/pending-contract.lock.json"
-                pending_spec="${RUNNER_TEMP}/pending-spec.yaml"
-                git show "refs/remotes/origin/${sync_branch}:contract.lock.json" > "${pending_lock}"
-                git show "refs/remotes/origin/${sync_branch}:spec.yaml" > "${pending_spec}"
-                go run ./cmd/gen-endpoint verify-lock --lock "${pending_lock}" --spec "${pending_spec}" >/dev/null
-
-                candidate_args=(candidate-status --lock "${pending_lock}" --spec "${published}" --version "${CONTRACT_VERSION}")
-                if [ -n "${EXPECTED_SHA256}" ]; then
-                  candidate_args+=(--published-sha256 "${EXPECTED_SHA256}")
-                fi
-                status="$(go run ./cmd/gen-endpoint "${candidate_args[@]}")"
-                ;;
-              2)
-                ;;
-              *)
-                echo "Could not inspect pending synchronization branch ${sync_branch}." >&2
-                exit "${branch_lookup_status}"
-                ;;
-            esac
+              candidate_args=(candidate-status --lock "${pending_lock}" --spec "${published}" --version "${CONTRACT_VERSION}")
+              if [ -n "${EXPECTED_SHA256}" ]; then
+                candidate_args+=(--published-sha256 "${EXPECTED_SHA256}")
+              fi
+              status="$(go run ./cmd/gen-endpoint "${candidate_args[@]}")"
+            fi
           fi
 
           echo "status=${status}" >> "${GITHUB_OUTPUT}"
