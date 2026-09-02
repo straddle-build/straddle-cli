@@ -32,7 +32,7 @@ func newRepresentativesCreateCmd(flags *rootFlags) *cobra.Command {
 		Use:         "create",
 		Short:       "Creates a new representative associated with an account. Representatives are individuals who have legal authority or...",
 		Example:     "  straddle representatives create --account-id 550e8400-e29b-41d4-a716-446655440000",
-		Annotations: map[string]string{"straddle:endpoint": "representatives.create", "straddle:method": "POST", "straddle:path": "/v1/representatives"},
+		Annotations: map[string]string{"straddle:endpoint": "representatives.create", "straddle:operation-id": "createRepresentative", "straddle:method": "POST", "straddle:path": "/v1/representatives"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !stdinBody {
 				if !cmd.Flags().Changed("account-id") && !flags.dryRun {

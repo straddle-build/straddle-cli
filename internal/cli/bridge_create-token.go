@@ -22,7 +22,7 @@ func newBridgeCreateTokenCmd(flags *rootFlags) *cobra.Command {
 		Use:         "create-token",
 		Short:       "Use this endpoint to generate a session token for use in the Bridge widget.",
 		Example:     "  straddle bridge create-token --customer-id 550e8400-e29b-41d4-a716-446655440000",
-		Annotations: map[string]string{"straddle:endpoint": "bridge.create-token", "straddle:method": "POST", "straddle:path": "/v1/bridge/initialize"},
+		Annotations: map[string]string{"straddle:endpoint": "bridge.create-token", "straddle:operation-id": "createBridgeToken", "straddle:method": "POST", "straddle:path": "/v1/bridge/initialize"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !stdinBody {
 				if !cmd.Flags().Changed("customer-id") && !flags.dryRun {

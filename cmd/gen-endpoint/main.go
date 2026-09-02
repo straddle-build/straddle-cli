@@ -24,26 +24,90 @@ func main() {
 
 func run(args []string, stdout, stderr io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: gen-endpoint <check|drift|generate> [flags]")
+		return errors.New("usage: gen-endpoint <candidate-status|check|drift|generate|verify-lock|version> [flags]")
 	}
 	switch args[0] {
+	case "candidate-status":
+		return runCandidateStatus(args[1:], stdout, stderr)
 	case "check":
 		return runCheck(args[1:], stdout, stderr)
 	case "drift":
 		return runDrift(args[1:], stdout, stderr)
 	case "generate":
 		return runGenerate(args[1:], stdout, stderr)
+	case "verify-lock":
+		return runVerifyLock(args[1:], stdout, stderr)
+	case "version":
+		return runVersion(args[1:], stdout, stderr)
 	default:
 		return fmt.Errorf("unknown subcommand %q", args[0])
 	}
 }
 
+func runCandidateStatus(args []string, stdout, stderr io.Writer) error {
+	fs := flag.NewFlagSet("candidate-status", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	lockPath := fs.String("lock", "contract.lock.json", "contract lock")
+	specPath := fs.String("spec", "", "candidate Scalar contract")
+	version := fs.String("version", "", "expected exact contract version")
+	publishedSHA256 := fs.String("published-sha256", "", "optional publisher-provided digest")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *specPath == "" || *version == "" {
+		return errors.New("candidate-status requires --spec and --version")
+	}
+	status, err := apisync.InspectContractCandidate(*lockPath, *specPath, apisync.ContractCandidateExpectation{
+		Version:         *version,
+		PublishedSHA256: *publishedSHA256,
+	})
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(stdout, status)
+	return err
+}
+
+func runVerifyLock(args []string, stdout, stderr io.Writer) error {
+	fs := flag.NewFlagSet("verify-lock", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	lockPath := fs.String("lock", "contract.lock.json", "contract lock")
+	specPath := fs.String("spec", "spec.yaml", "pinned Scalar contract")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	lock, err := apisync.VerifyContractLock(*lockPath, *specPath)
+	if err != nil {
+		return err
+	}
+	return writeJSON(stdout, lock)
+}
+
+func runVersion(args []string, stdout, stderr io.Writer) error {
+	fs := flag.NewFlagSet("version", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	specPath := fs.String("spec", "", "OpenAPI document")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *specPath == "" {
+		return errors.New("version requires --spec")
+	}
+	version, err := apisync.LoadSpecVersion(*specPath)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(stdout, version)
+	return err
+}
+
 func runCheck(args []string, stdout, stderr io.Writer) error {
 	fs := flag.NewFlagSet("check", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	specPath := fs.String("spec", "spec.json", "OpenAPI spec lockfile")
+	specPath := fs.String("spec", "spec.yaml", "OpenAPI spec lockfile")
 	repo := fs.String("repo", ".", "repository root")
 	agent := fs.Bool("agent", false, "emit JSON")
+	reviewDrift := fs.Bool("review-drift", false, "allow removed or renamed operations as review evidence")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -58,8 +122,8 @@ func runCheck(args []string, stdout, stderr io.Writer) error {
 	} else {
 		writeCheckSummary(stdout, result)
 	}
-	if !result.OK {
-		return fmt.Errorf("endpoint coverage check failed: %d missing, %d extra, %d duplicate groups, %d invalid annotations", len(result.Missing), len(result.Extra), len(result.DuplicateAnnotations), len(result.InvalidAnnotations))
+	if !result.OK && (!*reviewDrift || result.HasBlockingIssues()) {
+		return fmt.Errorf("endpoint coverage check failed: %d missing, %d extra, %d duplicate groups, %d invalid annotations, %d operationId mismatches", len(result.Missing), len(result.Extra), len(result.DuplicateAnnotations), len(result.InvalidAnnotations), len(result.OperationIDMismatches))
 	}
 	return nil
 }
@@ -108,7 +172,7 @@ func runDrift(args []string, stdout, stderr io.Writer) error {
 func runGenerate(args []string, stdout, stderr io.Writer) error {
 	fs := flag.NewFlagSet("generate", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	specPath := fs.String("spec", "spec.json", "OpenAPI spec to generate from")
+	specPath := fs.String("spec", "spec.yaml", "OpenAPI spec to generate from")
 	repo := fs.String("repo", ".", "repository root")
 	outDir := fs.String("out-dir", "", "directory for generated command files, defaults to internal/cli under --repo")
 	driftPath := fs.String("drift", "", "optional drift JSON produced by the drift subcommand")
@@ -284,6 +348,8 @@ func writeCheckSummary(w io.Writer, result apisync.CheckResult) {
 	fmt.Fprintf(w, "extra: %d\n", len(result.Extra))
 	fmt.Fprintf(w, "duplicate_annotations: %d\n", len(result.DuplicateAnnotations))
 	fmt.Fprintf(w, "invalid_annotations: %d\n", len(result.InvalidAnnotations))
+	fmt.Fprintf(w, "operation_id_mismatches: %d\n", len(result.OperationIDMismatches))
+	fmt.Fprintf(w, "unsupported_operations: %d\n", len(result.UnsupportedOperations))
 }
 
 func driftSummary(result apisync.DriftResult) string {

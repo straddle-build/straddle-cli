@@ -20,7 +20,7 @@ func newCustomersReviewUpdateCustomerCmd(flags *rootFlags) *cobra.Command {
 		Aliases:     []string{"update"},
 		Short:       "Updates the status of a customer's identity decision. This endpoint allows you to modify the outcome of a customer...",
 		Example:     "  straddle customers review update-customer 550e8400-e29b-41d4-a716-446655440000 --status verified",
-		Annotations: map[string]string{"straddle:endpoint": "review.update-customer", "straddle:method": "PATCH", "straddle:path": "/v1/customers/{id}/review"},
+		Annotations: map[string]string{"straddle:endpoint": "review.update-customer", "straddle:operation-id": "setCustomerVerificationDecision", "straddle:method": "PATCH", "straddle:path": "/v1/customers/{id}/review"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()

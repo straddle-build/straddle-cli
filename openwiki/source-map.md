@@ -56,6 +56,7 @@ Create and manage debit attempts against customer bank accounts.
 - `charges hold` / `charges hold charge` — place a charge on hold.
 - `charges release` / `charges release charge` — release a held charge.
 - `charges resubmit` / `charges resubmit create` — resubmit a charge.
+- `charges refund`: refund a paid charge through a linked payout.
 - `charges unmask` / `charges unmask charges-v1-get` — access an unmasked charge variant.
 
 #### `customers*`
@@ -157,11 +158,12 @@ These are the command families that make this repo more than a direct API wrappe
 
 - `demo/` — demo recordings and scripts.
 - `build/` — build/release-related assets.
-- `spec.json` — OpenAPI source spec.
+- `spec.yaml`: exact OpenAPI artifact retrieved from the pinned Scalar release.
+- `contract.lock.json`: Scalar release version, Registry reference, and exact byte digest.
 - `manifest.json` — package manifest metadata.
 - `.github/workflows/api-sync.yml` - scheduled, manual, and dispatch-driven endpoint sync workflow.
 - `.github/dependabot.yml` - weekly Go module and GitHub Actions dependency update grouping.
-- `plans/api-sync.md` - implementation plan and ME-344 handoff assumptions for API sync.
+- `plans/api-sync.md` - implemented Scalar-to-CLI synchronization and release behavior.
 
 ## How to use this map
 

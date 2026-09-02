@@ -9,8 +9,8 @@ useDefault = true
 description = "Documentation examples and synthetic test fixtures"
 paths = [
   # Vendored OpenAPI spec: curl examples use YOUR_SECRET_API_KEY and
-  # example UUIDs — placeholders, not credentials.
-  '''spec\.json''',
+  # example UUIDs, which are placeholders rather than credentials.
+  '''spec\.(json|yaml)''',
   # JWT-shape detector fixtures: real-shaped RS256 header + repeated
   # filler chars ("Synthetic — not a credential" per the file).
   '''internal/cliutil/jwtshape_test\.go''',

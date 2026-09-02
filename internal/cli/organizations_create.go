@@ -21,7 +21,7 @@ func newOrganizationsCreateCmd(flags *rootFlags) *cobra.Command {
 		Use:         "create",
 		Short:       "Creates a new organization related to your Straddle integration. Organizations can be used to group related accounts...",
 		Example:     "  straddle organizations create --name example-resource",
-		Annotations: map[string]string{"straddle:endpoint": "organizations.create", "straddle:method": "POST", "straddle:path": "/v1/organizations"},
+		Annotations: map[string]string{"straddle:endpoint": "organizations.create", "straddle:operation-id": "createOrganization", "straddle:method": "POST", "straddle:path": "/v1/organizations"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !stdinBody {
 				if !cmd.Flags().Changed("name") && !flags.dryRun {

@@ -45,7 +45,7 @@ func newPaymentsPromotedCmd(flags *rootFlags) *cobra.Command {
 		Short:       "Search for payments, including `charges` and `payouts`, using a variety of criteria. This endpoint supports advanced...",
 		Long:        "Shortcut for 'payments list'. Search for payments, including `charges` and `payouts`, using a variety of criteria. This endpoint supports advanced...",
 		Example:     "  straddle payments",
-		Annotations: map[string]string{"straddle:endpoint": "payments.list", "straddle:method": "GET", "straddle:path": "/v1/payments", "mcp:read-only": "true"},
+		Annotations: map[string]string{"straddle:endpoint": "payments.list", "straddle:operation-id": "listPayments", "straddle:method": "GET", "straddle:path": "/v1/payments", "mcp:read-only": "true"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if cmd.Flags().Changed("sort-by") {
 				allowedSortBy := []string{"created_at", "payment_date", "effective_at", "id", "amount"}

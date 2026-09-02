@@ -17,7 +17,7 @@ func newLinkedBankAccountsUnmaskGetLinkedBankAccountUnmaskedCmd(flags *rootFlags
 		Aliases:     []string{"get"},
 		Short:       "Retrieves the unmasked details of a linked bank account that has previously been created. Supply the unique linked...",
 		Example:     "  straddle linked-bank-accounts unmask get-linked-bank-account-unmasked 550e8400-e29b-41d4-a716-446655440000",
-		Annotations: map[string]string{"straddle:endpoint": "unmask.get-linked-bank-account-unmasked", "straddle:method": "GET", "straddle:path": "/v1/linked_bank_accounts/{linked_bank_account_id}/unmask", "mcp:read-only": "true"},
+		Annotations: map[string]string{"straddle:endpoint": "unmask.get-linked-bank-account-unmasked", "straddle:operation-id": "getUnmaskedLinkedBankAccount", "straddle:method": "GET", "straddle:path": "/v1/linked_bank_accounts/{linked_bank_account_id}/unmask", "mcp:read-only": "true"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()

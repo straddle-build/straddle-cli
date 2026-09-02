@@ -16,7 +16,7 @@ func newAccountsGetCmd(flags *rootFlags) *cobra.Command {
 		Use:         "get <account_id>",
 		Short:       "Retrieves the details of an account that has previously been created. Supply the unique account ID that was returned...",
 		Example:     "  straddle accounts get 550e8400-e29b-41d4-a716-446655440000",
-		Annotations: map[string]string{"straddle:endpoint": "accounts.get", "straddle:method": "GET", "straddle:path": "/v1/accounts/{account_id}", "mcp:read-only": "true"},
+		Annotations: map[string]string{"straddle:endpoint": "accounts.get", "straddle:operation-id": "getAccount", "straddle:method": "GET", "straddle:path": "/v1/accounts/{account_id}", "mcp:read-only": "true"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()

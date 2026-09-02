@@ -42,7 +42,7 @@ func newAccountsCreateCmd(flags *rootFlags) *cobra.Command {
 		Use:         "create",
 		Short:       "Creates a new account associated with your Straddle platform integration. This endpoint allows you to set up an...",
 		Example:     "  straddle accounts create --access-level standard",
-		Annotations: map[string]string{"straddle:endpoint": "accounts.create", "straddle:method": "POST", "straddle:path": "/v1/accounts"},
+		Annotations: map[string]string{"straddle:endpoint": "accounts.create", "straddle:operation-id": "createAccount", "straddle:method": "POST", "straddle:path": "/v1/accounts"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !stdinBody {
 				if !cmd.Flags().Changed("access-level") && !flags.dryRun {

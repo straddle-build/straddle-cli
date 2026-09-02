@@ -17,7 +17,7 @@ func newOrganizationsGetByIdCmd(flags *rootFlags) *cobra.Command {
 		Aliases:     []string{"get"},
 		Short:       "Retrieves the details of an Organization that has previously been created. Supply the unique organization ID that...",
 		Example:     "  straddle organizations get-by-id 550e8400-e29b-41d4-a716-446655440000",
-		Annotations: map[string]string{"straddle:endpoint": "organizations.get-by-id", "straddle:method": "GET", "straddle:path": "/v1/organizations/{organization_id}", "mcp:read-only": "true"},
+		Annotations: map[string]string{"straddle:endpoint": "organizations.get-by-id", "straddle:operation-id": "getOrganization", "straddle:method": "GET", "straddle:path": "/v1/organizations/{organization_id}", "mcp:read-only": "true"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()

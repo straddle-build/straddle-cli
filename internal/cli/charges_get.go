@@ -16,7 +16,7 @@ func newChargesGetCmd(flags *rootFlags) *cobra.Command {
 		Use:         "get <id>",
 		Short:       "Retrieves the details of an existing charge. Supply the unique charge `id`, and Straddle will return the...",
 		Example:     "  straddle charges get 550e8400-e29b-41d4-a716-446655440000",
-		Annotations: map[string]string{"straddle:endpoint": "charges.get", "straddle:method": "GET", "straddle:path": "/v1/charges/{id}", "mcp:read-only": "true"},
+		Annotations: map[string]string{"straddle:endpoint": "charges.get", "straddle:operation-id": "getCharge", "straddle:method": "GET", "straddle:path": "/v1/charges/{id}", "mcp:read-only": "true"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()

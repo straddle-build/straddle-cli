@@ -7,6 +7,7 @@ toolchain go1.26.6
 require (
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/spf13/cobra v1.10.2
+	sigs.k8s.io/yaml v1.4.0
 )
 
 require modernc.org/sqlite v1.37.0

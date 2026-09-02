@@ -29,7 +29,7 @@ func newPayoutsCreateCmd(flags *rootFlags) *cobra.Command {
 		Use:         "create",
 		Short:       "Use payouts to send money to your customers.",
 		Example:     "  straddle payouts create --currency example-value",
-		Annotations: map[string]string{"straddle:endpoint": "payouts.create", "straddle:method": "POST", "straddle:path": "/v1/payouts"},
+		Annotations: map[string]string{"straddle:endpoint": "payouts.create", "straddle:operation-id": "createPayout", "straddle:method": "POST", "straddle:path": "/v1/payouts"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !stdinBody {
 				if !cmd.Flags().Changed("amount") && !flags.dryRun {

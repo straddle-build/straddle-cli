@@ -19,7 +19,7 @@ func newPaykeysReviewUpdateCmd(flags *rootFlags) *cobra.Command {
 		Use:         "update <id>",
 		Short:       "Update the status of a paykey when in review status",
 		Example:     "  straddle paykeys review update 550e8400-e29b-41d4-a716-446655440000 --status active",
-		Annotations: map[string]string{"straddle:endpoint": "review.update", "straddle:method": "PATCH", "straddle:path": "/v1/paykeys/{id}/review"},
+		Annotations: map[string]string{"straddle:endpoint": "review.update", "straddle:operation-id": "setPaykeyVerificationDecision", "straddle:method": "PATCH", "straddle:path": "/v1/paykeys/{id}/review"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()

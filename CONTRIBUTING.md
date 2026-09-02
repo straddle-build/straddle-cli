@@ -15,7 +15,7 @@ make release-snapshot  # local GoReleaser dry run into dist/
 
 This repo is maintained as a standalone Go CLI. Edit source directly, keep changes narrow, and preserve the human and agent output contracts unless a change explicitly requires them to move.
 
-`cmd/gen-endpoint` owns endpoint coverage, drift classification, and generic endpoint generation from `spec.json`. Run `go run ./cmd/gen-endpoint check --spec spec.json --repo .` when command annotations or the API lockfile change.
+`cmd/gen-endpoint` owns endpoint coverage, drift classification, and generic endpoint generation from `spec.yaml`. Run `go run ./cmd/gen-endpoint verify-lock --spec spec.yaml` and `go run ./cmd/gen-endpoint check --spec spec.yaml --repo .` when command annotations or the pinned API contract change.
 
 Dependabot runs weekly for Go modules and GitHub Actions. Go module minor and patch updates are grouped under `go-minor-and-patch`, except `modernc.org/sqlite`, which stays out of that group because the local SQLite store is operationally sensitive. GitHub Actions updates are grouped together.
 

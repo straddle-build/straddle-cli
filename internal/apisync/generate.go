@@ -57,6 +57,7 @@ func GenerateEndpointFile(op Operation, outDir string) (GeneratedFile, error) {
 		Short:          firstSentence(op),
 		Example:        example(op),
 		Endpoint:       op.Endpoint,
+		OperationID:    op.OperationID,
 		Method:         op.Method,
 		Path:           op.Path,
 		ReadOnly:       op.ReadOnly,
@@ -111,6 +112,7 @@ type fileTemplateData struct {
 	Short          string
 	Example        string
 	Endpoint       string
+	OperationID    string
 	Method         string
 	Path           string
 	ReadOnly       bool
@@ -158,7 +160,7 @@ func init() {
 		Use:     {{ printf "%q" .CommandUse }},
 		Short:   {{ printf "%q" .Short }},
 		Example: {{ printf "%q" .Example }},
-		Annotations: map[string]string{"straddle:endpoint": {{ printf "%q" .Endpoint }}, "straddle:method": {{ printf "%q" .Method }}, "straddle:path": {{ printf "%q" .Path }}{{ if .ReadOnly }}, "mcp:read-only": "true"{{ end }}},
+		Annotations: map[string]string{"straddle:endpoint": {{ printf "%q" .Endpoint }}, "straddle:operation-id": {{ printf "%q" .OperationID }}, "straddle:method": {{ printf "%q" .Method }}, "straddle:path": {{ printf "%q" .Path }}{{ if .ReadOnly }}, "mcp:read-only": "true"{{ end }}},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < {{ len .PathParams }} {
 				return cmd.Help()
@@ -311,7 +313,11 @@ func firstSentence(op Operation) string {
 }
 
 func example(op Operation) string {
-	return "  straddle " + strings.ReplaceAll(op.Endpoint, ".", " ")
+	example := "  straddle " + strings.ReplaceAll(op.Endpoint, ".", " ")
+	for _, param := range op.PathParameters {
+		example += " <" + param.Name + ">"
+	}
+	return example
 }
 
 func flagName(param Parameter) string {

@@ -20,7 +20,7 @@ func newChargesReleaseChargeCmd(flags *rootFlags) *cobra.Command {
 		Aliases:     []string{"update"},
 		Short:       "Release a charge from an `on_hold` status to allow it to be rescheduled for processing.",
 		Example:     "  straddle charges release charge 550e8400-e29b-41d4-a716-446655440000",
-		Annotations: map[string]string{"straddle:endpoint": "release.charge", "straddle:method": "PUT", "straddle:path": "/v1/charges/{id}/release"},
+		Annotations: map[string]string{"straddle:endpoint": "release.charge", "straddle:operation-id": "releaseCharge", "straddle:method": "PUT", "straddle:path": "/v1/charges/{id}/release"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()

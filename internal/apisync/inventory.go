@@ -14,11 +14,13 @@ import (
 )
 
 type Annotation struct {
-	Endpoint string `json:"endpoint"`
-	Method   string `json:"method"`
-	Path     string `json:"path"`
-	File     string `json:"file"`
-	ReadOnly bool   `json:"read_only"`
+	Endpoint    string `json:"endpoint"`
+	OperationID string `json:"operation_id"`
+	Method      string `json:"method"`
+	Path        string `json:"path"`
+	File        string `json:"file"`
+	ReadOnly    bool   `json:"read_only"`
+	Internal    bool   `json:"internal,omitempty"`
 }
 
 type AnnotationIssue struct {
@@ -104,23 +106,27 @@ func inventoryFile(path, repoRoot string) ([]Annotation, []AnnotationIssue, erro
 			return true
 		}
 		_, hasEndpoint := values["straddle:endpoint"]
+		_, hasOperationID := values["straddle:operation-id"]
 		_, hasMethod := values["straddle:method"]
 		_, hasPath := values["straddle:path"]
+		internal := strings.EqualFold(values["straddle:contract"], "internal")
 		if !hasEndpoint && !hasMethod && !hasPath {
 			return true
 		}
-		if !hasEndpoint || !hasMethod || !hasPath {
+		if !hasEndpoint || (!hasOperationID && !internal) || !hasMethod || !hasPath {
 			issues = append(issues, AnnotationIssue{File: rel, Message: "incomplete straddle annotation"})
 			return true
 		}
 		method := strings.ToUpper(strings.TrimSpace(values["straddle:method"]))
 		pathValue := strings.TrimSpace(values["straddle:path"])
 		annotations = append(annotations, Annotation{
-			Endpoint: strings.TrimSpace(values["straddle:endpoint"]),
-			Method:   method,
-			Path:     pathValue,
-			File:     rel,
-			ReadOnly: strings.EqualFold(values["mcp:read-only"], "true"),
+			Endpoint:    strings.TrimSpace(values["straddle:endpoint"]),
+			OperationID: strings.TrimSpace(values["straddle:operation-id"]),
+			Method:      method,
+			Path:        pathValue,
+			File:        rel,
+			ReadOnly:    strings.EqualFold(values["mcp:read-only"], "true"),
+			Internal:    internal,
 		})
 		return true
 	})

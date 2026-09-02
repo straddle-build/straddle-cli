@@ -18,7 +18,7 @@ func newLinkedBankAccountsCancelUpdateCmd(flags *rootFlags) *cobra.Command {
 		Use:         "update <linked_bank_account_id>",
 		Short:       "Cancels an existing linked bank account. This can be used to cancel a linked bank account before it has been...",
 		Example:     "  straddle linked-bank-accounts cancel update 550e8400-e29b-41d4-a716-446655440000",
-		Annotations: map[string]string{"straddle:endpoint": "cancel.update", "straddle:method": "PATCH", "straddle:path": "/v1/linked_bank_accounts/{linked_bank_account_id}/cancel"},
+		Annotations: map[string]string{"straddle:endpoint": "cancel.update", "straddle:operation-id": "cancelLinkedBankAccount", "straddle:method": "PATCH", "straddle:path": "/v1/linked_bank_accounts/{linked_bank_account_id}/cancel"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()

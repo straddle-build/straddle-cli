@@ -16,7 +16,7 @@ func newPayoutsGetCmd(flags *rootFlags) *cobra.Command {
 		Use:         "get <id>",
 		Short:       "Retrieves the details of an existing payout. Supply the unique payout `id` to retrieve the corresponding payout...",
 		Example:     "  straddle payouts get 550e8400-e29b-41d4-a716-446655440000",
-		Annotations: map[string]string{"straddle:endpoint": "payouts.get", "straddle:method": "GET", "straddle:path": "/v1/payouts/{id}", "mcp:read-only": "true"},
+		Annotations: map[string]string{"straddle:endpoint": "payouts.get", "straddle:operation-id": "getPayout", "straddle:method": "GET", "straddle:path": "/v1/payouts/{id}", "mcp:read-only": "true"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()

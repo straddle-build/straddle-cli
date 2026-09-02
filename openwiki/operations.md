@@ -45,7 +45,7 @@ There are package-level tests around CLI behavior, store migrations, account sco
 
 ## API sync workflow
 
-See the [root API sync operations section](../OPERATIONS.md#api-sync) for the canonical commands, workflow behavior, remote-mutation guards, auto-merge queueing, and review routing.
+See the [root API sync operations section](../OPERATIONS.md#api-sync) for the canonical commands, exact-version verification, human-reviewed synchronization PR, and post-merge CLI release behavior.
 
 ## Change warnings
 

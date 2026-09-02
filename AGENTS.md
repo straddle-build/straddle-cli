@@ -26,7 +26,7 @@ Pointers: `OPERATIONS.md` (local dev commands, release, API sync), `openwiki/qui
 
 - **`Straddle-Account-Id` scoping is business-critical.** `internal/straddleacct/` decides when the header is sent, by integration type (`account`, `saas`, `marketplace`): charges/payouts create require it for `saas`+`marketplace`; customers/paykeys/bridge are scoped for `saas` and send no header for `marketplace`; account-management ops never use the header. The CLI pre-run gates agents and humans identically. Route any new account-scoped behavior through this package.
 - **Agent/JSON output must stay byte-stable.** Never change it for cosmetics. The human and agent surfaces are both intentional; preserve both when changing commands, and update tests and docs with the code.
-- `spec.json` is the OpenAPI lockfile and the authoritative source for resource and response shapes. Keep endpoint coverage and drift visible via `cmd/gen-endpoint` (see `OPERATIONS.md`).
+- `spec.yaml` is the exact Scalar contract named by `contract.lock.json`. Keep endpoint coverage and drift visible via `cmd/gen-endpoint` (see `OPERATIONS.md`).
 - The local SQLite store (`internal/store/`) is part of the product, not a cache detail. Several commands assume it exists after `sync`. Be careful with migration behavior.
 - TDD for non-trivial logic; table-driven tests with stdlib `testing`. `go test ./...` must be green before done.
 - Add only dependencies you need. Build to the repo (`bin/` or `./`), never `/tmp`. Don't `gofmt` the whole tree blindly; format only changed files.

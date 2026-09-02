@@ -18,7 +18,7 @@ func newPaykeysRefreshBalanceUpdateCmd(flags *rootFlags) *cobra.Command {
 		Use:         "update <id>",
 		Short:       "Updates the balance of a paykey. This endpoint allows you to refresh the balance of a paykey.",
 		Example:     "  straddle paykeys refresh-balance update 550e8400-e29b-41d4-a716-446655440000",
-		Annotations: map[string]string{"straddle:endpoint": "refresh-balance.update", "straddle:method": "PUT", "straddle:path": "/v1/paykeys/{id}/refresh_balance"},
+		Annotations: map[string]string{"straddle:endpoint": "refresh-balance.update", "straddle:operation-id": "refreshPaykeyBalance", "straddle:method": "PUT", "straddle:path": "/v1/paykeys/{id}/refresh_balance"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()

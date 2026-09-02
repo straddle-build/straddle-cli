@@ -11,7 +11,8 @@ Local development commands, release process, and operational pointers for the St
 | Vet | `go vet ./...` |
 | Lint | `golangci-lint run` (or `make lint`) |
 | Format | `gofmt -w <changed files>` (changed files only) |
-| Endpoint coverage | `go run ./cmd/gen-endpoint check --spec spec.json --repo .` |
+| Contract lock | `go run ./cmd/gen-endpoint verify-lock --spec spec.yaml` |
+| Endpoint coverage | `go run ./cmd/gen-endpoint check --spec spec.yaml --repo .` |
 | Vulnerability scan | `make vuln` |
 | Secret scan | `go run github.com/zricethezav/gitleaks/v8@latest detect --log-opts=--all` |
 | Runtime smoke | `go run ./cmd/straddle doctor --json` and `go run ./cmd/straddle agent-context --pretty` |
@@ -25,22 +26,27 @@ Agent mode: `--agent` = `--json --compact --no-input --no-color --yes`. Human co
 
 ## API sync
 
-`spec.json` is the OpenAPI lockfile. Drift and coverage tooling:
+`spec.yaml` contains the exact bytes of the immutable Scalar release named by `contract.lock.json`. Drift and coverage tooling:
 
 ```bash
-go run ./cmd/gen-endpoint check --spec spec.json --repo .
-go run ./cmd/gen-endpoint drift --base spec.json --head <live-spec> --repo . --agent
-go run ./cmd/gen-endpoint generate --spec <live-spec> --repo . --drift <drift-json> --supported-additions --agent
+go run ./cmd/gen-endpoint verify-lock --spec spec.yaml
+go run ./cmd/gen-endpoint check --spec spec.yaml --repo .
+go run ./cmd/gen-endpoint drift --base spec.yaml --head <released-spec> --repo . --agent
+go run ./cmd/gen-endpoint generate --spec <released-spec> --repo . --drift <drift-json> --supported-additions --agent
 ```
 
-`.github/workflows/api-sync.yml` runs on a schedule, manual dispatch, and `repository_dispatch`. It fetches the live spec from `client_payload.spec_url`, a workflow input, or `STRADDLE_API_SPEC_URL`. When a run contains only supported additions, it creates a PR only when `API_SYNC_BOT_TOKEN` is configured and dry-run is disabled, then queues that PR for GitHub auto-merge with squash and branch deletion after required checks and reviews pass. The queue command is pinned to the generated PR head SHA. Dry runs and runs without the bot token report the generated diff without remote PR or issue mutation. Changed, removed, or unsupported operations remain for human review. Configure `API_SYNC_BOT_TOKEN` as a fine-grained PAT or GitHub App token with contents and pull-request write access; the workflow does not use the default `GITHUB_TOKEN` for bot-authored PR CI. Remote issue creation is opt-in via `API_SYNC_CREATE_ISSUES=true`.
+`.github/workflows/api-sync.yml` receives `straddle-contract-published`, accepts an exact version for manual recovery, and checks Scalar daily for a missed event. Discovery may read Scalar's current release, but synchronization always downloads the exact versioned artifact. Dispatch runs verify the publisher-provided digest before drift or generation.
+
+Every new contract version updates the YAML and lock in a normal human-reviewed PR. Supported new operations are generated into that PR. Changed, removed, and unsupported operations are included in its review evidence instead of blocking the update. Repeated events and scheduled runs are green no-ops when the version and bytes already match `main` or the version-specific pending branch. Changed bytes for an already-seen version fail. The workflow never auto-merges.
+
+Configure `API_SYNC_BOT_TOKEN` with contents and pull-request write access. It creates the synchronization PR and, after that PR is merged, `.github/workflows/api-sync-release.yml` creates the next CLI patch tag. The existing release workflow publishes that tag through every configured CLI distribution.
 
 ## Release
 
-Releases are cut from `main` by tag:
+Releases are cut from `main` by tag. A merged version-specific `automation/api-sync-*` PR creates the next patch tag automatically; other releases may still be tagged manually.
 
-1. Push a `vX.Y.Z` tag.
-2. `.github/workflows/release.yml` runs tests, then GoReleaser publishes the GitHub release (6 os/arch archives + `checksums.txt`) and publishes the `@straddleio/cli` npm wrapper (skipped automatically when `NPM_TOKEN` is unset). Homebrew cask upload is disabled by `homebrew_casks.skip_upload: true` in `.goreleaser.yaml`; adding `HOMEBREW_TAP_GITHUB_TOKEN` alone does not enable it.
+1. Push a `vX.Y.Z` tag, or merge the generated contract synchronization PR.
+2. `.github/workflows/release.yml` runs tests, then GoReleaser publishes the GitHub release (6 os/arch archives + `checksums.txt`) and publishes the `@straddleio/cli` npm wrapper when `NPM_TOKEN` is configured. GoReleaser publishes the Homebrew cask when `HOMEBREW_TAP_GITHUB_TOKEN` is configured.
 3. `install.sh` and `go install github.com/straddle-build/cli/cmd/straddle@latest` resolve the new release with no further action.
 
 Local dry run: `make release-snapshot` builds everything into `dist/` without publishing.
