@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Straddle API
-  version: 1.0.1
+  version: 1.0.2
   description: >-
     # Introduction
 
@@ -717,6 +717,7 @@ paths:
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -813,6 +814,7 @@ paths:
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -1074,6 +1076,7 @@ paths:
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -1177,6 +1180,7 @@ paths:
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -1539,6 +1543,7 @@ paths:
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -1808,6 +1813,7 @@ paths:
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -2110,6 +2116,7 @@ paths:
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -2345,6 +2352,7 @@ paths:
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -2602,6 +2610,7 @@ paths:
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -2799,6 +2808,7 @@ paths:
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -2895,6 +2905,7 @@ paths:
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -2991,6 +3002,7 @@ paths:
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -3196,6 +3208,7 @@ paths:
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -3556,6 +3569,7 @@ paths:
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -3869,6 +3883,7 @@ paths:
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -4456,6 +4471,7 @@ paths:
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -4553,6 +4569,7 @@ paths:
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -5665,6 +5682,7 @@ paths:
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -5762,6 +5780,7 @@ paths:
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -6881,6 +6900,7 @@ paths:
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -6985,6 +7005,7 @@ paths:
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -7467,6 +7488,7 @@ paths:
       requestBody:
         description: Select the activity type and optional processing outcome for the
           simulated funding event.
+        required: true
         content:
           application/json:
             schema:
@@ -8240,6 +8262,7 @@ paths:
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
+        required: true
         content:
           multipart/form-data:
             schema:
@@ -8250,10 +8273,17 @@ paths:
                 File:
                   type: string
                   description: The document file to upload as proof of authorization for this
-                    charge.
+                    charge. Supported file types are PDF (.pdf), PNG (.png),
+                    JPEG (.jpg, .jpeg), Word (.doc), and Word (.docx), with a
+                    maximum file size of 10 MiB (10,485,760 bytes). Empty
+                    (0-byte) files are rejected. Uploaded files are validated
+                    for matching file signatures (magic bytes) and file
+                    extension agreement.
                   format: binary
             encoding:
               File:
+                contentType: application/pdf, image/png, image/jpeg, application/msword,
+                  application/vnd.openxmlformats-officedocument.wordprocessingml.document
                 style: form
       responses:
         "201":
@@ -8349,6 +8379,7 @@ paths:
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
+        required: true
         content:
           multipart/form-data:
             schema:
@@ -8359,10 +8390,17 @@ paths:
                 File:
                   type: string
                   description: The document file to upload as proof of authorization for this
-                    payout.
+                    payout. Supported file types are PDF (.pdf), PNG (.png),
+                    JPEG (.jpg, .jpeg), Word (.doc), and Word (.docx), with a
+                    maximum file size of 10 MiB (10,485,760 bytes). Empty
+                    (0-byte) files are rejected. Uploaded files are validated
+                    for matching file signatures (magic bytes) and file
+                    extension agreement.
                   format: binary
             encoding:
               File:
+                contentType: application/pdf, image/png, image/jpeg, application/msword,
+                  application/vnd.openxmlformats-officedocument.wordprocessingml.document
                 style: form
       responses:
         "201":
@@ -12266,12 +12304,11 @@ components:
           nullable: true
       additionalProperties: false
     UpdatePayoutStatusRequest:
-      required:
-        - reason
       type: object
       properties:
         reason:
           type: string
+          nullable: true
           description: Message explaining the payout status change.
       additionalProperties: false
     UpdatePayoutRequest:
@@ -14796,8 +14833,6 @@ components:
           description: Funding-event payments returned for this page.
       additionalProperties: false
     RefundChargeRequest:
-      required:
-        - amount
       type: object
       properties:
         amount:
