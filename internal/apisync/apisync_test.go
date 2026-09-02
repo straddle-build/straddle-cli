@@ -243,8 +243,9 @@ func TestAPISyncWorkflowVerifiesReviewableDrift(t *testing.T) {
 	temp := t.TempDir()
 	goLog := filepath.Join(temp, "go.log")
 	runWorkflowScript(t, script, map[string]string{
-		"COVERAGE_JSON": filepath.Join(temp, "coverage.json"),
-		"MOCK_GO_LOG":   goLog,
+		"COVERAGE_JSON":            filepath.Join(temp, "coverage.json"),
+		"MOCK_GO_LOG":              goLog,
+		"STRADDLE_API_SYNC_REVIEW": "",
 	}, map[string]string{
 		"go": `printf 'review=%s args=%s\n' "${STRADDLE_API_SYNC_REVIEW:-}" "$*" >> "${MOCK_GO_LOG}"`,
 	})
