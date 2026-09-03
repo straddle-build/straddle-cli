@@ -10,7 +10,7 @@ Flags:
       --amount int                        The amount of the charge in cents.
       --config-auto-hold                  Defines whether to automatically place this charge on hold after being created.
       --config-auto-hold-message string   The reason the charge is being automatically held on creation.
-      --config-balance-check string       Defines whether to check the customer's balance before processing the charge.
+      --config-balance-check string       Defines whether to check the customer's balance before processing the charge. (default "enabled")
       --config-sandbox-outcome string     Payment will simulate processing if not Standard.
       --consent-type internet             The channel or mechanism through which the payment was authorized. Use internet for payments made online or...
       --correlation-id string             Optional client-generated identifier for tracing a series of related requests.

@@ -274,7 +274,7 @@ command straddle charges create
   --amount type=int default="0" usage="The amount of the charge in cents."
   --config-auto-hold type=bool default="false" usage="Defines whether to automatically place this charge on hold after being created."
   --config-auto-hold-message type=string default="" usage="The reason the charge is being automatically held on creation."
-  --config-balance-check type=string default="" usage="Defines whether to check the customer's balance before processing the charge."
+  --config-balance-check type=string default="enabled" usage="Defines whether to check the customer's balance before processing the charge."
   --config-sandbox-outcome type=string default="" usage="Payment will simulate processing if not Standard."
   --consent-type type=string default="" usage="The channel or mechanism through which the payment was authorized. Use `internet` for payments made online or..."
   --correlation-id type=string default="" usage="Optional client-generated identifier for tracing a series of related requests."

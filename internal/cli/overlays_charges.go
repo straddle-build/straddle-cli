@@ -22,7 +22,7 @@ func init() {
 			{name: "amount", usage: "The amount of the charge in cents."},
 			{name: "config-auto-hold", usage: "Defines whether to automatically place this charge on hold after being created."},
 			{name: "config-auto-hold-message", usage: "The reason the charge is being automatically held on creation."},
-			{name: "config-balance-check", usage: "Defines whether to check the customer's balance before processing the charge.", defaultSet: true, defaultVal: ""},
+			{name: "config-balance-check", usage: "Defines whether to check the customer's balance before processing the charge."},
 			{name: "consent-type", usage: "The channel or mechanism through which the payment was authorized. Use `internet` for payments made online or..."},
 			{name: "currency", usage: "The currency of the charge. Only USD is supported."},
 			{name: "description", usage: "An arbitrary description for the charge."},
