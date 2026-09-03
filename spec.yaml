@@ -1,7 +1,7 @@
-openapi: 3.1.0
+openapi: 3.1.1
 info:
   title: Straddle API
-  version: 1.0.2
+  version: 1.0.3
   description: >-
     # Introduction
 
@@ -5008,16 +5008,18 @@ paths:
           in: query
           description: Filter to funding events created on or after this date.
           schema:
-            type: string
+            type:
+              - string
+              - "null"
             format: date
-            nullable: true
         - name: created_to
           in: query
           description: Filter to funding events created on or before this date.
           schema:
-            type: string
+            type:
+              - string
+              - "null"
             format: date
-            nullable: true
         - name: direction
           in: query
           schema:
@@ -5032,8 +5034,9 @@ paths:
           in: query
           description: Filter by a network trace number assigned during processing.
           schema:
-            type: string
-            nullable: true
+            type:
+              - string
+              - "null"
         - $ref: "#/components/parameters/StraddleAccountId"
         - $ref: "#/components/parameters/RequestId"
         - $ref: "#/components/parameters/CorrelationId"
@@ -5041,39 +5044,44 @@ paths:
           in: query
           description: Free-text search across funding event fields.
           schema:
-            type: string
-            nullable: true
+            type:
+              - string
+              - "null"
         - name: status
           in: query
           description: Filter by funding event status.
           schema:
-            type: array
+            type:
+              - array
+              - "null"
             items:
               $ref: "#/components/schemas/PaymentStatus"
-            nullable: true
         - name: trace_id
           in: query
           description: Filter by a network-level trace identifier assigned during
             processing.
           schema:
-            type: string
-            nullable: true
+            type:
+              - string
+              - "null"
         - name: status_reason
           in: query
           description: Filter by the reason for the most recent status change.
           schema:
-            type: array
+            type:
+              - array
+              - "null"
             items:
               $ref: "#/components/schemas/PaymentStatusReason"
-            nullable: true
         - name: status_source
           in: query
           description: Filter by the source of the most recent status change.
           schema:
-            type: array
+            type:
+              - array
+              - "null"
             items:
               $ref: "#/components/schemas/PaymentStatusSource"
-            nullable: true
       responses:
         "200":
           description: OK
@@ -8279,7 +8287,7 @@ paths:
                     (0-byte) files are rejected. Uploaded files are validated
                     for matching file signatures (magic bytes) and file
                     extension agreement.
-                  format: binary
+                  contentMediaType: application/octet-stream
             encoding:
               File:
                 contentType: application/pdf, image/png, image/jpeg, application/msword,
@@ -8396,7 +8404,7 @@ paths:
                     (0-byte) files are rejected. Uploaded files are validated
                     for matching file signatures (magic bytes) and file
                     extension agreement.
-                  format: binary
+                  contentMediaType: application/octet-stream
             encoding:
               File:
                 contentType: application/pdf, image/png, image/jpeg, application/msword,
@@ -8521,12 +8529,14 @@ components:
         terms_of_service:
           $ref: "#/components/schemas/TermsOfService"
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
-            type: string
-            nullable: true
+            type:
+              - string
+              - "null"
           description: Up to 20 user-defined key-value pairs.
-          nullable: true
         access_level:
           enum:
             - standard
@@ -8537,54 +8547,64 @@ components:
             the platform manages the account and account users cannot access the
             Straddle dashboard.
         external_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Your unique ID for the account.
-          nullable: true
         created_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Date and time when Straddle created the account.
           format: date-time
-          nullable: true
         updated_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Date and time of the most recent account update.
           format: date-time
-          nullable: true
       additionalProperties: false
     AccountAddress:
-      type: object
-      nullable: true
+      type:
+        - object
+        - "null"
       description: Optional business address. If provided, `line1`, `city`, `state`,
         and `postal_code` are required.
       properties:
         line1:
-          type: string
+          type:
+            - string
+            - "null"
           description: Primary address line, such as a street address or PO Box.
-          nullable: true
         line2:
-          type: string
+          type:
+            - string
+            - "null"
           description: Secondary address line, such as an apartment, suite, unit, or
             building.
-          nullable: true
         city:
-          type: string
+          type:
+            - string
+            - "null"
           description: City, district, suburb, town, or village.
-          nullable: true
         state:
-          type: string
+          type:
+            - string
+            - "null"
           description: Two-letter state code.
           pattern: ^[A-Z]{2}$
-          nullable: true
         postal_code:
-          type: string
+          type:
+            - string
+            - "null"
           description: Postal or ZIP code.
           pattern: ^[0-9]{5}(-[0-9]{4})?$
-          nullable: true
         country:
-          type: string
+          type:
+            - string
+            - "null"
           description: Two-letter ISO 3166-1 country code. If omitted, Straddle applies US
             address validation.
-          nullable: true
       additionalProperties: false
       required:
         - city
@@ -8667,28 +8687,33 @@ components:
           format: uri
           description: URL of the business's primary website.
         legal_name:
-          type: string
+          type:
+            - string
+            - "null"
           description: The official registered name of the business.
-          nullable: true
         description:
-          type: string
+          type:
+            - string
+            - "null"
           description: Description of the business and its products or services.
-          nullable: true
         use_case:
-          type: string
+          type:
+            - string
+            - "null"
           description: How the business plans to use Straddle.
-          nullable: true
         tax_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Business tax identification number, such as a US Employer
             Identification Number (EIN).
           pattern: ^[0-9]{9}$
-          nullable: true
         phone:
-          type: string
+          type:
+            - string
+            - "null"
           description: Primary business phone number in E.164 format.
           pattern: ^\+[1-9]\d{1,14}$
-          nullable: true
         address:
           $ref: "#/components/schemas/AccountAddress"
         industry:
@@ -8772,10 +8797,11 @@ components:
             `businesses`. `consent_type` covers `signed_agreement` and
             `internet` authorization.
         settings:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties: {}
           description: Limits and other settings requested for the capability.
-          nullable: true
         status:
           enum:
             - active
@@ -8912,16 +8938,19 @@ components:
             the platform manages the account and account users cannot access the
             Straddle dashboard.
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
-            type: string
-            nullable: true
+            type:
+              - string
+              - "null"
           description: Up to 20 user-defined key-value pairs.
-          nullable: true
         external_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Your unique ID for the account.
-          nullable: true
       additionalProperties: false
     CreateOrganizationRequest:
       required:
@@ -8932,16 +8961,19 @@ components:
           type: string
           description: Organization name.
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
-            type: string
-            nullable: true
+            type:
+              - string
+              - "null"
           description: Up to 20 user-defined key-value pairs.
-          nullable: true
         external_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Your unique ID for the organization.
-          nullable: true
       additionalProperties: false
     CreateRepresentativeRequest:
       required:
@@ -8969,34 +9001,40 @@ components:
           type: string
           description: Representative's date of birth in `YYYY-MM-DD` format.
           format: date
-          example: 1980-01-01
+          examples:
+            - 1980-01-01
         ssn_last4:
           type: string
           description: Last four digits of the representative's Social Security number.
           pattern: ^[0-9]{4}$
-          example: "1234"
+          examples:
+            - "1234"
         email:
           type: string
           description: Representative's company email address.
           format: email
-          example: ron.swanson@pawnee.com
+          examples:
+            - ron.swanson@pawnee.com
         mobile_number:
           type: string
           description: Representative's mobile phone number in E.164 format.
           pattern: ^\+[1-9]\d{1,14}$
-          example: "+12128675309"
+          examples:
+            - "+12128675309"
         relationship:
           $ref: "#/components/schemas/RepresentativeRelationship"
         external_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Your unique ID for the representative.
-          nullable: true
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
             type: string
           description: Up to 20 user-defined key-value pairs.
-          nullable: true
       additionalProperties: false
     AccountCustomerCapabilities:
       required:
@@ -9070,7 +9108,6 @@ components:
             - `array` means `data` contains an array of JSON objects.
             - `error` means `error` contains the error details.
         data:
-          nullable: true
           description: Response data, when available.
         error:
           $ref: "#/components/schemas/EmbedError"
@@ -9079,18 +9116,21 @@ components:
       type: object
       properties:
         mcc:
-          type: string
+          type:
+            - string
+            - "null"
           description: Merchant category code (MCC) that best describes the business. If
             omitted, provide both `sector` and `category`.
-          nullable: true
         sector:
-          type: string
+          type:
+            - string
+            - "null"
           description: Business sector. Required when `mcc` is omitted.
-          nullable: true
         category:
-          type: string
+          type:
+            - string
+            - "null"
           description: Industry category. Required when `mcc` is omitted.
-          nullable: true
       additionalProperties: false
     AccountResponse:
       required:
@@ -9253,11 +9293,13 @@ components:
           $ref: "#/components/schemas/UnmaskedLinkedBankAccountDetails"
           description: Unmasked bank account details.
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
-            type: string
-            nullable: true
-          nullable: true
+            type:
+              - string
+              - "null"
         created_at:
           type: string
           format: date-time
@@ -9284,11 +9326,12 @@ components:
           description: Straddle's unique ID for the linked bank account.
           format: uuid
         account_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: ID of the related account, if this is an account-level linked bank
             account.
           format: uuid
-          nullable: true
         status:
           enum:
             - created
@@ -9304,12 +9347,14 @@ components:
         bank_account:
           $ref: "#/components/schemas/MaskedLinkedBankAccountDetails"
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
-            type: string
-            nullable: true
+            type:
+              - string
+              - "null"
           description: Up to 20 user-defined key-value pairs.
-          nullable: true
         created_at:
           type: string
           description: Date and time when Straddle created the linked bank account.
@@ -9319,11 +9364,12 @@ components:
           description: Date and time of the most recent linked bank account update.
           format: date-time
         platform_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: ID of the related platform, if this is a platform-level linked bank
             account.
           format: uuid
-          nullable: true
         purposes:
           type: array
           items:
@@ -9334,9 +9380,10 @@ components:
             type: string
           description: Payment purposes assigned to the linked bank account.
         description:
-          type: string
+          type:
+            - string
+            - "null"
           description: Your description for the linked bank account.
-          nullable: true
       additionalProperties: false
     EmbedResponseMetadata:
       required:
@@ -9354,19 +9401,22 @@ components:
           type: string
           description: Timestamp for the API request.
         page_number:
-          type: integer
+          type:
+            - integer
+            - "null"
           format: int32
-          nullable: true
           description: Current page number.
         page_size:
-          type: integer
+          type:
+            - integer
+            - "null"
           format: int32
-          nullable: true
           description: Number of items per page.
         total_rows:
-          type: integer
+          type:
+            - integer
+            - "null"
           format: int32
-          nullable: true
           description: Total number of items available across all pages.
         sort_order:
           type: string
@@ -9400,16 +9450,19 @@ components:
           type: string
           description: The name of the organization.
         external_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Your unique ID for the organization.
-          nullable: true
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
-            type: string
-            nullable: true
+            type:
+              - string
+              - "null"
           description: Up to 20 user-defined key-value pairs.
-          nullable: true
         created_at:
           type: string
           description: Date and time when Straddle created the organization.
@@ -9711,15 +9764,17 @@ components:
           type: boolean
           description: Whether the representative owns any equity in the business.
         percent_ownership:
-          type: number
+          type:
+            - number
+            - "null"
           description: The representative's ownership percentage. Required when `owner` is
             `true`.
           format: double
-          nullable: true
         title:
-          type: string
+          type:
+            - string
+            - "null"
           description: The representative's job title.
-          nullable: true
       additionalProperties: false
     Representative:
       required:
@@ -9748,10 +9803,11 @@ components:
           description: ID of the account associated with the representative.
           format: uuid
         user_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: ID of the Straddle user linked to the representative, if any.
           format: uuid
-          nullable: true
         status:
           enum:
             - created
@@ -9766,37 +9822,45 @@ components:
         first_name:
           type: string
           description: Representative's first name.
-          example: Ron
+          examples:
+            - Ron
         last_name:
           type: string
           description: Representative's last name.
-          example: Swanson
+          examples:
+            - Swanson
         dob:
           type: string
           description: Representative's date of birth in `YYYY-MM-DD` format.
           format: date
-          example: 1980-01-01
+          examples:
+            - 1980-01-01
         ssn_last4:
           type: string
           description: Last four digits of the representative's Social Security number.
-          example: "1234"
+          examples:
+            - "1234"
         email:
-          type: string
+          type:
+            - string
+            - "null"
           description: Representative's email address.
           format: email
-          example: ron.swanson@pawnee.com
-          nullable: true
+          examples:
+            - ron.swanson@pawnee.com
         mobile_number:
           type: string
           description: Representative's mobile phone number in E.164 format.
           pattern: ^\+[1-9]\d{1,14}$
-          example: "+12128675309"
+          examples:
+            - "+12128675309"
         relationship:
           $ref: "#/components/schemas/RepresentativeRelationship"
         external_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Your unique ID for the representative.
-          nullable: true
         created_at:
           type: string
           description: Date and time when Straddle created the representative.
@@ -9809,15 +9873,17 @@ components:
           type: string
           description: Representative's display name.
         phone:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Representative's phone number.
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
             type: string
           description: Up to 20 user-defined key-value pairs.
-          nullable: true
       additionalProperties: false
     RequestCapabilityRequest:
       type: object
@@ -9970,20 +10036,23 @@ components:
       type: object
       properties:
         email:
-          type: string
+          type:
+            - string
+            - "null"
           description: Email address for customer support.
           format: email
-          nullable: true
         phone:
-          type: string
+          type:
+            - string
+            - "null"
           description: Customer support phone number in E.164 format.
           pattern: ^\+[1-9]\d{1,14}$
-          nullable: true
         url:
-          type: string
+          type:
+            - string
+            - "null"
           description: URL of the business's customer support page or contact form.
           format: uri
-          nullable: true
       additionalProperties: false
     TermsOfService:
       required:
@@ -9997,18 +10066,21 @@ components:
           description: Date and time when the account accepted the Terms of Service.
           format: date-time
         accepted_ip:
-          type: string
+          type:
+            - string
+            - "null"
           description: IP address used to accept the Terms of Service.
-          nullable: true
         accepted_user_agent:
-          type: string
+          type:
+            - string
+            - "null"
           description: User agent of the browser or application that accepted the Terms of
             Service.
-          nullable: true
         agreement_url:
-          type: string
+          type:
+            - string
+            - "null"
           description: URL of the accepted agreement.
-          nullable: true
         agreement_type:
           enum:
             - embedded
@@ -10026,16 +10098,19 @@ components:
         business_profile:
           $ref: "#/components/schemas/AccountBusinessProfile"
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
-            type: string
-            nullable: true
+            type:
+              - string
+              - "null"
           description: Up to 20 user-defined key-value pairs.
-          nullable: true
         external_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Your unique ID for the account.
-          nullable: true
       additionalProperties: false
     UpdateLinkedBankAccountRequest:
       required:
@@ -10045,12 +10120,14 @@ components:
         bank_account:
           $ref: "#/components/schemas/LinkedBankAccountDetailsRequest"
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
-            type: string
-            nullable: true
+            type:
+              - string
+              - "null"
           description: Up to 20 user-defined key-value pairs.
-          nullable: true
       additionalProperties: false
     UpdateRepresentativeRequest:
       required:
@@ -10066,43 +10143,51 @@ components:
         first_name:
           type: string
           description: Representative's first name.
-          example: Ron
+          examples:
+            - Ron
         last_name:
           type: string
           description: Representative's last name.
-          example: Swanson
+          examples:
+            - Swanson
         dob:
           type: string
           description: Representative's date of birth in `YYYY-MM-DD` format.
           format: date
-          example: 1980-01-01
+          examples:
+            - 1980-01-01
         ssn_last4:
           type: string
           description: Last four digits of the representative's Social Security number.
           pattern: ^[0-9]{4}$
-          example: "1234"
+          examples:
+            - "1234"
         email:
           type: string
           description: Representative's email address.
           format: email
-          example: ron.swanson@pawnee.com
+          examples:
+            - ron.swanson@pawnee.com
         mobile_number:
           type: string
           description: Representative's mobile phone number in E.164 format.
           pattern: ^\+[1-9]\d{1,14}$
-          example: "+12128675309"
+          examples:
+            - "+12128675309"
         relationship:
           $ref: "#/components/schemas/RepresentativeRelationship"
         external_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Your unique ID for the representative.
-          nullable: true
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
             type: string
           description: Up to 20 user-defined key-value pairs.
-          nullable: true
       additionalProperties: false
     AccountType:
       enum:
@@ -10115,38 +10200,45 @@ components:
         - address1
         - city
         - zip
-      type: object
+      type:
+        - object
+        - "null"
       description: Customer postal address. When provided, the object must include all
         required fields.
-      nullable: true
       properties:
         address1:
           type: string
           description: Primary address line, such as a street address or PO Box.
-          example: 123 Main St
           maxLength: 100
+          examples:
+            - 123 Main St
         address2:
-          type: string
+          type:
+            - string
+            - "null"
           description: Secondary address line, such as an apartment, suite, unit, or
             building.
-          example: Apt 1
           maxLength: 100
-          nullable: true
+          examples:
+            - Apt 1
         city:
           type: string
           description: City, district, suburb, town, or village.
-          example: Anytown
           maxLength: 100
+          examples:
+            - Anytown
         state:
           type: string
           description: Two-letter state code.
-          example: CA
           pattern: ^[A-Z]{2}$
+          examples:
+            - CA
         zip:
           type: string
           description: ZIP or postal code.
-          example: "12345"
           pattern: ^[0-9]{5}(-[0-9]{4})?$
+          examples:
+            - "12345"
       additionalProperties: false
     BridgeToken:
       required:
@@ -10179,19 +10271,23 @@ components:
             Know Your Customer (KYC) verification.
           properties:
             ssn:
-              type: string
+              type:
+                - string
+                - "null"
               pattern: ^[0-9]{3}-[0-9]{2}-[0-9]{4}$
               description: Social Security number in `XXX-XX-XXXX` format. Required for
                 Patriot Act-compliant KYC verification.
-              nullable: true
-              example: 123-45-6789
+              examples:
+                - 123-45-6789
             dob:
-              type: string
+              type:
+                - string
+                - "null"
               format: date
               description: Date of birth in `YYYY-MM-DD` format. Required for Patriot
                 Act-compliant KYC verification.
-              nullable: true
-              example: 1969-04-20
+              examples:
+                - 1969-04-20
           required:
             - ssn
             - dob
@@ -10201,30 +10297,37 @@ components:
             Know Your Business (KYB) verification.
           properties:
             ein:
-              type: string
+              type:
+                - string
+                - "null"
               pattern: ^[0-9]{2}-[0-9]{7}$
               description: Employer Identification Number in `XX-XXXXXXX` format. Required for
                 Patriot Act-compliant KYB verification.
-              nullable: true
-              example: 12-3456789
+              examples:
+                - 12-3456789
             legal_business_name:
-              type: string
+              type:
+                - string
+                - "null"
               description: Official business name registered with the IRS.
-              nullable: true
-              example: Acme Corp LLC
+              examples:
+                - Acme Corp LLC
             website:
-              type: string
+              type:
+                - string
+                - "null"
               format: uri
               description: Official business website URL.
-              nullable: true
-              example: https://example.com
+              examples:
+                - https://example.com
             representatives:
-              type: array
+              type:
+                - array
+                - "null"
               items:
                 $ref: "#/components/schemas/BusinessCustomerRepresentative"
               description: Representatives associated with the business. Valid only for
                 `business` customers.
-              nullable: true
           required:
             - ein
             - legal_business_name
@@ -10236,15 +10339,19 @@ components:
             Act-compliant KYC verification.
           properties:
             dob:
-              type: string
+              type:
+                - string
+                - "null"
               description: Masked date of birth in `****-**-**` format.
-              nullable: true
-              example: "****-**-**"
+              examples:
+                - "****-**-**"
             ssn:
-              type: string
+              type:
+                - string
+                - "null"
               description: Masked Social Security number in `***-**-****` format.
-              nullable: true
-              example: "***-**-****"
+              examples:
+                - "***-**-****"
           required:
             - dob
             - ssn
@@ -10254,28 +10361,35 @@ components:
             Act-compliant KYB verification.
           properties:
             ein:
-              type: string
+              type:
+                - string
+                - "null"
               description: Masked Employer Identification Number in `**-*******` format.
-              nullable: true
-              example: "**-*******"
+              examples:
+                - "**-*******"
             legal_business_name:
-              type: string
+              type:
+                - string
+                - "null"
               description: Official registered business name associated with `ein`.
-              nullable: true
-              example: Acme Corp LLC
+              examples:
+                - Acme Corp LLC
             website:
-              type: string
+              type:
+                - string
+                - "null"
               format: uri
               description: Official business website URL.
-              nullable: true
-              example: https://example.com
+              examples:
+                - https://example.com
             representatives:
-              type: array
+              type:
+                - array
+                - "null"
               items:
                 $ref: "#/components/schemas/BusinessCustomerRepresentative"
               description: Representatives associated with the business. Valid only for
                 `business` customers.
-              nullable: true
           required:
             - ein
             - legal_business_name
@@ -10302,17 +10416,19 @@ components:
         account_type:
           $ref: "#/components/schemas/AccountType"
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
             type: string
           description: Up to 20 user-defined key-value pairs associated with the paykey.
-          nullable: true
         config:
           $ref: "#/components/schemas/PaykeyConfiguration"
         external_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Unique identifier for the paykey in your system.
-          nullable: true
       additionalProperties: false
     CreateBridgeTokenRequest:
       required:
@@ -10327,9 +10443,10 @@ components:
         config:
           $ref: "#/components/schemas/PaykeyConfiguration"
         external_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Unique identifier for the paykey in your system.
-          nullable: true
       additionalProperties: false
     CreateCustomerRequest:
       required:
@@ -10344,14 +10461,16 @@ components:
           type: string
           description: Full name for an individual customer or business name for a
             business customer.
-          example: Ron Swanson
+          examples:
+            - Ron Swanson
         type:
           $ref: "#/components/schemas/CustomerType"
         email:
           type: string
           description: Customer email address.
           format: email
-          example: ron.swanson@pawnee.com
+          examples:
+            - ron.swanson@pawnee.com
         address:
           $ref: "#/components/schemas/CustomerAddress"
           description: Customer postal address. When provided, the object must include all
@@ -10360,42 +10479,47 @@ components:
           type: string
           pattern: ^\+[1-9]\d{1,14}$
           description: Customer phone number in E.164 format. A mobile number is preferred.
-          example: "+12128675309"
+          examples:
+            - "+12128675309"
         compliance_profile:
-          $ref: "#/components/schemas/UnmaskedComplianceProfile"
           description: Customer compliance profile. When provided, the object must include
             all fields required for the customer type.
-          nullable: true
+          anyOf:
+            - $ref: "#/components/schemas/UnmaskedComplianceProfile"
+            - type: "null"
         external_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Unique identifier for the customer in your system.
-          example: customer_123
-          nullable: true
+          examples:
+            - customer_123
         device:
           $ref: "#/components/schemas/CustomerDevice"
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
             type: string
           description: Up to 20 user-defined key-value pairs associated with the customer.
-          nullable: true
         config:
           $ref: "#/components/schemas/CustomerConfiguration"
       additionalProperties: false
-      example:
-        name: Ron Swanson
-        type: individual
-        email: ron.swanson@pawnee.com
-        address:
-          address1: 123 Main St
-          city: Anytown
-          state: CA
-          zip: "94105"
-        phone: "+12128675309"
-        external_id: customer_123
-        device:
-          ip_address: 192.168.1.1
-        metadata: {}
+      examples:
+        - name: Ron Swanson
+          type: individual
+          email: ron.swanson@pawnee.com
+          address:
+            address1: 123 Main St
+            city: Anytown
+            state: CA
+            zip: "94105"
+          phone: "+12128675309"
+          external_id: customer_123
+          device:
+            ip_address: 192.168.1.1
+          metadata: {}
     CreatePlaidPaykeyRequest:
       required:
         - plaid_token
@@ -10411,17 +10535,19 @@ components:
           description: Plaid processor token generated by your application for use with
             the Straddle API.
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
             type: string
           description: Up to 20 user-defined key-value pairs associated with the paykey.
-          nullable: true
         config:
           $ref: "#/components/schemas/PaykeyConfiguration"
         external_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Unique identifier for the paykey in your system.
-          nullable: true
       additionalProperties: false
     CustomerIdentityVerification:
       required:
@@ -10439,11 +10565,12 @@ components:
         decision:
           $ref: "#/components/schemas/VerificationDecision"
         messages:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
             type: string
           description: Messages returned by the customer verification process.
-          nullable: true
         breakdown:
           type: object
           properties:
@@ -10559,9 +10686,10 @@ components:
           description: The customer's phone number in E.164 format.
           pattern: ^\+[1-9]\d{1,14}$
         external_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Unique identifier for the customer in your system.
-          nullable: true
         status:
           $ref: "#/components/schemas/CustomerStatus"
         created_at:
@@ -10615,23 +10743,27 @@ components:
           type: string
           description: Full name for an individual customer or business name for a
             business customer.
-          example: Ron Swanson
+          examples:
+            - Ron Swanson
         type:
           $ref: "#/components/schemas/CustomerType"
         email:
           type: string
           description: The customer's email address.
           format: email
-          example: ron.swanson@pawnee.com
+          examples:
+            - ron.swanson@pawnee.com
         phone:
           type: string
           description: The customer's phone number in E.164 format.
-          example: "+12128675309"
           pattern: ^\+[1-9]\d{1,14}$
+          examples:
+            - "+12128675309"
         external_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Unique identifier for the customer in your system.
-          nullable: true
         status:
           $ref: "#/components/schemas/CustomerStatus"
         created_at:
@@ -10645,16 +10777,18 @@ components:
         address:
           $ref: "#/components/schemas/CustomerAddress"
         compliance_profile:
-          $ref: "#/components/schemas/UnmaskedComplianceProfile"
-          nullable: true
+          anyOf:
+            - $ref: "#/components/schemas/UnmaskedComplianceProfile"
+            - type: "null"
         device:
           $ref: "#/components/schemas/CustomerDevice"
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
             type: string
           description: Up to 20 user-defined key-value pairs associated with the customer.
-          nullable: true
         config:
           $ref: "#/components/schemas/CustomerConfiguration"
       additionalProperties: false
@@ -10692,23 +10826,27 @@ components:
           type: string
           description: Full name for an individual customer or business name for a
             business customer.
-          example: Ron Swanson
+          examples:
+            - Ron Swanson
         type:
           $ref: "#/components/schemas/CustomerType"
         email:
           type: string
           description: The customer's email address.
           format: email
-          example: ron.swanson@pawnee.com
+          examples:
+            - ron.swanson@pawnee.com
         phone:
           type: string
           description: The customer's phone number in E.164 format.
           pattern: ^\+[1-9]\d{1,14}$
-          example: "+12128675309"
+          examples:
+            - "+12128675309"
         external_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Unique identifier for the customer in your system.
-          nullable: true
         status:
           $ref: "#/components/schemas/CustomerStatus"
         created_at:
@@ -10721,18 +10859,19 @@ components:
           format: date-time
         address:
           $ref: "#/components/schemas/CustomerAddress"
-          nullable: true
         compliance_profile:
-          $ref: "#/components/schemas/ComplianceProfile"
-          nullable: true
+          anyOf:
+            - $ref: "#/components/schemas/ComplianceProfile"
+            - type: "null"
         device:
           $ref: "#/components/schemas/MaskedCustomerDevice"
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
             type: string
           description: Up to 20 user-defined key-value pairs associated with the customer.
-          nullable: true
         config:
           $ref: "#/components/schemas/CustomerConfiguration"
       additionalProperties: false
@@ -10761,7 +10900,8 @@ components:
           description: Customer IP address at profile creation. `0.0.0.0` represents an
             offline registration.
           format: ipv4
-          example: 192.168.1.1
+          examples:
+            - 192.168.1.1
       additionalProperties: false
     MaskedCustomerDevice:
       required:
@@ -10773,7 +10913,8 @@ components:
           type: string
           description: Masked IP address of the customer's device at the time of profile
             creation.
-          example: "**.**.**.**"
+          examples:
+            - "**.**.**.**"
       additionalProperties: false
     ApiError:
       required:
@@ -10793,15 +10934,17 @@ components:
           type: string
           description: Short summary of the error.
         detail:
-          type: string
+          type:
+            - string
+            - "null"
           description: Explanation specific to this request.
-          nullable: true
         items:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             $ref: "#/components/schemas/ApiErrorDetail"
           description: Additional error details.
-          nullable: true
       additionalProperties: false
     ApiErrorDetail:
       required:
@@ -10809,9 +10952,10 @@ components:
       type: object
       properties:
         reference:
-          type: string
+          type:
+            - string
+            - "null"
           description: Request field or error code associated with this detail.
-          nullable: true
         detail:
           type: string
           description: Explanation of this error detail.
@@ -10842,17 +10986,19 @@ components:
         decision:
           $ref: "#/components/schemas/VerificationDecision"
         codes:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             type: string
           description: List of specific result codes from the consortium alert screening.
-          nullable: true
         alerts:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             type: string
           description: Any alerts or flags raised during the consortium alert screening.
-          nullable: true
       additionalProperties: false
     IdentityVerificationBreakdown:
       type: object
@@ -10860,23 +11006,26 @@ components:
         decision:
           $ref: "#/components/schemas/VerificationDecision"
         codes:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             type: string
           description: List of specific result codes from the fraud and risk screening.
-          nullable: true
         risk_score:
-          type: number
+          type:
+            - number
+            - "null"
           description: Predicts the inherent risk associated with the customer for a given
             module. A higher score indicates a greater likelihood of fraud.
           format: double
-          nullable: true
         correlation_score:
-          type: number
+          type:
+            - number
+            - "null"
           description: Represents the strength of the correlation between provided and
             known information. A higher score indicates a stronger correlation.
           format: double
-          nullable: true
         correlation:
           $ref: "#/components/schemas/CorrelationBucket"
       additionalProperties: false
@@ -10886,23 +11035,26 @@ components:
         decision:
           $ref: "#/components/schemas/VerificationDecision"
         codes:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             type: string
           description: Result codes from Straddle watchlist screening.
-          nullable: true
         matched:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             type: string
           description: Names of watchlists with matches.
-          nullable: true
         matches:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             $ref: "#/components/schemas/IdentityVerificationWatchlistMatch"
           description: Details for matches found during watchlist screening.
-          nullable: true
       additionalProperties: false
     CustomerKycVerification:
       required:
@@ -10912,11 +11064,12 @@ components:
         decision:
           $ref: "#/components/schemas/VerificationDecision"
         codes:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             type: string
           description: Result codes from Know Your Customer (KYC) screening.
-          nullable: true
         validations:
           type: object
           properties:
@@ -10978,29 +11131,33 @@ components:
           description: Unique identifier for the paykey.
           format: uuid
         customer_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Unique identifier for the customer associated with the paykey.
           format: uuid
-          nullable: true
         label:
           type: string
           description: Human-readable label for the paykey.
         source:
           $ref: "#/components/schemas/PaykeySource"
         institution_name:
-          type: string
+          type:
+            - string
+            - "null"
           description: Name of the financial institution.
-          example: Bank of America
-          nullable: true
+          examples:
+            - Bank of America
         status:
           $ref: "#/components/schemas/PaykeyStatus"
         status_details:
           $ref: "#/components/schemas/PaymentStatusDetails"
         expires_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Expiration date and time of the paykey, if applicable.
           format: date-time
-          nullable: true
         created_at:
           type: string
           description: Timestamp of when the paykey was created.
@@ -11015,19 +11172,21 @@ components:
         bank_data:
           $ref: "#/components/schemas/UnmaskedPaykeyBankDetails"
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
             type: string
           description: Up to 20 user-defined key-value pairs associated with the paykey.
-          nullable: true
         config:
           $ref: "#/components/schemas/PaykeyConfiguration"
         balance:
           $ref: "#/components/schemas/PaykeyBalanceDetails"
         external_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Unique identifier for the paykey in your system.
-          nullable: true
       additionalProperties: false
     UnmaskedPaykeyResponse:
       required:
@@ -11055,11 +11214,13 @@ components:
           description: Bank routing number.
           minLength: 9
           maxLength: 9
-          example: "021000021"
+          examples:
+            - "021000021"
         account_number:
           type: string
           description: Bank account number.
-          example: "123456789"
+          examples:
+            - "123456789"
         account_type:
           $ref: "#/components/schemas/AccountType"
       additionalProperties: false
@@ -11075,11 +11236,13 @@ components:
           description: Bank routing number.
           minLength: 9
           maxLength: 9
-          example: "021000021"
+          examples:
+            - "021000021"
         account_number:
           type: string
           description: Masked bank account number.
-          example: "****1234"
+          examples:
+            - "****1234"
         account_type:
           $ref: "#/components/schemas/AccountType"
       additionalProperties: false
@@ -11125,30 +11288,35 @@ components:
           description: Unique identifier for the paykey.
           format: uuid
         customer_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Unique identifier for the customer associated with the paykey.
           format: uuid
-          nullable: true
         label:
           type: string
           description: Display label combining the bank name and masked account number.
-          example: Bank of America ****1234
+          examples:
+            - Bank of America ****1234
         source:
           $ref: "#/components/schemas/PaykeySource"
         institution_name:
-          type: string
+          type:
+            - string
+            - "null"
           description: Name of the financial institution.
-          nullable: true
-          example: Bank of America
+          examples:
+            - Bank of America
         status:
           $ref: "#/components/schemas/PaykeyStatus"
         status_details:
           $ref: "#/components/schemas/PaymentStatusDetails"
         expires_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Expiration date and time of the paykey, if applicable.
           format: date-time
-          nullable: true
         created_at:
           type: string
           description: Timestamp of when the paykey was created.
@@ -11165,16 +11333,18 @@ components:
         config:
           $ref: "#/components/schemas/PaykeyConfiguration"
         external_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Unique identifier for the paykey in your system.
-          nullable: true
         unblock_eligible:
-          type: boolean
+          type:
+            - boolean
+            - "null"
           description: Whether the paykey is eligible for client-initiated unblocking.
             `true` only when the paykey is blocked by an `R29` return and has
             not been unblocked before. `false` for other blocked paykeys. `null`
             when the paykey is not blocked.
-          nullable: true
       additionalProperties: false
     PaykeySummaryListResponse:
       required:
@@ -11210,29 +11380,33 @@ components:
           description: Unique identifier for the paykey.
           format: uuid
         customer_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Unique identifier for the customer associated with the paykey.
           format: uuid
-          nullable: true
         label:
           type: string
           description: Human-readable label for the paykey.
         source:
           $ref: "#/components/schemas/PaykeySource"
         institution_name:
-          type: string
+          type:
+            - string
+            - "null"
           description: Name of the financial institution.
-          example: Bank of America
-          nullable: true
+          examples:
+            - Bank of America
         status:
           $ref: "#/components/schemas/PaykeyStatus"
         status_details:
           $ref: "#/components/schemas/PaymentStatusDetails"
         expires_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Expiration date and time of the paykey, if applicable.
           format: date-time
-          nullable: true
         created_at:
           type: string
           description: Timestamp of when the paykey was created.
@@ -11247,26 +11421,29 @@ components:
         bank_data:
           $ref: "#/components/schemas/PaykeyBankDetails"
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
             type: string
           description: Up to 20 user-defined key-value pairs associated with the paykey.
-          nullable: true
         config:
           $ref: "#/components/schemas/PaykeyConfiguration"
         balance:
           $ref: "#/components/schemas/PaykeyBalanceDetails"
         external_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Unique identifier for the paykey in your system.
-          nullable: true
         unblock_eligible:
-          type: boolean
+          type:
+            - boolean
+            - "null"
           description: Whether the paykey is eligible for client-initiated unblocking.
             `true` only when the paykey is blocked by an `R29` return and has
             not been unblocked before. `false` for other blocked paykeys. `null`
             when the paykey is not blocked.
-          nullable: true
       additionalProperties: false
     PaykeyResponse:
       required:
@@ -11313,23 +11490,27 @@ components:
         message:
           type: string
           description: Human-readable status description.
-          example: Payment successfully created and awaiting validation.
+          examples:
+            - Payment successfully created and awaiting validation.
         reason:
           $ref: "#/components/schemas/PaymentStatusReason"
           description: Machine-readable reason for the status.
-          example: OK
+          examples:
+            - OK
         source:
           $ref: "#/components/schemas/PaymentStatusSource"
           description: Source of the status change.
-          example: system
+          examples:
+            - system
         changed_at:
           type: string
           description: Timestamp when the status changed.
           format: date-time
         code:
-          type: string
+          type:
+            - string
+            - "null"
           description: Status code, when available.
-          nullable: true
       additionalProperties: false
     UpdateCustomerRequest:
       required:
@@ -11357,22 +11538,25 @@ components:
           description: Customer phone number in E.164 format.
           pattern: ^\+[1-9]\d{1,14}$
         compliance_profile:
-          $ref: "#/components/schemas/UnmaskedComplianceProfile"
-          nullable: true
+          anyOf:
+            - $ref: "#/components/schemas/UnmaskedComplianceProfile"
+            - type: "null"
         external_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Unique identifier for the customer in your system.
-          nullable: true
         device:
           $ref: "#/components/schemas/CustomerDevice"
         status:
           $ref: "#/components/schemas/CustomerStatus"
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
             type: string
           description: Up to 20 user-defined key-value pairs associated with the customer.
-          nullable: true
       additionalProperties: false
     BalanceCheckMode:
       enum:
@@ -11392,13 +11576,15 @@ components:
         sandbox_outcome:
           $ref: "#/components/schemas/SimulatedPaymentOutcome"
         auto_hold:
-          type: boolean
+          type:
+            - boolean
+            - "null"
           description: Whether to place the charge on hold automatically after creation.
-          nullable: true
         auto_hold_message:
-          type: string
+          type:
+            - string
+            - "null"
           description: Reason for placing the charge on hold automatically.
-          nullable: true
       additionalProperties: false
     Charge:
       required:
@@ -11432,10 +11618,12 @@ components:
           type: string
           description: The masked paykey token used for this charge.
         description:
-          type: string
+          type:
+            - string
+            - "null"
           description: A human-readable description of the charge.
-          example: Monthly subscription fee
-          nullable: true
+          examples:
+            - Monthly subscription fee
         payment_rail:
           $ref: "#/components/schemas/PaymentRail"
           description: Payment rail used to process the charge.
@@ -11449,7 +11637,8 @@ components:
           type: integer
           description: Amount in cents.
           format: int32
-          example: 10000
+          examples:
+            - 10000
         currency:
           type: string
           description: Currency code. Only `USD` is supported.
@@ -11474,27 +11663,31 @@ components:
           $ref: "#/components/schemas/ChargeConfiguration"
           description: Configuration options for the charge.
         created_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Timestamp when this charge was created.
           format: date-time
-          nullable: true
         updated_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Timestamp when this charge was last updated.
           format: date-time
-          nullable: true
         processed_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Timestamp when this charge was submitted to the payment network.
             Null until processed.
           format: date-time
-          nullable: true
         effective_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Timestamp when funds were settled. Null until settlement is
             confirmed.
           format: date-time
-          nullable: true
         status:
           $ref: "#/components/schemas/PaymentStatus"
           description: The current status of the charge.
@@ -11508,11 +11701,12 @@ components:
             description: One status change for the charge.
           description: Complete ordered history of all status changes for this charge.
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
             type: string
           description: Key-value metadata stored with this charge.
-          nullable: true
         funding_ids:
           type: array
           items:
@@ -11526,11 +11720,12 @@ components:
           description: Trace identifiers from the payment network. Keys depend on the
             payment rail.
         related_payments:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             $ref: "#/components/schemas/RelatedPayment"
           description: Related payments and their relationship to this charge.
-          nullable: true
         has_refund:
           type: boolean
           description: Whether an associated payout has refunded this charge.
@@ -11541,11 +11736,12 @@ components:
           type: boolean
           description: Whether this charge has been resubmitted.
         documents:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             $ref: "#/components/schemas/PaymentAuthorizationProof"
           description: Authorization documents for this charge, ordered by upload time.
-          nullable: true
       additionalProperties: false
     ChargeResponse:
       required:
@@ -11586,15 +11782,18 @@ components:
           type: string
           description: The paykey token that identifies the customer's bank account.
         description:
-          type: string
+          type:
+            - string
+            - "null"
           description: Description shown on the customer's bank statement where supported.
-          example: Monthly subscription fee
-          nullable: true
+          examples:
+            - Monthly subscription fee
         amount:
           type: integer
           description: Amount in cents.
           format: int32
-          example: 10000
+          examples:
+            - 10000
         currency:
           type: string
           description: Currency code. Only `USD` is supported.
@@ -11616,11 +11815,12 @@ components:
         config:
           $ref: "#/components/schemas/ChargeConfiguration"
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
             type: string
           description: Up to 20 user-defined string key-value pairs.
-          nullable: true
       additionalProperties: false
     CreatePayoutRequest:
       required:
@@ -11637,15 +11837,18 @@ components:
           type: string
           description: The paykey token that identifies the customer's bank account.
         description:
-          type: string
+          type:
+            - string
+            - "null"
           description: Description shown on the customer's bank statement where supported.
-          example: Vendor invoice payment
-          nullable: true
+          examples:
+            - Vendor invoice payment
         amount:
           type: integer
           description: Amount in cents.
           format: int32
-          example: 10000
+          examples:
+            - 10000
         currency:
           type: string
           description: Currency code. Only `USD` is supported.
@@ -11663,11 +11866,12 @@ components:
         config:
           $ref: "#/components/schemas/PayoutConfiguration"
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
             type: string
           description: Up to 20 user-defined string key-value pairs.
-          nullable: true
       additionalProperties: false
     CustomerDetails:
       required:
@@ -11686,18 +11890,21 @@ components:
         name:
           type: string
           description: Customer's full name or business name.
-          example: Ron Swanson
+          examples:
+            - Ron Swanson
         customer_type:
           $ref: "#/components/schemas/CustomerType"
           description: Whether the customer is an individual or a business.
         email:
           type: string
           description: Customer's email address.
-          example: ron@swanson.com
+          examples:
+            - ron@swanson.com
         phone:
           type: string
           description: Customer's phone number in E.164 format.
-          example: "+1234567890"
+          examples:
+            - "+1234567890"
       additionalProperties: false
     PaymentDevice:
       required:
@@ -11710,7 +11917,8 @@ components:
             charge or payout. Use `0.0.0.0` to represent an offline consent
             interaction.
           format: ipv4
-          example: 192.168.1.1
+          examples:
+            - 192.168.1.1
       additionalProperties: false
     MaskedPaymentDevice:
       required:
@@ -11721,7 +11929,8 @@ components:
           type: string
           description: Masked IP address of the device used when the customer authorized
             the charge or payout.
-          example: "**.**.**.**"
+          examples:
+            - "**.**.**.**"
       additionalProperties: false
     FundingEventSortBy:
       enum:
@@ -11753,15 +11962,17 @@ components:
           description: Total funding event amount in the smallest currency unit. For
             example, `1000` is $10.00 USD.
           format: int32
-          example: 100000
+          examples:
+            - 100000
         direction:
           $ref: "#/components/schemas/TransferDirection"
         event_type:
           $ref: "#/components/schemas/FundingEventType"
         trace_number:
-          type: string
+          type:
+            - string
+            - "null"
           description: The trace number of the funding event.
-          nullable: true
         payment_count:
           type: integer
           description: Number of payments included in this funding event.
@@ -11842,14 +12053,17 @@ components:
         label:
           type: string
           description: Display label combining the bank name and masked account number.
-          example: Bank of America ****1234
+          examples:
+            - Bank of America ****1234
         balance:
-          type: integer
+          type:
+            - integer
+            - "null"
           description: The most recent available balance in the smallest currency unit, if
             a balance check was performed.
           format: int32
-          nullable: true
-          example: 10000
+          examples:
+            - 10000
       additionalProperties: false
     PaymentRail:
       enum:
@@ -11915,15 +12129,18 @@ components:
           description: Date when Straddle submits the payment for processing.
           format: date
         effective_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Timestamp when funds settled. Null until settlement is confirmed.
           format: date-time
-          nullable: true
         description:
-          type: string
+          type:
+            - string
+            - "null"
           description: Human-readable description of the payment.
-          example: Invoice payment for 100 widgets
-          nullable: true
+          examples:
+            - Invoice payment for 100 widgets
         external_id:
           type: string
           description: Your unique identifier for the charge or payout.
@@ -11931,7 +12148,8 @@ components:
           type: integer
           description: Amount in cents.
           format: int32
-          example: 10000
+          examples:
+            - 10000
         currency:
           type: string
           description: Currency code. Only `USD` is supported.
@@ -11951,11 +12169,12 @@ components:
           $ref: "#/components/schemas/PaymentStatusDetails"
           description: Reason, source, and message for the most recent status change.
         funding_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Unique identifier for the funding event associated with the
             `charge` or `payout`.
           format: uuid
-          nullable: true
         created_at:
           type: string
           description: Timestamp when the charge or payout was created.
@@ -11977,18 +12196,20 @@ components:
           description: Network-level trace identifiers assigned during processing. Keys
             vary by payment rail.
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
             type: string
           description: Key-value metadata for the payment. Included only when
             `include_metadata` is true.
-          nullable: true
         related_payments:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             $ref: "#/components/schemas/RelatedPayment"
           description: Related payments and their relationship to this charge or payout.
-          nullable: true
         is_refund:
           type: boolean
           description: Whether this payment is a payout that refunds an original charge.
@@ -12032,13 +12253,15 @@ components:
         sandbox_outcome:
           $ref: "#/components/schemas/SimulatedPaymentOutcome"
         auto_hold:
-          type: boolean
+          type:
+            - boolean
+            - "null"
           description: Whether to place the payout on hold automatically after creation.
-          nullable: true
         auto_hold_message:
-          type: string
+          type:
+            - string
+            - "null"
           description: Reason for placing the payout on hold automatically.
-          nullable: true
     Payout:
       required:
         - config
@@ -12068,9 +12291,10 @@ components:
           type: string
           description: The masked paykey token used for this payout.
         description:
-          type: string
+          type:
+            - string
+            - "null"
           description: A human-readable description of the payout.
-          nullable: true
         payment_rail:
           $ref: "#/components/schemas/PaymentRail"
           description: Payment rail used to process the payout.
@@ -12084,7 +12308,8 @@ components:
           type: integer
           description: Amount in cents.
           format: int32
-          example: 10000
+          examples:
+            - 10000
         currency:
           type: string
           description: Currency code. Only `USD` is supported.
@@ -12104,31 +12329,36 @@ components:
           $ref: "#/components/schemas/PayoutConfiguration"
           description: Configuration for the payout.
         created_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Timestamp when this payout was created.
           format: date-time
-          nullable: true
         updated_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Timestamp when this payout was last updated.
           format: date-time
-          nullable: true
         processed_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Timestamp when this payout was submitted to the payment network.
             Null until processed.
           format: date-time
-          nullable: true
         effective_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Timestamp when funds were settled. Null until settlement is
             confirmed.
           format: date-time
-          nullable: true
         status:
           $ref: "#/components/schemas/PaymentStatus"
           description: The current status of the payout.
-          example: created
+          examples:
+            - created
         status_details:
           $ref: "#/components/schemas/PaymentStatusDetails"
           description: Reason, source, and message for the most recent payout status change.
@@ -12138,11 +12368,12 @@ components:
             $ref: "#/components/schemas/PaymentStatusHistory"
           description: Complete ordered history of all status changes for this payout.
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
             type: string
           description: Key-value metadata stored with this payout.
-          nullable: true
         funding_ids:
           type: array
           items:
@@ -12156,11 +12387,12 @@ components:
           description: Trace identifiers from the payment network. Keys depend on the
             payment rail.
         related_payments:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             $ref: "#/components/schemas/RelatedPayment"
           description: Related payments and their relationship to this payout.
-          nullable: true
         is_refund:
           type: boolean
           description: Whether this payout refunds an original charge.
@@ -12171,11 +12403,12 @@ components:
           type: boolean
           description: Whether this payout has been resubmitted.
         documents:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             $ref: "#/components/schemas/PaymentAuthorizationProof"
           description: Authorization documents for this payout, ordered by upload time.
-          nullable: true
       additionalProperties: false
     PayoutResponse:
       required:
@@ -12209,11 +12442,13 @@ components:
         message:
           type: string
           description: Human-readable status description.
-          example: Payment successfully created and awaiting validation.
+          examples:
+            - Payment successfully created and awaiting validation.
         code:
-          type: string
+          type:
+            - string
+            - "null"
           description: Status code, when available.
-          nullable: true
         changed_at:
           type: string
           description: Timestamp when the status changed.
@@ -12270,9 +12505,10 @@ components:
       type: object
       properties:
         reason:
-          type: string
+          type:
+            - string
+            - "null"
           description: Message explaining the charge status change.
-          nullable: true
       additionalProperties: false
     UpdateChargeRequest:
       required:
@@ -12282,33 +12518,38 @@ components:
       type: object
       properties:
         description:
-          type: string
+          type:
+            - string
+            - "null"
           description: Updated description for the charge.
-          example: Monthly subscription fee
-          nullable: true
+          examples:
+            - Monthly subscription fee
         amount:
           type: integer
           description: Amount in cents.
           format: int32
-          example: 10000
+          examples:
+            - 10000
         payment_date:
           type: string
           description: New date for Straddle to submit the charge for processing.
           format: date
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
             type: string
           description: Replacement metadata for the charge. Up to 20 user-defined string
             key-value pairs.
-          nullable: true
       additionalProperties: false
     UpdatePayoutStatusRequest:
       type: object
       properties:
         reason:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Message explaining the payout status change.
       additionalProperties: false
     UpdatePayoutRequest:
@@ -12319,25 +12560,28 @@ components:
       type: object
       properties:
         description:
-          type: string
+          type:
+            - string
+            - "null"
           description: Updated description for the payout.
-          nullable: true
         amount:
           type: integer
           description: Amount in cents.
           format: int32
-          example: 10000
+          examples:
+            - 10000
         payment_date:
           type: string
           description: New date for Straddle to submit the payout for processing.
           format: date
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
             type: string
           description: Replacement metadata for the payout. Up to 20 user-defined string
             key-value pairs.
-          nullable: true
       additionalProperties: false
     RevealedPaykey:
       required:
@@ -12359,31 +12603,37 @@ components:
           type: string
           description: Full paykey value for creating payments. Store this value securely.
         customer_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Unique identifier for the customer associated with the paykey.
           format: uuid
-          nullable: true
         label:
           type: string
           description: Display label combining the bank name and masked account number.
-          example: Bank of America ****1234
+          examples:
+            - Bank of America ****1234
         source:
           $ref: "#/components/schemas/PaykeySource"
-          example: straddle
+          examples:
+            - straddle
         institution_name:
-          type: string
+          type:
+            - string
+            - "null"
           description: Name of the financial institution.
-          nullable: true
-          example: Bank of America
+          examples:
+            - Bank of America
         status:
           $ref: "#/components/schemas/PaykeyStatus"
         status_details:
           $ref: "#/components/schemas/PaymentStatusDetails"
         expires_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Expiration date and time of the paykey, if applicable.
           format: date-time
-          nullable: true
         created_at:
           type: string
           description: Timestamp of when the paykey was created.
@@ -12395,19 +12645,21 @@ components:
         bank_data:
           $ref: "#/components/schemas/PaykeyBankDetails"
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
             type: string
           description: Up to 20 user-defined key-value pairs associated with the paykey.
-          nullable: true
         config:
           $ref: "#/components/schemas/PaykeyConfiguration"
         balance:
           $ref: "#/components/schemas/PaykeyBalanceDetails"
         external_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Unique identifier for the paykey in your system.
-          nullable: true
       additionalProperties: false
     RevealedPaykeyResponse:
       required:
@@ -12460,28 +12712,34 @@ components:
       type: object
       properties:
         account_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: ID of the account that will own the linked bank account. Omit this
             field to assign ownership to the platform in the authenticated
             request context.
           format: uuid
-          nullable: true
         bank_account:
           $ref: "#/components/schemas/LinkedBankAccountDetailsRequest"
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
-            type: string
-            nullable: true
+            type:
+              - string
+              - "null"
           description: Up to 20 user-defined key-value pairs.
-          nullable: true
         platform_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: ID of the platform to associate with the linked bank account.
           format: uuid
-          nullable: true
         purposes:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             enum:
               - charges
@@ -12490,11 +12748,11 @@ components:
             type: string
           description: Payment purposes for the linked bank account. Defaults to
             `charges`, `payouts`, and `billing`.
-          nullable: true
         description:
-          type: string
+          type:
+            - string
+            - "null"
           description: Your description for the linked bank account.
-          nullable: true
       additionalProperties: false
     UnmaskedRepresentativeResponse:
       required:
@@ -12547,10 +12805,11 @@ components:
           description: ID of the account associated with the representative.
           format: uuid
         user_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: ID of the Straddle user linked to the representative, if any.
           format: uuid
-          nullable: true
         status:
           enum:
             - created
@@ -12581,9 +12840,10 @@ components:
         relationship:
           $ref: "#/components/schemas/RepresentativeRelationship"
         external_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Your unique ID for the representative.
-          nullable: true
         created_at:
           type: string
           description: Date and time when Straddle created the representative.
@@ -12596,11 +12856,12 @@ components:
           type: string
           description: Last four digits of the representative's Social Security number.
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
             type: string
           description: Up to 20 user-defined key-value pairs.
-          nullable: true
       additionalProperties: false
     BusinessCustomerRepresentative:
       required:
@@ -12611,197 +12872,232 @@ components:
           type: string
           description: Full name of the representative.
         email:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Email address of the representative.
         phone:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Phone number of the representative.
       additionalProperties: false
     ReputationInsights:
       type: object
       properties:
         ach_fraud_transactions_count:
-          type: integer
+          type:
+            - integer
+            - "null"
           format: int32
-          nullable: true
           description: Number of fraudulent ACH transactions.
         ach_fraud_transactions_total_amount:
-          type: number
+          type:
+            - number
+            - "null"
           format: double
-          nullable: true
           description: Total amount of fraudulent ACH transactions.
         ach_fraud_transactions_dates:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             type: string
             format: date
-          nullable: true
           description: Dates when fraudulent ACH transactions occurred.
         ach_returned_transactions_count:
-          type: integer
+          type:
+            - integer
+            - "null"
           format: int32
-          nullable: true
           description: Number of returned ACH transactions.
         ach_returned_transactions_total_amount:
-          type: number
+          type:
+            - number
+            - "null"
           format: double
-          nullable: true
           description: Total amount of returned ACH transactions.
         ach_returned_transactions_dates:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             type: string
             format: date
-          nullable: true
           description: Dates when ACH transactions were returned.
         card_fraud_transactions_count:
-          type: integer
+          type:
+            - integer
+            - "null"
           format: int32
-          nullable: true
           description: Number of fraudulent card transactions.
         card_fraud_transactions_total_amount:
-          type: number
+          type:
+            - number
+            - "null"
           format: double
-          nullable: true
           description: Total amount of fraudulent card transactions.
         card_fraud_transactions_dates:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             type: string
             format: date
-          nullable: true
           description: Dates when fraudulent card transactions occurred.
         card_disputed_transactions_count:
-          type: integer
+          type:
+            - integer
+            - "null"
           format: int32
-          nullable: true
           description: Number of disputed card transactions.
         card_disputed_transactions_total_amount:
-          type: number
+          type:
+            - number
+            - "null"
           format: double
-          nullable: true
           description: Total amount of disputed card transactions.
         card_disputed_transactions_dates:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             type: string
             format: date
-          nullable: true
           description: Dates when card transactions were disputed.
         card_stopped_transactions_count:
-          type: integer
+          type:
+            - integer
+            - "null"
           format: int32
-          nullable: true
           description: Number of stopped card transactions.
         card_stopped_transactions_dates:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             type: string
             format: date
-          nullable: true
           description: Dates when card transactions were stopped.
         accounts_count:
-          type: integer
+          type:
+            - integer
+            - "null"
           format: int32
-          nullable: true
           description: Number of accounts associated with the identity.
         accounts_active_count:
-          type: integer
+          type:
+            - integer
+            - "null"
           format: int32
-          nullable: true
           description: Number of active accounts associated with the identity.
         accounts_closed_count:
-          type: integer
+          type:
+            - integer
+            - "null"
           format: int32
-          nullable: true
           description: Number of closed accounts associated with the identity.
         accounts_closed_dates:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             type: string
             format: date
-          nullable: true
           description: Dates when accounts associated with the identity were closed.
         accounts_fraud_count:
-          type: integer
+          type:
+            - integer
+            - "null"
           format: int32
-          nullable: true
           description: Number of accounts associated with fraud.
         accounts_fraud_loss_total_amount:
-          type: number
+          type:
+            - number
+            - "null"
           format: double
-          nullable: true
           description: Total fraud loss associated with the accounts.
         accounts_fraud_labeled_dates:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             type: string
             format: date
-          nullable: true
           description: Dates when accounts were labeled as fraudulent.
         applications_count:
-          type: integer
+          type:
+            - integer
+            - "null"
           format: int32
-          nullable: true
           description: Number of applications associated with the identity.
         applications_dates:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             type: string
             format: date
-          nullable: true
           description: Dates when applications associated with the identity were submitted.
         applications_approved_count:
-          type: integer
+          type:
+            - integer
+            - "null"
           format: int32
-          nullable: true
           description: Number of approved applications associated with the identity.
         applications_declined_count:
-          type: integer
+          type:
+            - integer
+            - "null"
           format: int32
-          nullable: true
           description: Number of declined applications associated with the identity.
         applications_fraud_count:
-          type: integer
+          type:
+            - integer
+            - "null"
           format: int32
-          nullable: true
           description: Number of applications associated with fraud.
         user_institution_count:
-          type: integer
+          type:
+            - integer
+            - "null"
           format: int32
-          nullable: true
           description: Number of financial institutions associated with the identity.
         user_dob_count:
-          type: integer
+          type:
+            - integer
+            - "null"
           format: int32
-          nullable: true
           description: Number of dates of birth associated with the identity.
         user_mobile_count:
-          type: integer
+          type:
+            - integer
+            - "null"
           format: int32
-          nullable: true
           description: Number of mobile numbers associated with the identity.
         user_email_count:
-          type: integer
+          type:
+            - integer
+            - "null"
           format: int32
-          nullable: true
           description: Number of email addresses associated with the identity.
         user_address_count:
-          type: integer
+          type:
+            - integer
+            - "null"
           format: int32
-          nullable: true
           description: Number of addresses associated with the identity.
         user_active_profile_count:
-          type: integer
+          type:
+            - integer
+            - "null"
           format: int32
-          nullable: true
           description: Number of active profiles associated with the identity.
         user_closed_profile_count:
-          type: integer
+          type:
+            - integer
+            - "null"
           format: int32
-          nullable: true
           description: Number of closed profiles associated with the identity.
       additionalProperties: false
     ReputationCheck:
@@ -12810,15 +13106,17 @@ components:
         decision:
           $ref: "#/components/schemas/VerificationDecision"
         codes:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             type: string
           description: Specific codes related to the Straddle reputation screening results.
-          nullable: true
         risk_score:
-          type: number
+          type:
+            - number
+            - "null"
           format: double
-          nullable: true
           description: Risk score produced by the reputation check.
         insights:
           $ref: "#/components/schemas/ReputationInsights"
@@ -12852,9 +13150,10 @@ components:
           description: Unique identifier for this charge.
           format: uuid
         description:
-          type: string
+          type:
+            - string
+            - "null"
           description: A human-readable description of the charge.
-          nullable: true
         payment_rail:
           $ref: "#/components/schemas/PaymentRail"
         paykey_details:
@@ -12891,17 +13190,19 @@ components:
           description: Timestamp when this charge was last updated.
           format: date-time
         processed_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Timestamp when this charge was submitted to the payment network.
             Null until processed.
           format: date-time
-          nullable: true
         effective_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Timestamp when funds were settled. Null until settlement is
             confirmed.
           format: date-time
-          nullable: true
         status:
           $ref: "#/components/schemas/PaymentStatus"
         status_details:
@@ -12912,11 +13213,12 @@ components:
             $ref: "#/components/schemas/PaymentStatusHistory"
           description: Complete ordered history of all status changes for this charge.
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
             type: string
           description: Key-value metadata stored with this charge.
-          nullable: true
         funding_ids:
           type: array
           items:
@@ -12933,11 +13235,12 @@ components:
           description: Trace identifiers from the payment network. Keys depend on the
             payment rail.
         related_payments:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             $ref: "#/components/schemas/RelatedPayment"
           description: Related payments and their relationship to this charge.
-          nullable: true
         has_refund:
           type: boolean
           description: Whether an associated payout has refunded this charge.
@@ -12948,11 +13251,12 @@ components:
           type: boolean
           description: Whether this charge has been resubmitted.
         documents:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             $ref: "#/components/schemas/PaymentAuthorizationProof"
           description: Authorization documents for this charge, ordered by upload time.
-          nullable: true
       additionalProperties: false
     UnmaskedChargeResponse:
       required:
@@ -12994,9 +13298,10 @@ components:
           description: Unique identifier for this payout.
           format: uuid
         description:
-          type: string
+          type:
+            - string
+            - "null"
           description: A human-readable description of the payout.
-          nullable: true
         payment_rail:
           $ref: "#/components/schemas/PaymentRail"
         customer_details:
@@ -13023,27 +13328,31 @@ components:
         config:
           $ref: "#/components/schemas/PayoutConfiguration"
         created_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Timestamp when this payout was created.
           format: date-time
-          nullable: true
         updated_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Timestamp when this payout was last updated.
           format: date-time
-          nullable: true
         processed_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Timestamp when this payout was submitted to the payment network.
             Null until processed.
           format: date-time
-          nullable: true
         effective_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Timestamp when funds were settled. Null until settlement is
             confirmed.
           format: date-time
-          nullable: true
         status:
           $ref: "#/components/schemas/PaymentStatus"
         status_details:
@@ -13054,11 +13363,12 @@ components:
             $ref: "#/components/schemas/PaymentStatusHistory"
           description: Complete ordered history of all status changes for this payout.
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
             type: string
           description: Key-value metadata stored with this payout.
-          nullable: true
         funding_ids:
           type: array
           items:
@@ -13075,11 +13385,12 @@ components:
           description: Trace identifiers from the payment network. Keys depend on the
             payment rail.
         related_payments:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             $ref: "#/components/schemas/RelatedPayment"
           description: Related payments and their relationship to this payout.
-          nullable: true
         is_refund:
           type: boolean
           description: Whether this payout refunds an original charge.
@@ -13090,11 +13401,12 @@ components:
           type: boolean
           description: Whether this payout has been resubmitted.
         documents:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             $ref: "#/components/schemas/PaymentAuthorizationProof"
           description: Authorization documents for this payout, ordered by upload time.
-          nullable: true
       additionalProperties: false
     UnmaskedPayoutResponse:
       required:
@@ -13114,8 +13426,9 @@ components:
       type: object
       properties:
         reason:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Reason for canceling the paykey.
       additionalProperties: false
     AddressEvent:
@@ -13130,10 +13443,11 @@ components:
           type: string
           description: Primary address line, such as a street address or PO Box.
         address2:
-          type: string
+          type:
+            - string
+            - "null"
           description: Secondary address line, such as an apartment, suite, unit, or
             building.
-          nullable: true
         city:
           type: string
           description: City, district, suburb, town, or village.
@@ -13148,31 +13462,36 @@ components:
       type: object
       properties:
         dob:
-          type: string
+          type:
+            - string
+            - "null"
           description: Masked date of birth for an individual customer in `****-**-**`
             format.
           format: "****-**-**"
-          nullable: true
         ssn:
-          type: string
+          type:
+            - string
+            - "null"
           description: Masked Social Security number for an individual customer in
             `***-**-****` format.
           format: "***-**-****"
-          nullable: true
         ein:
-          type: string
+          type:
+            - string
+            - "null"
           description: Masked Employer Identification Number for a business customer in
             `**-*******` format.
           format: "**-*******"
-          nullable: true
         legal_business_name:
-          type: string
+          type:
+            - string
+            - "null"
           description: Official registered name of the business customer.
-          nullable: true
         website:
-          type: string
+          type:
+            - string
+            - "null"
           description: Official website URL for the business customer.
-          nullable: true
       additionalProperties: false
     CustomerEvent:
       required:
@@ -13210,9 +13529,10 @@ components:
           type: string
           description: Customer phone number in E.164 format.
         external_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Unique identifier for the customer in your system.
-          nullable: true
         status:
           $ref: "#/components/schemas/CustomerStatusEvent"
         created_at:
@@ -13224,12 +13544,14 @@ components:
           description: Timestamp of the most recent update to the customer record.
           format: date-time
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
-            type: string
-            nullable: true
+            type:
+              - string
+              - "null"
           description: Up to 20 user-defined key-value pairs associated with the customer.
-          nullable: true
       additionalProperties: false
     CustomerStatusEvent:
       enum:
@@ -13271,28 +13593,31 @@ components:
           description: Unique identifier for the paykey.
           format: uuid
         customer_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Unique identifier for the customer associated with the paykey.
           format: uuid
-          nullable: true
         label:
           type: string
           description: Human-readable label for the paykey.
         source:
           $ref: "#/components/schemas/PaykeySource"
         institution_name:
-          type: string
+          type:
+            - string
+            - "null"
           description: Name of the financial institution.
-          nullable: true
         status:
           $ref: "#/components/schemas/PaykeyStatusEvent"
         status_details:
           $ref: "#/components/schemas/PaymentEventStatusDetails"
         expires_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Expiration date and time of the paykey, if applicable.
           format: date-time
-          nullable: true
         created_at:
           type: string
           description: Timestamp of when the paykey was created.
@@ -13307,12 +13632,14 @@ components:
         bank_data:
           $ref: "#/components/schemas/PaykeyBankDetailsEvent"
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
-            type: string
-            nullable: true
+            type:
+              - string
+              - "null"
           description: Up to 20 user-defined key-value pairs associated with the paykey.
-          nullable: true
         balance:
           $ref: "#/components/schemas/PaykeyBalanceEventDetails"
       additionalProperties: false
@@ -13342,9 +13669,10 @@ components:
         source:
           $ref: "#/components/schemas/PaymentStatusSource"
         code:
-          type: string
+          type:
+            - string
+            - "null"
           description: The status code if applicable.
-          nullable: true
         changed_at:
           type: string
           description: The time the status change occurred.
@@ -13386,9 +13714,10 @@ components:
           type: string
           description: The masked paykey token used for this charge.
         description:
-          type: string
+          type:
+            - string
+            - "null"
           description: A human-readable description of the charge.
-          nullable: true
         payment_rail:
           $ref: "#/components/schemas/PaymentRailEvent"
         paykey_details:
@@ -13411,34 +13740,39 @@ components:
         device:
           $ref: "#/components/schemas/MaskedPaymentDevice"
         external_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Your unique identifier for this charge, used to correlate with your
             internal records.
-          nullable: true
         config:
           $ref: "#/components/schemas/ChargeConfigurationEvent"
         created_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Timestamp when this charge was created.
           format: date-time
-          nullable: true
         updated_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Timestamp when this charge was last updated.
           format: date-time
-          nullable: true
         processed_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Timestamp when this charge was submitted to the payment network.
             Null until processed.
           format: date-time
-          nullable: true
         effective_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Timestamp when funds were settled. Null until settlement is
             confirmed.
           format: date-time
-          nullable: true
         status:
           $ref: "#/components/schemas/PaymentEventStatus"
         status_details:
@@ -13449,12 +13783,14 @@ components:
             $ref: "#/components/schemas/PaymentEventStatusHistory"
           description: Complete ordered history of all status changes for this charge.
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
-            type: string
-            nullable: true
+            type:
+              - string
+              - "null"
           description: Key-value metadata stored with this charge.
-          nullable: true
         funding_ids:
           type: array
           items:
@@ -13462,15 +13798,16 @@ components:
             format: uuid
           description: IDs of the funding events that included this charge.
         related_payments:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             $ref: "#/components/schemas/RelatedPayment"
           description: Related payments and their relationship to this charge.
-          nullable: true
-          example:
-            - id: 019e1bab-2ab4-751d-be80-f51c82c2ea64
-              relationship: original
-              payment_type: charge
+          examples:
+            - - id: 019e1bab-2ab4-751d-be80-f51c82c2ea64
+                relationship: original
+                payment_type: charge
         is_resubmit:
           type: boolean
           description: Whether this charge resubmits an original charge.
@@ -13481,11 +13818,12 @@ components:
           type: boolean
           description: Whether an associated payout has refunded this charge.
         documents:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             $ref: "#/components/schemas/PaymentAuthorizationProof"
           description: Authorization documents for this charge, ordered by upload time.
-          nullable: true
       additionalProperties: false
     ConsentTypeEvent:
       enum:
@@ -13537,11 +13875,12 @@ components:
           type: string
           description: Display label combining the bank name and masked account number.
         balance:
-          type: integer
+          type:
+            - integer
+            - "null"
           description: Available balance in cents when a balance check was performed. Null
             otherwise.
           format: int32
-          nullable: true
       additionalProperties: false
     PaymentRailEvent:
       enum:
@@ -13589,9 +13928,10 @@ components:
           type: string
           description: The masked paykey token used for this payout.
         description:
-          type: string
+          type:
+            - string
+            - "null"
           description: A human-readable description of the payout.
-          nullable: true
         payment_rail:
           $ref: "#/components/schemas/PaymentRailEvent"
         paykey_details:
@@ -13614,34 +13954,39 @@ components:
         device:
           $ref: "#/components/schemas/MaskedPaymentDevice"
         external_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Your unique identifier for this payout, used to correlate with your
             internal records.
-          nullable: true
         config:
           $ref: "#/components/schemas/PayoutConfigurationEvent"
         created_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Timestamp when this payout was created.
           format: date-time
-          nullable: true
         updated_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Timestamp when this payout was last updated.
           format: date-time
-          nullable: true
         processed_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Timestamp when this payout was submitted to the payment network.
             Null until processed.
           format: date-time
-          nullable: true
         effective_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Timestamp when funds were settled. Null until settlement is
             confirmed.
           format: date-time
-          nullable: true
         status:
           $ref: "#/components/schemas/PaymentEventStatus"
         status_details:
@@ -13652,12 +13997,14 @@ components:
             $ref: "#/components/schemas/PaymentEventStatusHistory"
           description: Complete ordered history of all status changes for this payout.
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
-            type: string
-            nullable: true
+            type:
+              - string
+              - "null"
           description: Key-value metadata stored with this payout.
-          nullable: true
         funding_ids:
           type: array
           items:
@@ -13665,15 +14012,16 @@ components:
             format: uuid
           description: IDs of the funding events that included this payout.
         related_payments:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             $ref: "#/components/schemas/RelatedPayment"
           description: Related payments and their relationship to this payout.
-          nullable: true
-          example:
-            - id: 019e1bab-2ab4-751d-be80-f51c82c2ea64
-              relationship: original
-              payment_type: charge
+          examples:
+            - - id: 019e1bab-2ab4-751d-be80-f51c82c2ea64
+                relationship: original
+                payment_type: charge
         is_resubmit:
           type: boolean
           description: Whether this payout resubmits an original payout.
@@ -13684,11 +14032,12 @@ components:
           type: boolean
           description: Whether this payout refunds an original charge.
         documents:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             $ref: "#/components/schemas/PaymentAuthorizationProof"
           description: Authorization documents for this payout, ordered by upload time.
-          nullable: true
       additionalProperties: false
     PaymentEventStatusHistory:
       required:
@@ -13707,9 +14056,10 @@ components:
           type: string
           description: A human-readable description of the status.
         code:
-          type: string
+          type:
+            - string
+            - "null"
           description: The status code if applicable.
-          nullable: true
         changed_at:
           type: string
           description: The time the status change occurred.
@@ -13763,17 +14113,19 @@ components:
           description: Quiltt processor token generated by your application for use with
             the Straddle API.
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
             type: string
           description: Up to 20 user-defined key-value pairs associated with the paykey.
-          nullable: true
         config:
           $ref: "#/components/schemas/PaykeyConfiguration"
         external_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Unique identifier for the paykey in your system.
-          nullable: true
       additionalProperties: false
     CustomerConfiguration:
       type: object
@@ -13789,15 +14141,17 @@ components:
       type: object
       properties:
         account_balance:
-          type: integer
+          type:
+            - integer
+            - "null"
           description: Most recently retrieved account balance in cents.
           format: int32
-          nullable: true
         updated_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Timestamp of the most recent account balance update.
           format: date-time
-          nullable: true
         status:
           $ref: "#/components/schemas/PaykeyBalanceRefreshStatus"
       additionalProperties: false
@@ -13863,28 +14217,34 @@ components:
       type: object
       properties:
         line1:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Primary street address.
         line2:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Additional address information, such as a suite or unit.
         city:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: City for the address.
         state:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: State or region for the address.
         postal_code:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Postal code for the address.
         country:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Two-letter ISO 3166-1 country code.
       additionalProperties: false
     PlatformBusinessProfile:
@@ -13900,24 +14260,29 @@ components:
           type: string
           description: URL of the business website.
         legal_name:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Registered legal name of the business.
         description:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Description of the business.
         use_case:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Description of how the business uses Straddle.
         tax_id:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Tax identification number of the business.
         phone:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Primary phone number for the business.
         address:
           $ref: "#/components/schemas/PlatformAddress"
@@ -13930,16 +14295,19 @@ components:
       type: object
       properties:
         mcc:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Merchant Category Code assigned to the business.
         sector:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Industry sector of the business.
         category:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Industry category of the business.
       additionalProperties: false
     Platform:
@@ -13967,25 +14335,30 @@ components:
         business_profile:
           $ref: "#/components/schemas/PlatformBusinessProfile"
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
-            type: string
-            nullable: true
-          nullable: true
+            type:
+              - string
+              - "null"
           description: Key-value metadata associated with the platform.
         external_id:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Your unique identifier for the platform.
         created_at:
-          type: string
+          type:
+            - string
+            - "null"
           format: date-time
-          nullable: true
           description: Timestamp when the platform was created.
         updated_at:
-          type: string
+          type:
+            - string
+            - "null"
           format: date-time
-          nullable: true
           description: Timestamp when the platform was last updated.
       additionalProperties: false
     PlatformStatusDetail:
@@ -14025,16 +14398,19 @@ components:
       type: object
       properties:
         email:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Customer support email address.
         phone:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Customer support phone number.
         url:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: URL of the customer support page or contact form.
       additionalProperties: false
     User:
@@ -14056,19 +14432,22 @@ components:
           description: The unique identifier of the user.
           format: uuid
         organization_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: The unique identifier of the organization this user belongs to.
           format: uuid
-          nullable: true
         platform_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: The unique identifier of the organization this user belongs to.
           format: uuid
-          nullable: true
         authenticator_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: The unique identifier used for authentication purposes.
-          nullable: true
         status:
           enum:
             - invited
@@ -14127,30 +14506,35 @@ components:
       type: object
       properties:
         names_on_account:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             type: string
-          nullable: true
           description: Account-holder names returned by the financial institution.
         matched_name:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Account-holder name that matched the customer record.
         customer_name:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Customer name evaluated during account verification.
         correlation_score:
-          type: number
+          type:
+            - number
+            - "null"
           format: double
-          nullable: true
           description: Strength of the match between the customer name and account-holder
             names.
         decision:
           $ref: "#/components/schemas/PaykeyVerificationResult"
         reason:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Reason for the name-match decision.
         codes:
           type: array
@@ -14167,8 +14551,9 @@ components:
         decision:
           $ref: "#/components/schemas/PaykeyVerificationResult"
         reason:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Reason for the account-validation decision.
         codes:
           type: array
@@ -14182,15 +14567,17 @@ components:
       type: object
       properties:
         account_balance:
-          type: number
+          type:
+            - number
+            - "null"
           description: Most recently retrieved account balance in dollars.
           format: double
-          nullable: true
         updated_at:
-          type: string
+          type:
+            - string
+            - "null"
           description: Timestamp of the most recent account balance update.
           format: date-time
-          nullable: true
         status:
           $ref: "#/components/schemas/PaykeyBalanceRefreshStatus"
       additionalProperties: false
@@ -14476,9 +14863,10 @@ components:
       type: object
       properties:
         message:
-          type: string
+          type:
+            - string
+            - "null"
           description: Optional message describing the reason for unblocking.
-          nullable: true
       additionalProperties: false
     AccountSettings:
       required:
@@ -14531,12 +14919,14 @@ components:
           format: int64
           description: Maximum number of charges per calendar month.
         funding_time:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Funding schedule applied to charges.
         linked_bank_account_id:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: ID of the linked bank account used for charge settlement.
       additionalProperties: false
     AccountPolicyControls:
@@ -14667,28 +15057,33 @@ components:
           format: int64
           description: Maximum number of payouts per calendar month.
         funding_time:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Funding schedule applied to payouts.
         linked_bank_account_id:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: ID of the linked bank account used for payout settlement.
       additionalProperties: false
     AccountStatementSettings:
       type: object
       properties:
         company_name:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Company name used in statement records.
         company_id:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Company identifier used in ACH records.
         default_descriptor:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Default descriptor for account payments.
       additionalProperties: false
     UserMembership:
@@ -14710,9 +15105,10 @@ components:
           type: string
           description: Entity level at which the membership applies.
         entity_id:
-          type: string
+          type:
+            - string
+            - "null"
           format: uuid
-          nullable: true
           description: Unique identifier of the entity associated with the membership.
         entity_name:
           type: string
@@ -14802,12 +15198,13 @@ components:
           description: Your unique identifier for this payment, used to correlate with
             your internal records.
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
             type: string
           description: Key-value metadata for this payment. Included only when
             `include_metadata` is `true`.
-          nullable: true
         trace_ids:
           type: object
           additionalProperties:
@@ -14836,35 +15233,41 @@ components:
       type: object
       properties:
         amount:
-          type: integer
+          type:
+            - integer
+            - "null"
           description: Refund amount in cents. `null` refunds the full original amount. A
             value must be greater than zero and no more than the original charge
             amount.
           format: int32
-          example: 5000
-          nullable: true
+          examples:
+            - 5000
         description:
-          type: string
+          type:
+            - string
+            - "null"
           description: Description for the refund payout. Defaults to a description that
             identifies the original charge.
-          nullable: true
         external_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Your unique identifier for the refund. Defaults to a new value if
             omitted.
-          nullable: true
         payment_date:
-          type: string
+          type:
+            - string
+            - "null"
           description: Date when Straddle submits the refund payout for processing.
             Defaults to today if omitted.
           format: date
-          nullable: true
         metadata:
-          type: object
+          type:
+            - object
+            - "null"
           additionalProperties:
             type: string
           description: User-defined string key-value pairs for the refund payout.
-          nullable: true
       additionalProperties: false
     PaymentRelationship:
       enum:
@@ -14892,41 +15295,47 @@ components:
       type: object
       properties:
         description:
-          type: string
+          type:
+            - string
+            - "null"
           description: Description for the resubmitted charge. Defaults to the original
             description if omitted.
-          nullable: true
         payment_date:
-          type: string
+          type:
+            - string
+            - "null"
           description: Date when Straddle submits the resubmitted charge for processing.
             Defaults to today if omitted.
           format: date
-          nullable: true
         external_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Your unique identifier for the resubmitted charge. Defaults to a
             new value if omitted.
-          nullable: true
       additionalProperties: false
     ResubmitPayoutRequest:
       type: object
       properties:
         description:
-          type: string
+          type:
+            - string
+            - "null"
           description: Description for the resubmitted payout. Defaults to the original
             description if omitted.
-          nullable: true
         payment_date:
-          type: string
+          type:
+            - string
+            - "null"
           description: Date when Straddle submits the resubmitted payout for processing.
             Defaults to today if omitted.
           format: date
-          nullable: true
         external_id:
-          type: string
+          type:
+            - string
+            - "null"
           description: Your unique identifier for the resubmitted payout. Defaults to a
             new value if omitted.
-          nullable: true
       additionalProperties: false
     PaymentDocumentType:
       enum:
@@ -15014,17 +15423,20 @@ webhooks:
                 event_type:
                   type: string
                   description: Type of this event.
-                  example: account.created.v1
+                  examples:
+                    - account.created.v1
                 event_id:
                   type: string
                   format: uuid
                   description: Unique identifier for this event.
-                  example: 85df84c7-a298-44bc-8040-7bd2ae372cbf
+                  examples:
+                    - 85df84c7-a298-44bc-8040-7bd2ae372cbf
                 account_id:
                   type: string
                   format: uuid
                   description: Unique identifier for the account associated with this event.
-                  example: 857c679a-8e80-47f1-9334-39dd08ea801f
+                  examples:
+                    - 857c679a-8e80-47f1-9334-39dd08ea801f
                 data:
                   $ref: "#/components/schemas/Account"
               required:
@@ -15056,17 +15468,20 @@ webhooks:
                 event_type:
                   type: string
                   description: Type of this event.
-                  example: account.event.v1
+                  examples:
+                    - account.event.v1
                 event_id:
                   type: string
                   format: uuid
                   description: Unique identifier for this event.
-                  example: 85df84c7-a298-44bc-8040-7bd2ae372cbf
+                  examples:
+                    - 85df84c7-a298-44bc-8040-7bd2ae372cbf
                 account_id:
                   type: string
                   format: uuid
                   description: Unique identifier for the account associated with this event.
-                  example: 857c679a-8e80-47f1-9334-39dd08ea801f
+                  examples:
+                    - 857c679a-8e80-47f1-9334-39dd08ea801f
                 data:
                   $ref: "#/components/schemas/Account"
               required:
@@ -15097,17 +15512,20 @@ webhooks:
                 event_type:
                   type: string
                   description: Type of this event.
-                  example: representative.event.v1
+                  examples:
+                    - representative.event.v1
                 event_id:
                   type: string
                   format: uuid
                   description: Unique identifier for this event.
-                  example: 85df84c7-a298-44bc-8040-7bd2ae372cbf
+                  examples:
+                    - 85df84c7-a298-44bc-8040-7bd2ae372cbf
                 account_id:
                   type: string
                   format: uuid
                   description: Unique identifier for the account associated with this event.
-                  example: 857c679a-8e80-47f1-9334-39dd08ea801f
+                  examples:
+                    - 857c679a-8e80-47f1-9334-39dd08ea801f
                 data:
                   $ref: "#/components/schemas/Representative"
               required:
@@ -15138,17 +15556,20 @@ webhooks:
                 event_type:
                   type: string
                   description: Type of this event.
-                  example: representative.created.v1
+                  examples:
+                    - representative.created.v1
                 event_id:
                   type: string
                   format: uuid
                   description: Unique identifier for this event.
-                  example: 85df84c7-a298-44bc-8040-7bd2ae372cbf
+                  examples:
+                    - 85df84c7-a298-44bc-8040-7bd2ae372cbf
                 account_id:
                   type: string
                   format: uuid
                   description: Unique identifier for the account associated with this event.
-                  example: 857c679a-8e80-47f1-9334-39dd08ea801f
+                  examples:
+                    - 857c679a-8e80-47f1-9334-39dd08ea801f
                 data:
                   $ref: "#/components/schemas/Representative"
               required:
@@ -15180,17 +15601,20 @@ webhooks:
                 event_type:
                   type: string
                   description: Type of this event.
-                  example: linked_bank_account.event.v1
+                  examples:
+                    - linked_bank_account.event.v1
                 event_id:
                   type: string
                   format: uuid
                   description: Unique identifier for this event.
-                  example: 85df84c7-a298-44bc-8040-7bd2ae372cbf
+                  examples:
+                    - 85df84c7-a298-44bc-8040-7bd2ae372cbf
                 account_id:
                   type: string
                   format: uuid
                   description: Unique identifier for the account associated with this event.
-                  example: 857c679a-8e80-47f1-9334-39dd08ea801f
+                  examples:
+                    - 857c679a-8e80-47f1-9334-39dd08ea801f
                 data:
                   $ref: "#/components/schemas/LinkedBankAccount"
               required:
@@ -15221,17 +15645,20 @@ webhooks:
                 event_type:
                   type: string
                   description: Type of this event.
-                  example: linked_bank_account.created.v1
+                  examples:
+                    - linked_bank_account.created.v1
                 event_id:
                   type: string
                   format: uuid
                   description: Unique identifier for this event.
-                  example: 85df84c7-a298-44bc-8040-7bd2ae372cbf
+                  examples:
+                    - 85df84c7-a298-44bc-8040-7bd2ae372cbf
                 account_id:
                   type: string
                   format: uuid
                   description: Unique identifier for the account associated with this event.
-                  example: 857c679a-8e80-47f1-9334-39dd08ea801f
+                  examples:
+                    - 857c679a-8e80-47f1-9334-39dd08ea801f
                 data:
                   $ref: "#/components/schemas/LinkedBankAccount"
               required:
@@ -15262,17 +15689,20 @@ webhooks:
                 event_type:
                   type: string
                   description: Type of this event.
-                  example: capability_request.event.v1
+                  examples:
+                    - capability_request.event.v1
                 event_id:
                   type: string
                   format: uuid
                   description: Unique identifier for this event.
-                  example: 85df84c7-a298-44bc-8040-7bd2ae372cbf
+                  examples:
+                    - 85df84c7-a298-44bc-8040-7bd2ae372cbf
                 account_id:
                   type: string
                   format: uuid
                   description: Unique identifier for the account associated with this event.
-                  example: 857c679a-8e80-47f1-9334-39dd08ea801f
+                  examples:
+                    - 857c679a-8e80-47f1-9334-39dd08ea801f
                 data:
                   $ref: "#/components/schemas/CapabilityRequest"
               required:
@@ -15303,17 +15733,20 @@ webhooks:
                 event_type:
                   type: string
                   description: Type of this event.
-                  example: capability_request.created.v1
+                  examples:
+                    - capability_request.created.v1
                 event_id:
                   type: string
                   format: uuid
                   description: Unique identifier for this event.
-                  example: 85df84c7-a298-44bc-8040-7bd2ae372cbf
+                  examples:
+                    - 85df84c7-a298-44bc-8040-7bd2ae372cbf
                 account_id:
                   type: string
                   format: uuid
                   description: Unique identifier for the account associated with this event.
-                  example: 857c679a-8e80-47f1-9334-39dd08ea801f
+                  examples:
+                    - 857c679a-8e80-47f1-9334-39dd08ea801f
                 data:
                   $ref: "#/components/schemas/CapabilityRequest"
               required:
@@ -15344,17 +15777,20 @@ webhooks:
                 event_type:
                   type: string
                   description: Type of this event.
-                  example: customer.event.v1
+                  examples:
+                    - customer.event.v1
                 event_id:
                   type: string
                   format: uuid
                   description: Unique identifier for this event.
-                  example: 85df84c7-a298-44bc-8040-7bd2ae372cbf
+                  examples:
+                    - 85df84c7-a298-44bc-8040-7bd2ae372cbf
                 account_id:
                   type: string
                   format: uuid
                   description: Unique identifier for the account associated with this event.
-                  example: 857c679a-8e80-47f1-9334-39dd08ea801f
+                  examples:
+                    - 857c679a-8e80-47f1-9334-39dd08ea801f
                 data:
                   $ref: "#/components/schemas/CustomerEvent"
               required:
@@ -15383,17 +15819,20 @@ webhooks:
                 event_type:
                   type: string
                   description: Type of this event.
-                  example: customer.created.v1
+                  examples:
+                    - customer.created.v1
                 event_id:
                   type: string
                   format: uuid
                   description: Unique identifier for this event.
-                  example: 85df84c7-a298-44bc-8040-7bd2ae372cbf
+                  examples:
+                    - 85df84c7-a298-44bc-8040-7bd2ae372cbf
                 account_id:
                   type: string
                   format: uuid
                   description: Unique identifier for the account associated with this event.
-                  example: 857c679a-8e80-47f1-9334-39dd08ea801f
+                  examples:
+                    - 857c679a-8e80-47f1-9334-39dd08ea801f
                 data:
                   $ref: "#/components/schemas/CustomerEvent"
               required:
@@ -15422,17 +15861,20 @@ webhooks:
                 event_type:
                   type: string
                   description: Type of this event.
-                  example: paykey.event.v1
+                  examples:
+                    - paykey.event.v1
                 event_id:
                   type: string
                   format: uuid
                   description: Unique identifier for this event.
-                  example: 85df84c7-a298-44bc-8040-7bd2ae372cbf
+                  examples:
+                    - 85df84c7-a298-44bc-8040-7bd2ae372cbf
                 account_id:
                   type: string
                   format: uuid
                   description: Unique identifier for the account associated with this event.
-                  example: 857c679a-8e80-47f1-9334-39dd08ea801f
+                  examples:
+                    - 857c679a-8e80-47f1-9334-39dd08ea801f
                 data:
                   $ref: "#/components/schemas/PaykeyEvent"
               required:
@@ -15462,17 +15904,20 @@ webhooks:
                 event_type:
                   type: string
                   description: Type of this event.
-                  example: paykey.created.v1
+                  examples:
+                    - paykey.created.v1
                 event_id:
                   type: string
                   format: uuid
                   description: Unique identifier for this event.
-                  example: 85df84c7-a298-44bc-8040-7bd2ae372cbf
+                  examples:
+                    - 85df84c7-a298-44bc-8040-7bd2ae372cbf
                 account_id:
                   type: string
                   format: uuid
                   description: Unique identifier for the account associated with this event.
-                  example: 857c679a-8e80-47f1-9334-39dd08ea801f
+                  examples:
+                    - 857c679a-8e80-47f1-9334-39dd08ea801f
                 data:
                   $ref: "#/components/schemas/PaykeyEvent"
               required:
@@ -15501,17 +15946,20 @@ webhooks:
                 event_type:
                   type: string
                   description: Type of this event.
-                  example: charge.created.v1
+                  examples:
+                    - charge.created.v1
                 event_id:
                   type: string
                   format: uuid
                   description: Unique identifier for this event.
-                  example: 85df84c7-a298-44bc-8040-7bd2ae372cbf
+                  examples:
+                    - 85df84c7-a298-44bc-8040-7bd2ae372cbf
                 account_id:
                   type: string
                   format: uuid
                   description: Unique identifier for the account associated with this event.
-                  example: 857c679a-8e80-47f1-9334-39dd08ea801f
+                  examples:
+                    - 857c679a-8e80-47f1-9334-39dd08ea801f
                 data:
                   $ref: "#/components/schemas/ChargeEvent"
               required:
@@ -15540,17 +15988,20 @@ webhooks:
                 event_type:
                   type: string
                   description: Type of this event.
-                  example: charge.event.v1
+                  examples:
+                    - charge.event.v1
                 event_id:
                   type: string
                   format: uuid
                   description: Unique identifier for this event.
-                  example: 85df84c7-a298-44bc-8040-7bd2ae372cbf
+                  examples:
+                    - 85df84c7-a298-44bc-8040-7bd2ae372cbf
                 account_id:
                   type: string
                   format: uuid
                   description: Unique identifier for the account associated with this event.
-                  example: 857c679a-8e80-47f1-9334-39dd08ea801f
+                  examples:
+                    - 857c679a-8e80-47f1-9334-39dd08ea801f
                 data:
                   $ref: "#/components/schemas/ChargeEvent"
               required:
@@ -15579,17 +16030,20 @@ webhooks:
                 event_type:
                   type: string
                   description: Type of this event.
-                  example: payout.created.v1
+                  examples:
+                    - payout.created.v1
                 event_id:
                   type: string
                   format: uuid
                   description: Unique identifier for this event.
-                  example: 85df84c7-a298-44bc-8040-7bd2ae372cbf
+                  examples:
+                    - 85df84c7-a298-44bc-8040-7bd2ae372cbf
                 account_id:
                   type: string
                   format: uuid
                   description: Unique identifier for the account associated with this event.
-                  example: 857c679a-8e80-47f1-9334-39dd08ea801f
+                  examples:
+                    - 857c679a-8e80-47f1-9334-39dd08ea801f
                 data:
                   $ref: "#/components/schemas/PayoutEvent"
               required:
@@ -15618,17 +16072,20 @@ webhooks:
                 event_type:
                   type: string
                   description: Type of this event.
-                  example: payout.event.v1
+                  examples:
+                    - payout.event.v1
                 event_id:
                   type: string
                   format: uuid
                   description: Unique identifier for this event.
-                  example: 85df84c7-a298-44bc-8040-7bd2ae372cbf
+                  examples:
+                    - 85df84c7-a298-44bc-8040-7bd2ae372cbf
                 account_id:
                   type: string
                   format: uuid
                   description: Unique identifier for the account associated with this event.
-                  example: 857c679a-8e80-47f1-9334-39dd08ea801f
+                  examples:
+                    - 857c679a-8e80-47f1-9334-39dd08ea801f
                 data:
                   $ref: "#/components/schemas/PayoutEvent"
               required:
@@ -15659,17 +16116,20 @@ webhooks:
                 event_type:
                   type: string
                   description: Type of this event.
-                  example: platform.event.v1
+                  examples:
+                    - platform.event.v1
                 event_id:
                   type: string
                   format: uuid
                   description: Unique identifier for this event.
-                  example: 85df84c7-a298-44bc-8040-7bd2ae372cbf
+                  examples:
+                    - 85df84c7-a298-44bc-8040-7bd2ae372cbf
                 account_id:
                   type: string
                   format: uuid
                   description: Unique identifier for the account associated with this event.
-                  example: 857c679a-8e80-47f1-9334-39dd08ea801f
+                  examples:
+                    - 857c679a-8e80-47f1-9334-39dd08ea801f
                 data:
                   $ref: "#/components/schemas/Platform"
               required:
@@ -15700,17 +16160,20 @@ webhooks:
                 event_type:
                   type: string
                   description: Type of this event.
-                  example: platform.created.v1
+                  examples:
+                    - platform.created.v1
                 event_id:
                   type: string
                   format: uuid
                   description: Unique identifier for this event.
-                  example: 85df84c7-a298-44bc-8040-7bd2ae372cbf
+                  examples:
+                    - 85df84c7-a298-44bc-8040-7bd2ae372cbf
                 account_id:
                   type: string
                   format: uuid
                   description: Unique identifier for the account associated with this event.
-                  example: 857c679a-8e80-47f1-9334-39dd08ea801f
+                  examples:
+                    - 857c679a-8e80-47f1-9334-39dd08ea801f
                 data:
                   $ref: "#/components/schemas/Platform"
               required:
@@ -15741,17 +16204,20 @@ webhooks:
                 event_type:
                   type: string
                   description: Type of this event.
-                  example: user.event.v1
+                  examples:
+                    - user.event.v1
                 event_id:
                   type: string
                   format: uuid
                   description: Unique identifier for this event.
-                  example: 85df84c7-a298-44bc-8040-7bd2ae372cbf
+                  examples:
+                    - 85df84c7-a298-44bc-8040-7bd2ae372cbf
                 account_id:
                   type: string
                   format: uuid
                   description: Unique identifier for the account associated with this event.
-                  example: 857c679a-8e80-47f1-9334-39dd08ea801f
+                  examples:
+                    - 857c679a-8e80-47f1-9334-39dd08ea801f
                 data:
                   $ref: "#/components/schemas/User"
               required:
@@ -15782,17 +16248,20 @@ webhooks:
                 event_type:
                   type: string
                   description: Type of this event.
-                  example: user.created.v1
+                  examples:
+                    - user.created.v1
                 event_id:
                   type: string
                   format: uuid
                   description: Unique identifier for this event.
-                  example: 85df84c7-a298-44bc-8040-7bd2ae372cbf
+                  examples:
+                    - 85df84c7-a298-44bc-8040-7bd2ae372cbf
                 account_id:
                   type: string
                   format: uuid
                   description: Unique identifier for the account associated with this event.
-                  example: 857c679a-8e80-47f1-9334-39dd08ea801f
+                  examples:
+                    - 857c679a-8e80-47f1-9334-39dd08ea801f
                 data:
                   $ref: "#/components/schemas/User"
               required:
@@ -15822,17 +16291,20 @@ webhooks:
                 event_type:
                   type: string
                   description: Type of this event.
-                  example: funding_event.created.v1
+                  examples:
+                    - funding_event.created.v1
                 event_id:
                   type: string
                   format: uuid
                   description: Unique identifier for this event.
-                  example: 85df84c7-a298-44bc-8040-7bd2ae372cbf
+                  examples:
+                    - 85df84c7-a298-44bc-8040-7bd2ae372cbf
                 account_id:
                   type: string
                   format: uuid
                   description: Unique identifier for the account associated with this event.
-                  example: 857c679a-8e80-47f1-9334-39dd08ea801f
+                  examples:
+                    - 857c679a-8e80-47f1-9334-39dd08ea801f
                 data:
                   $ref: "#/components/schemas/FundingEventEvent"
               required:
@@ -15862,17 +16334,20 @@ webhooks:
                 event_type:
                   type: string
                   description: Type of this event.
-                  example: funding_event.event.v1
+                  examples:
+                    - funding_event.event.v1
                 event_id:
                   type: string
                   format: uuid
                   description: Unique identifier for this event.
-                  example: 85df84c7-a298-44bc-8040-7bd2ae372cbf
+                  examples:
+                    - 85df84c7-a298-44bc-8040-7bd2ae372cbf
                 account_id:
                   type: string
                   format: uuid
                   description: Unique identifier for the account associated with this event.
-                  example: 857c679a-8e80-47f1-9334-39dd08ea801f
+                  examples:
+                    - 857c679a-8e80-47f1-9334-39dd08ea801f
                 data:
                   $ref: "#/components/schemas/FundingEventEvent"
               required:
