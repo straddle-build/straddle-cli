@@ -29,6 +29,7 @@ import (
 const (
 	contractMockSpecPath = "../../spec.yaml"
 	contractPathValue    = "550e8400-e29b-41d4-a716-446655440000"
+	contractMockStartup  = 60 * time.Second
 )
 
 var contractValuesByFormat = map[string]string{
@@ -591,7 +592,7 @@ func startContractMockServer(t *testing.T) string {
 	})
 
 	address := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
-	deadline := time.NewTimer(10 * time.Second)
+	deadline := time.NewTimer(contractMockStartup)
 	defer deadline.Stop()
 	retry := time.NewTicker(50 * time.Millisecond)
 	defer retry.Stop()
@@ -605,7 +606,7 @@ func startContractMockServer(t *testing.T) string {
 		case <-done:
 			t.Fatalf("Scalar mock server exited before accepting connections: %v\nstderr:\n%s", waitErr, stderr.String())
 		case <-deadline.C:
-			t.Fatalf("Scalar mock server did not accept connections within 10s\nstderr:\n%s", stderr.String())
+			t.Fatalf("Scalar mock server did not accept connections within %s\nstderr:\n%s", contractMockStartup, stderr.String())
 		case <-retry.C:
 		}
 	}
