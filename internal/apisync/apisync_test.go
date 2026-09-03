@@ -29,7 +29,7 @@ func TestCurrentSpecOperationsAreCoveredByCheckedInAnnotations(t *testing.T) {
 		t.Fatalf("current spec coverage failed: missing=%d extra=%d duplicate=%d invalid=%d operation_id_mismatch=%d", len(result.Missing), len(result.Extra), len(result.DuplicateAnnotations), len(result.InvalidAnnotations), len(result.OperationIDMismatches))
 	}
 	if !unsupportedInventoryAccepted(len(result.UnsupportedOperations), allowReviewDrift) {
-		t.Fatalf("unsupported operations = %d, want two multipart upload operations", len(result.UnsupportedOperations))
+		t.Fatalf("unsupported operations = %d, want two unsupported contract operations", len(result.UnsupportedOperations))
 	}
 }
 
@@ -122,6 +122,77 @@ func TestCheckCoverageUsesOperationIDsAndIgnoresInternalCommands(t *testing.T) {
 	}
 }
 
+func TestCheckSpecAgainstRepoTreatsAnnotatedUnsupportedOperationAsExtra(t *testing.T) {
+	t.Parallel()
+
+	repo := t.TempDir()
+	cliDir := filepath.Join(repo, "internal", "cli")
+	if err := os.MkdirAll(cliDir, 0o755); err != nil {
+		t.Fatalf("create cli directory: %v", err)
+	}
+	annotation := `package cli
+
+var commandAnnotation = map[string]string{
+	"straddle:endpoint": "widgets.create",
+	"straddle:operation-id": "createWidget",
+	"straddle:method": "POST",
+	"straddle:path": "/v1/widgets",
+}
+`
+	if err := os.WriteFile(filepath.Join(cliDir, "widgets.go"), []byte(annotation), 0o600); err != nil {
+		t.Fatalf("write annotation: %v", err)
+	}
+	specPath := writeSpec(t, `{
+		"openapi": "3.1.0",
+		"paths": {
+			"/v1/widgets": {
+				"post": {
+					"operationId": "createWidget",
+					"tags": ["widgets"],
+					"requestBody": {
+						"content": {
+							"application/json": {
+								"schema": {"$ref": "#/components/schemas/CreateWidget"}
+							}
+						}
+					}
+				}
+			}
+		},
+		"components": {
+			"schemas": {
+				"CreateWidget": {
+					"type": "object",
+					"properties": {
+						"mystery": {}
+					}
+				}
+			}
+		}
+	}`)
+
+	result, err := apisync.CheckSpecAgainstRepo(specPath, repo)
+	if err != nil {
+		t.Fatalf("CheckSpecAgainstRepo: %v", err)
+	}
+	if result.OK {
+		t.Fatalf("OK = true, want false: %#v", result)
+	}
+	if len(result.UnsupportedOperations) != 1 {
+		t.Fatalf("UnsupportedOperations = %#v, want one", result.UnsupportedOperations)
+	}
+	unsupported := result.UnsupportedOperations[0]
+	if unsupported.Operation.Key != "POST /v1/widgets" || !hasReasonContaining(unsupported.Reasons, "/mystery") {
+		t.Fatalf("unsupported operation = %#v, want referenced schema reason", unsupported)
+	}
+	if len(result.Extra) != 1 || result.Extra[0].OperationID != "createWidget" {
+		t.Fatalf("Extra = %#v, want stale createWidget annotation", result.Extra)
+	}
+	if len(result.Missing) != 0 {
+		t.Fatalf("Missing = %#v, want unsupported operation excluded from coverage", result.Missing)
+	}
+}
+
 func TestAPISyncWorkflowAlwaysProposesNewPublishedContracts(t *testing.T) {
 	t.Parallel()
 
@@ -141,10 +212,11 @@ func TestAPISyncWorkflowAlwaysProposesNewPublishedContracts(t *testing.T) {
 	if steps["Update pinned contract"].If != "steps.contract.outputs.status == 'new'" {
 		t.Fatalf("update condition = %q", steps["Update pinned contract"].If)
 	}
-	generateCondition := steps["Generate supported endpoint additions"].If
-	if generateCondition != "steps.contract.outputs.status == 'new' && steps.drift.outputs.supported_additions != '0'" {
+	generateCondition := steps["Regenerate endpoint commands"].If
+	if generateCondition != "steps.contract.outputs.status == 'new'" {
 		t.Fatalf("generation condition = %q", generateCondition)
 	}
+
 	openPR := steps["Open contract synchronization pull request"]
 	if openPR.Uses != "peter-evans/create-pull-request@v8" {
 		t.Fatalf("PR action = %q", openPR.Uses)
@@ -243,18 +315,17 @@ func TestAPISyncWorkflowVerifiesReviewableDrift(t *testing.T) {
 	temp := t.TempDir()
 	goLog := filepath.Join(temp, "go.log")
 	runWorkflowScript(t, script, map[string]string{
-		"COVERAGE_JSON":            filepath.Join(temp, "coverage.json"),
 		"MOCK_GO_LOG":              goLog,
 		"STRADDLE_API_SYNC_REVIEW": "",
 	}, map[string]string{
 		"go": `printf 'review=%s args=%s\n' "${STRADDLE_API_SYNC_REVIEW:-}" "$*" >> "${MOCK_GO_LOG}"`,
 	})
 	wantGoCalls := []string{
-		"review= args=run ./cmd/gen-endpoint verify-lock --lock contract.lock.json --spec spec.yaml",
-		"review= args=run ./cmd/gen-endpoint check --spec spec.yaml --repo . --review-drift --agent",
+		"review= args=run ./cmd/gen-endpoint check --spec spec.yaml --repo . --agent",
 		"review=true args=test ./...",
 		"review= args=vet ./...",
 	}
+
 	if got := readLines(t, goLog); !reflect.DeepEqual(got, wantGoCalls) {
 		t.Fatalf("go calls = %#v, want %#v", got, wantGoCalls)
 	}
@@ -273,7 +344,7 @@ func TestMergedContractChangeTriggersExistingDistributionWorkflow(t *testing.T) 
 	}
 	tagJob := tagWorkflow.Jobs["tag"]
 	steps := stepsByName(tagJob)
-	if steps["Create patch release tag"].If != "steps.version.outputs.already_tagged != 'true'" {
+	if steps["Create patch release tag"].If != "steps.release_changes.outputs.has_cli_changes == 'true' && steps.version.outputs.already_tagged != 'true'" {
 		t.Fatalf("tag creation condition = %q", steps["Create patch release tag"].If)
 	}
 	temp := t.TempDir()
@@ -771,98 +842,6 @@ func TestDriftIgnoresPathParameterDescriptionOutsideSurface(t *testing.T) {
 	}
 	if len(result.Changes) != 0 {
 		t.Fatalf("Changes = %d, want 0", len(result.Changes))
-	}
-}
-
-func TestGenerateEndpointFileUsesEmptyObjectForNoBodyMutation(t *testing.T) {
-	t.Parallel()
-
-	file, err := apisync.GenerateEndpointFile(apisync.Operation{
-		OperationID: "ResubmitWidget",
-		Endpoint:    "widgets.resubmit",
-		Method:      "POST",
-		Path:        "/v1/widgets/{id}/resubmit",
-		PathParameters: []apisync.Parameter{
-			{Name: "id", In: "path"},
-		},
-	}, t.TempDir())
-	if err != nil {
-		t.Fatalf("GenerateEndpointFile: %v", err)
-	}
-	got := file.Content
-	for _, want := range []string{
-		"body := map[string]any{}",
-		"c.PostWithParamsAndHeaders(path, params, body, headers)",
-		`return printGeneratedMutationOutput(cmd, flags, "POST", "widgets.resubmit", path, statusCode, data)`,
-	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("generated content missing %q:\n%s", want, got)
-		}
-	}
-	if strings.Contains(got, "var body map[string]any") {
-		t.Fatalf("generated content should not declare a typed nil body for no-body mutations:\n%s", got)
-	}
-}
-
-func TestGenerateEndpointFileUsesDeleteClassifier(t *testing.T) {
-	t.Parallel()
-
-	file, err := apisync.GenerateEndpointFile(apisync.Operation{
-		OperationID: "DeleteWidget",
-		Endpoint:    "widgets.delete",
-		Method:      "DELETE",
-		Path:        "/v1/widgets/{id}",
-		PathParameters: []apisync.Parameter{
-			{Name: "id", In: "path"},
-		},
-	}, t.TempDir())
-	if err != nil {
-		t.Fatalf("GenerateEndpointFile: %v", err)
-	}
-	got := file.Content
-	if !strings.Contains(got, "return classifyDeleteError(err, flags)") {
-		t.Fatalf("generated content missing delete classifier:\n%s", got)
-	}
-	if !strings.Contains(got, `return printGeneratedMutationOutput(cmd, flags, "DELETE", "widgets.delete", path, statusCode, data)`) {
-		t.Fatalf("generated DELETE content missing mutation output contract:\n%s", got)
-	}
-	if strings.Contains(got, "return classifyAPIError(err, flags)") {
-		t.Fatalf("generated DELETE content should not use generic API classifier:\n%s", got)
-	}
-}
-
-func TestGenerateEndpointFileEmitsHeaderFlags(t *testing.T) {
-	t.Parallel()
-
-	file, err := apisync.GenerateEndpointFile(apisync.Operation{
-		OperationID: "GetWidget",
-		Endpoint:    "widgets.get",
-		Method:      "GET",
-		Path:        "/v1/widgets/{id}",
-		PathParameters: []apisync.Parameter{
-			{Name: "id", In: "path"},
-		},
-		HeaderParameters: []apisync.Parameter{
-			{Name: "Straddle-Account-Id", In: "header"},
-			{Name: "Request-Id", In: "header", Description: "Trace one request."},
-		},
-	}, t.TempDir())
-	if err != nil {
-		t.Fatalf("GenerateEndpointFile: %v", err)
-	}
-	got := file.Content
-	for _, want := range []string{
-		"var flagRequestIdHeader string",
-		`headers["Request-Id"] = flagRequestIdHeader`,
-		`c.GetWithHeaders(path, params, headers)`,
-		`cmd.Flags().StringVar(&flagRequestIdHeader, "request-id", "", "Trace one request.")`,
-	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("generated content missing %q:\n%s", want, got)
-		}
-	}
-	if strings.Contains(got, "Straddle-Account-Id") {
-		t.Fatalf("generated content should not expose Straddle-Account-Id as a header flag:\n%s", got)
 	}
 }
 

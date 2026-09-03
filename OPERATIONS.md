@@ -13,6 +13,7 @@ Local development commands, release process, and operational pointers for the St
 | Format | `gofmt -w <changed files>` (changed files only) |
 | Contract lock | `go run ./cmd/gen-endpoint verify-lock --spec spec.yaml` |
 | Endpoint coverage | `go run ./cmd/gen-endpoint check --spec spec.yaml --repo .` |
+| Contract mock | `STRADDLE_CONTRACT_MOCK=1 go test ./internal/cli -run TestContractMockServer -v` |
 | Vulnerability scan | `make vuln` |
 | Secret scan | `go run github.com/zricethezav/gitleaks/v8@latest detect --log-opts=--all` |
 | Runtime smoke | `go run ./cmd/straddle doctor --json` and `go run ./cmd/straddle agent-context --pretty` |
@@ -26,20 +27,21 @@ Agent mode: `--agent` = `--json --compact --no-input --no-color --yes`. Human co
 
 ## API sync
 
-`spec.yaml` contains the exact bytes of the immutable Scalar release named by `contract.lock.json`. Drift and coverage tooling:
+`spec.yaml` contains the exact bytes of the immutable Scalar release named by `contract.lock.json`. The tooling derives each supported endpoint's command surface and compares drift field by field:
 
 ```bash
 go run ./cmd/gen-endpoint verify-lock --spec spec.yaml
+go run ./cmd/gen-endpoint surfaces --spec spec.yaml --agent
 go run ./cmd/gen-endpoint check --spec spec.yaml --repo .
 go run ./cmd/gen-endpoint drift --base spec.yaml --head <released-spec> --repo . --agent
-go run ./cmd/gen-endpoint generate --spec <released-spec> --repo . --drift <drift-json> --supported-additions --agent
+go run ./cmd/gen-endpoint generate --spec spec.yaml --repo . --agent
 ```
 
 `.github/workflows/api-sync.yml` receives `straddle-contract-published`, accepts an exact version for manual recovery, and checks Scalar daily for a missed event. Discovery may read Scalar's current release, but synchronization always downloads the exact versioned artifact. Publisher-triggered runs verify the publisher-provided digest before drift or generation. Scheduled and manual recovery runs compute the digest from the exact downloaded artifact and require no checksum input.
 
-Every new contract version updates the YAML and lock in a normal human-reviewed PR. Supported new operations are generated into that PR. Changed, removed, and unsupported operations are included in its review evidence instead of blocking the update. Repeated events and scheduled runs are green no-ops when the version and bytes already match `main` or the version-specific branch of an open synchronization PR. A stale branch without an open PR does not suppress PR creation. Changed bytes for an already-seen version fail. The workflow never auto-merges.
+Every new contract version updates the YAML and lock in a normal human-reviewed PR. The workflow then regenerates every supported endpoint file, overwrites existing generated files, and deletes generated files for operations that left the contract. Review evidence includes field-level flag additions, removals, and changes, plus counts for generated, deleted, unchanged, and unsupported operations. Repeated events and scheduled runs are green no-ops when the version and bytes already match `main` or the version-specific branch of an open synchronization PR. A stale branch without an open PR does not suppress PR creation. Changed bytes for an already-seen version fail. The workflow never auto-merges.
 
-Configure `API_SYNC_BOT_TOKEN` with contents and pull-request write access. It creates the synchronization PR and, after that PR is merged, `.github/workflows/api-sync-release.yml` creates the next CLI patch tag. The existing release workflow publishes that tag through every configured CLI distribution.
+Configure `API_SYNC_BOT_TOKEN` with contents and pull-request write access. It creates the synchronization PR. After that PR merges, `.github/workflows/api-sync-release.yml` creates the next CLI patch tag only when the merge changed a file other than `spec.yaml` and `contract.lock.json`. A contract-only merge records the skipped release in the workflow summary. The existing release workflow publishes each new tag through every configured CLI distribution.
 
 ## Release
 

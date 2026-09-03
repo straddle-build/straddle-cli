@@ -210,148 +210,27 @@ func runGenerate(args []string, stdout, stderr io.Writer) error {
 	fs.SetOutput(stderr)
 	specPath := fs.String("spec", "spec.yaml", "OpenAPI spec to generate from")
 	repo := fs.String("repo", ".", "repository root")
-	outDir := fs.String("out-dir", "", "directory for generated command files, defaults to internal/cli under --repo")
-	driftPath := fs.String("drift", "", "optional drift JSON produced by the drift subcommand")
-	only := fs.String("only", "missing", "operation selection: missing, supported-additions, or all")
-	supportedAdditions := fs.Bool("supported-additions", false, "alias for --only supported-additions")
-	dryRun := fs.Bool("dry-run", false, "show files that would be written without writing them")
-	overwrite := fs.Bool("overwrite", false, "overwrite generated files that already exist")
 	agent := fs.Bool("agent", false, "emit JSON")
+	dryRun := fs.Bool("dry-run", false, "show file changes without applying them")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	if *supportedAdditions {
-		*only = "supported-additions"
-	}
-	ops, err := apisync.LoadSpec(*specPath)
+	result, err := apisync.GenerateAll(*specPath, *repo, *dryRun)
 	if err != nil {
 		return err
-	}
-	inventory, err := apisync.InventoryRepo(*repo)
-	if err != nil {
-		return err
-	}
-	selection, unsupported, err := selectOperations(*only, *driftPath, ops, inventory)
-	if err != nil {
-		return err
-	}
-	resolvedOut := *outDir
-	if resolvedOut == "" {
-		resolvedOut = filepath.Join(*repo, "internal", "cli")
-	} else if !filepath.IsAbs(resolvedOut) {
-		resolvedOut = filepath.Join(*repo, resolvedOut)
-	}
-	files := make([]apisync.GeneratedFile, 0, len(selection))
-	for _, op := range selection {
-		file, err := apisync.GenerateEndpointFile(op, resolvedOut)
-		if err != nil {
-			return fmt.Errorf("generating %s: %w", op.Key, err)
-		}
-		files = append(files, file)
-	}
-	if unsupported == nil {
-		unsupported = []apisync.UnsupportedOperation{}
-	}
-	result := apisync.GenerateResult{
-		Generated:             []string{},
-		SkippedExisting:       []string{},
-		UnsupportedOperations: unsupported,
-		DryRun:                *dryRun,
-	}
-	if *dryRun {
-		for _, file := range files {
-			result.Generated = append(result.Generated, file.Path)
-		}
-	} else {
-		written, err := apisync.WriteGeneratedFiles(files, *overwrite)
-		if err != nil {
-			return err
-		}
-		result.Generated = written.Generated
-		result.SkippedExisting = written.SkippedExisting
-		if *only == "supported-additions" {
-			if err := requireSupportedAdditionsCovered(selection, *repo, resolvedOut, result.SkippedExisting); err != nil {
-				return err
-			}
-		}
 	}
 	if *agent {
 		return writeJSON(stdout, result)
 	}
 	writeGenerateSummary(stdout, result)
-	return nil
-}
-
-func requireSupportedAdditionsCovered(selection []apisync.Operation, repo, outDir string, skipped []string) error {
-	var missing []string
-	if samePath(outDir, filepath.Join(repo, "internal", "cli")) {
-		inventory, err := apisync.InventoryRepo(repo)
-		if err != nil {
-			return err
-		}
-		covered := make(map[string]bool, len(inventory.Annotations))
-		for _, annotation := range inventory.Annotations {
-			covered[apisync.OperationKey(annotation.Method, annotation.Path)] = true
-		}
-		for _, op := range selection {
-			if !covered[op.Key] {
-				missing = append(missing, op.Key)
-			}
-		}
-	}
-	if len(missing) == 0 && len(skipped) == 0 {
+	if len(result.UnsupportedOperations) == 0 {
 		return nil
 	}
-	sort.Strings(missing)
-	sort.Strings(skipped)
-	var parts []string
-	if len(missing) > 0 {
-		parts = append(parts, "missing annotations: "+strings.Join(missing, ", "))
+	summaries := make([]string, len(result.UnsupportedOperations))
+	for i, operation := range result.UnsupportedOperations {
+		summaries[i] = operation.Operation.Key + ": " + strings.Join(operation.Reasons, ", ")
 	}
-	if len(skipped) > 0 {
-		parts = append(parts, "skipped existing files: "+strings.Join(skipped, ", "))
-	}
-	return fmt.Errorf("supported endpoint generation incomplete: %s", strings.Join(parts, "; "))
-}
-
-func samePath(a, b string) bool {
-	aAbs, aErr := filepath.Abs(a)
-	bAbs, bErr := filepath.Abs(b)
-	if aErr == nil && bErr == nil {
-		return filepath.Clean(aAbs) == filepath.Clean(bAbs)
-	}
-	return filepath.Clean(a) == filepath.Clean(b)
-}
-
-func selectOperations(only, driftPath string, ops []apisync.Operation, inventory apisync.Inventory) ([]apisync.Operation, []apisync.UnsupportedOperation, error) {
-	switch only {
-	case "missing":
-		selection, unsupported := apisync.MissingSupportedOperations(ops, inventory)
-		return selection, unsupported, nil
-	case "supported-additions":
-		if driftPath != "" {
-			drift, err := apisync.ReadDrift(driftPath)
-			if err != nil {
-				return nil, nil, err
-			}
-			return drift.SupportedAdditions, drift.UnsupportedOperations, nil
-		}
-		selection, unsupported := apisync.MissingSupportedOperations(ops, inventory)
-		return selection, unsupported, nil
-	case "all":
-		var selection []apisync.Operation
-		var unsupported []apisync.UnsupportedOperation
-		for _, op := range ops {
-			if reasons := apisync.UnsupportedReasons(op); len(reasons) > 0 {
-				unsupported = append(unsupported, apisync.UnsupportedOperation{Operation: op, Reasons: reasons})
-				continue
-			}
-			selection = append(selection, op)
-		}
-		return selection, unsupported, nil
-	default:
-		return nil, nil, fmt.Errorf("unsupported --only value %q", only)
-	}
+	return fmt.Errorf("generation found %d unsupported operations: %s", len(result.UnsupportedOperations), strings.Join(summaries, "; "))
 }
 
 func writeJSON(w io.Writer, value any) error {
@@ -403,7 +282,8 @@ func driftSummary(result apisync.DriftResult) string {
 
 func writeGenerateSummary(w io.Writer, result apisync.GenerateResult) {
 	fmt.Fprintf(w, "generated: %d\n", len(result.Generated))
-	fmt.Fprintf(w, "skipped_existing: %d\n", len(result.SkippedExisting))
-	fmt.Fprintf(w, "unsupported_operations: %d\n", len(result.UnsupportedOperations))
+	fmt.Fprintf(w, "deleted: %d\n", len(result.Deleted))
+	fmt.Fprintf(w, "unchanged: %d\n", len(result.Unchanged))
+	fmt.Fprintf(w, "unsupported: %d\n", len(result.UnsupportedOperations))
 	fmt.Fprintf(w, "dry_run: %t\n", result.DryRun)
 }

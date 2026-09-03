@@ -52,6 +52,52 @@ paths:
 			},
 		},
 		{
+			name: "scalar formats are preserved",
+			spec: `
+openapi: 3.1.0
+paths:
+  /v1/widgets:
+    post:
+      operationId: createWidget
+      tags: [widgets]
+      parameters:
+        - name: customer_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                starts_on:
+                  type: string
+                  format: date
+`,
+			want: func(t *testing.T, surfaces []surface.Surface, unsupported []UnsupportedOperation) {
+				t.Helper()
+				got := requireSingleSupportedSurface(t, surfaces, unsupported)
+				requireFlag(t, got, surface.Flag{
+					Name:    "customer-id",
+					In:      surface.InQuery,
+					Key:     "customer_id",
+					Kind:    surface.KindString,
+					Style:   surface.StyleForm,
+					Explode: true,
+					Format:  "uuid",
+				})
+				requireFlag(t, got, surface.Flag{
+					Name:   "starts-on",
+					In:     surface.InBody,
+					Key:    "/starts_on",
+					Kind:   surface.KindString,
+					Format: "date",
+				})
+			},
+		},
+		{
 			name: "nested required property has required ancestors",
 			spec: `
 openapi: 3.1.0
@@ -390,7 +436,7 @@ func requireFlag(t *testing.T, got surface.Surface, want surface.Flag) {
 	if flag == nil {
 		t.Fatalf("Flags = %#v, want %q", got.Flags, want.Name)
 	}
-	if flag.In != want.In || flag.Key != want.Key || flag.Kind != want.Kind || flag.Array != want.Array || flag.Style != want.Style || flag.Explode != want.Explode || flag.Required != want.Required {
+	if flag.In != want.In || flag.Key != want.Key || flag.Kind != want.Kind || flag.Array != want.Array || flag.Style != want.Style || flag.Explode != want.Explode || flag.Required != want.Required || flag.Format != want.Format {
 		t.Fatalf("flag %q = %#v, want %#v", want.Name, *flag, want)
 	}
 	if strings.Join(flag.Enum, ",") != strings.Join(want.Enum, ",") {

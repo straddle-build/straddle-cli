@@ -44,7 +44,7 @@ The `api` command has two runtime surfaces:
 - `straddle api` and `straddle api <interface>` browse hidden API interfaces.
 - `straddle api <method> <path>` calls a raw API path for `GET`, `POST`, `PUT`, `PATCH`, and `DELETE`, using the same client, auth, account scoping, dry-run, verify, redaction, and output rules as the friendly commands.
 
-Generated endpoint additions self-register through `internal/cli/generated_registry.go`, so a generated file can attach itself under an existing command family or a hidden parent command without hand-editing the root command.
+The API sync workflow regenerates every endpoint command file wholesale. Each generated file self-registers through `internal/cli/generated_registry.go`, so it can attach under an existing command family or a hidden parent without a root-command edit. Per-command customizations live in `internal/cli/overlays.go`, keyed by endpoint.
 
 ## Important runtime rules
 

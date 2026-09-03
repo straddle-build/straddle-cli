@@ -38,4 +38,4 @@ Pointers: `OPERATIONS.md` (local dev commands, release, API sync), `openwiki/qui
 
 ## Generated code boundary
 
-Generated endpoint command files self-register through `internal/cli/generated_registry.go` and are produced deterministically by `cmd/gen-endpoint generate`. Do not hand-edit generated endpoint files; change the generator or the hand-authored `straddle_*.go` commands instead. Raw `straddle api <method> <path>` is the fallback for newly published endpoints before a dedicated command exists.
+The API sync workflow regenerates every endpoint command file wholesale with `cmd/gen-endpoint generate`. Each file self-registers through `internal/cli/generated_registry.go`. Do not hand-edit generated endpoint files. Put per-command customizations in `internal/cli/overlays.go`, keyed by endpoint. Raw `straddle api <method> <path>` is the fallback for newly published endpoints before a dedicated command exists.

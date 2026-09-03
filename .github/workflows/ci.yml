@@ -66,3 +66,21 @@ jobs:
 
       - name: Secret scan (full history)
         run: go run github.com/zricethezav/gitleaks/v8@latest detect --log-opts=--all
+
+  contract-mock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Validate CLI requests against the contract
+        run: STRADDLE_CONTRACT_MOCK=1 go test ./internal/cli -run TestContractMockServer -v

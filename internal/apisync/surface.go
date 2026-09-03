@@ -18,6 +18,7 @@ type schemaNode struct {
 	Ref                  string                     `json:"$ref"`
 	Type                 json.RawMessage            `json:"type"`
 	Description          string                     `json:"description"`
+	Format               string                     `json:"format"`
 	Properties           map[string]json.RawMessage `json:"properties"`
 	Required             []string                   `json:"required"`
 	Items                json.RawMessage            `json:"items"`
@@ -154,6 +155,7 @@ func (d surfaceDeriver) parameterFlag(parameter rawParameter) (surface.Flag, []s
 		flag.Description = surfaceDescription(node.Description)
 	}
 	flag.Default = renderSchemaValue(node.Default)
+	flag.Format = node.Format
 
 	schemaType, ok := nodeType(node)
 	if !ok {
@@ -186,6 +188,7 @@ func (d surfaceDeriver) parameterFlag(parameter rawParameter) (surface.Flag, []s
 	}
 	flag.Kind = kind
 	flag.Array = true
+	flag.Format = items.Format
 	flag.Enum = renderEnum(items.Enum)
 	return flag, reasons
 }
@@ -259,6 +262,9 @@ func mergeSchemaNodes(base, overlay schemaNode, pointer string) (schemaNode, []s
 	}
 	if overlay.Description != "" {
 		base.Description = overlay.Description
+	}
+	if overlay.Format != "" {
+		base.Format = overlay.Format
 	}
 	if base.Properties == nil && len(overlay.Properties) > 0 {
 		base.Properties = make(map[string]json.RawMessage, len(overlay.Properties))
@@ -361,6 +367,7 @@ func (d surfaceDeriver) flattenNode(node schemaNode, nameParts, pointerParts []s
 		kind, scalar := scalarKind(itemType)
 		if len(reasons) == 0 && ok && scalar {
 			flag := bodyFlag(node, nameParts, pointer, required, kind, true)
+			flag.Format = items.Format
 			flag.Enum = renderEnum(items.Enum)
 			return []surface.Flag{flag}, nil
 		}
@@ -371,6 +378,7 @@ func (d surfaceDeriver) flattenNode(node schemaNode, nameParts, pointerParts []s
 	}
 	if kind, scalar := scalarKind(schemaType); hasType && scalar {
 		flag := bodyFlag(node, nameParts, pointer, required, kind, false)
+		flag.Format = node.Format
 		flag.Enum = renderEnum(node.Enum)
 		return []surface.Flag{flag}, nil
 	}

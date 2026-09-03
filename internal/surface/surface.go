@@ -41,6 +41,7 @@ type Flag struct {
 	Required    bool     `json:"required,omitempty"`
 	Enum        []string `json:"enum,omitempty"`
 	Description string   `json:"description,omitempty"`
+	Format      string   `json:"format,omitempty"`
 	Default     string   `json:"default,omitempty"`
 }
 

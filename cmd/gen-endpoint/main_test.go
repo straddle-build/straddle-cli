@@ -101,19 +101,13 @@ func TestRunCandidateStatusValidatesPublisherDigest(t *testing.T) {
 	}
 }
 
-func TestRunGenerateDryRunSelectsMissingSupportedOperationsDeterministically(t *testing.T) {
+func TestRunGenerateAgentDryRunReportsRegenerationPlan(t *testing.T) {
 	t.Parallel()
 
 	repo := t.TempDir()
 	cliDir := filepath.Join(repo, "internal", "cli")
 	if err := os.MkdirAll(cliDir, 0o755); err != nil {
 		t.Fatalf("mkdir internal/cli: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(cliDir, "existing.go"), []byte(`package cli
-
-var existingAnnotation = map[string]string{"straddle:endpoint": "widgets.list", "straddle:operation-id": "ListWidgets", "straddle:method": "GET", "straddle:path": "/v1/widgets"}
-`), 0o644); err != nil {
-		t.Fatalf("write existing annotation: %v", err)
 	}
 	spec := writeCommandSpec(t, `{
 		"openapi": "3.1.0",
@@ -122,8 +116,7 @@ var existingAnnotation = map[string]string{"straddle:endpoint": "widgets.list", 
 				"post": {
 					"tags": ["Zeta"],
 					"operationId": "CreateZeta",
-					"summary": "Create zeta",
-					"requestBody": {"required": true, "content": {"application/json": {}}}
+					"summary": "Create zeta"
 				}
 			},
 			"/v1/widgets": {
@@ -137,8 +130,7 @@ var existingAnnotation = map[string]string{"straddle:endpoint": "widgets.list", 
 				"post": {
 					"tags": ["Alpha"],
 					"operationId": "CreateAlpha",
-					"summary": "Create alpha",
-					"requestBody": {"required": true, "content": {"application/json": {}}}
+					"summary": "Create alpha"
 				}
 			},
 			"/v1/upload": {
@@ -162,22 +154,35 @@ var existingAnnotation = map[string]string{"straddle:endpoint": "widgets.list", 
 	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
 		t.Fatalf("decode generate JSON: %v\nstdout: %s", err, stdout.String())
 	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(stdout.Bytes(), &fields); err != nil {
+		t.Fatalf("decode generate JSON fields: %v", err)
+	}
+	for _, name := range []string{"generated", "deleted", "unchanged", "unsupported", "dry_run"} {
+		if _, ok := fields[name]; !ok {
+			t.Fatalf("generate JSON missing %q: %s", name, stdout.String())
+		}
+	}
+	if len(fields) != 5 {
+		t.Fatalf("generate JSON fields = %#v", fields)
+	}
 	if !result.DryRun {
-		t.Fatalf("DryRun = false")
+		t.Fatal("DryRun = false")
 	}
 	wantGenerated := []string{
 		filepath.Join(cliDir, "alpha_create.go"),
+		filepath.Join(cliDir, "widgets_list.go"),
 		filepath.Join(cliDir, "zeta_create.go"),
 	}
 	if len(result.Generated) != len(wantGenerated) {
 		t.Fatalf("Generated = %#v, want %#v", result.Generated, wantGenerated)
 	}
-	for i := range wantGenerated {
-		if result.Generated[i] != wantGenerated[i] {
+	for i, want := range wantGenerated {
+		if result.Generated[i] != want {
 			t.Fatalf("Generated = %#v, want deterministic order %#v", result.Generated, wantGenerated)
 		}
-		if _, err := os.Stat(result.Generated[i]); !os.IsNotExist(err) {
-			t.Fatalf("dry-run wrote %s, stat err %v", result.Generated[i], err)
+		if _, err := os.Stat(want); !os.IsNotExist(err) {
+			t.Fatalf("dry-run wrote %s, stat err %v", want, err)
 		}
 	}
 	if len(result.UnsupportedOperations) != 1 {
@@ -187,12 +192,12 @@ var existingAnnotation = map[string]string{"straddle:endpoint": "widgets.list", 
 	if unsupported.Operation.Key != "POST /v1/upload" {
 		t.Fatalf("unsupported key = %q, want %q", unsupported.Operation.Key, "POST /v1/upload")
 	}
-	if len(unsupported.Reasons) != 1 || unsupported.Reasons[0] != "request body lacks application/json content" {
+	if !strings.Contains(strings.Join(unsupported.Reasons, ", "), "request body lacks application/json content") {
 		t.Fatalf("unsupported reasons = %#v", unsupported.Reasons)
 	}
 }
 
-func TestRunGenerateWritesGeneratedEndpointRegistration(t *testing.T) {
+func TestRunGenerateWritesDeclarativeEndpoint(t *testing.T) {
 	t.Parallel()
 
 	repo := t.TempDir()
@@ -207,8 +212,7 @@ func TestRunGenerateWritesGeneratedEndpointRegistration(t *testing.T) {
 				"post": {
 					"tags": ["Widgets"],
 					"operationId": "CreateWidgets",
-					"summary": "Create widget",
-					"requestBody": {"required": true, "content": {"application/json": {}}}
+					"summary": "Create widget"
 				}
 			}
 		}
@@ -226,70 +230,82 @@ func TestRunGenerateWritesGeneratedEndpointRegistration(t *testing.T) {
 		t.Fatalf("read generated file: %v", err)
 	}
 	got := string(content)
-	if !strings.Contains(got, `registerGeneratedEndpoint("widgets.create", newWidgetsCreateCmd)`) {
-		t.Fatalf("generated file missing registration call:\n%s", got)
-	}
-	if !strings.Contains(got, `"straddle:operation-id": "CreateWidgets"`) {
-		t.Fatalf("generated file missing stable operationId annotation:\n%s", got)
+	for _, want := range []string{
+		`registerGeneratedEndpoint("widgets.create", newWidgetsCreateCmd)`,
+		"registerSurface(surface.Surface{",
+		`"straddle:operation-id": "CreateWidgets"`,
+		`applyOverlay("widgets.create", cmd)`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated file missing %q:\n%s", want, got)
+		}
 	}
 }
 
-func TestRunGenerateSupportedAdditionsFailsWhenCoverageIsIncomplete(t *testing.T) {
+func TestRunGenerateUnsupportedExitBehavior(t *testing.T) {
 	t.Parallel()
 
-	repo := t.TempDir()
-	cliDir := filepath.Join(repo, "internal", "cli")
-	if err := os.MkdirAll(cliDir, 0o755); err != nil {
-		t.Fatalf("mkdir internal/cli: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(cliDir, "widgets_create.go"), []byte("package cli\n"), 0o644); err != nil {
-		t.Fatalf("write colliding generated file: %v", err)
-	}
-	spec := writeCommandSpec(t, `{
-		"openapi": "3.1.0",
-		"paths": {
-			"/v1/widgets": {
-				"post": {
-					"tags": ["Widgets"],
-					"operationId": "CreateWidgets",
-					"summary": "Create widget",
-					"requestBody": {"required": true, "content": {"application/json": {}}}
-				}
-			}
-		}
-	}`)
-	driftPath := filepath.Join(t.TempDir(), "drift.json")
-	drift := apisync.DriftResult{
-		SupportedAdditions: []apisync.Operation{
-			{
-				Key:                   "POST /v1/widgets",
-				OperationID:           "CreateWidgets",
-				Endpoint:              "widgets.create",
-				Method:                "POST",
-				Path:                  "/v1/widgets",
-				RequestBodyRequired:   true,
-				RequestBodyMediaTypes: []string{"application/json"},
-			},
-		},
-	}
-	driftData, err := json.Marshal(drift)
-	if err != nil {
-		t.Fatalf("marshal drift: %v", err)
-	}
-	if err := os.WriteFile(driftPath, driftData, 0o644); err != nil {
-		t.Fatalf("write drift: %v", err)
-	}
+	for _, tc := range []struct {
+		name    string
+		agent   bool
+		wantErr bool
+	}{
+		{name: "human exits non-zero", wantErr: true},
+		{name: "agent reports and exits zero", agent: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	err = run([]string{"generate", "--spec", spec, "--repo", repo, "--drift", driftPath, "--supported-additions", "--agent"}, &stdout, &stderr)
-	if err == nil {
-		t.Fatalf("run generate succeeded, want incomplete coverage error\nstdout: %s\nstderr: %s", stdout.String(), stderr.String())
+			repo := t.TempDir()
+			if err := os.MkdirAll(filepath.Join(repo, "internal", "cli"), 0o755); err != nil {
+				t.Fatalf("mkdir internal/cli: %v", err)
+			}
+			spec := writeCommandSpec(t, `{
+				"openapi": "3.1.0",
+				"paths": {
+					"/v1/upload": {
+						"post": {
+							"tags": ["Upload"],
+							"operationId": "CreateUpload",
+							"requestBody": {"required": true, "content": {"multipart/form-data": {}}}
+						}
+					}
+				}
+			}`)
+			args := []string{"generate", "--spec", spec, "--repo", repo}
+			if tc.agent {
+				args = append(args, "--agent")
+			}
+			var stdout bytes.Buffer
+			var stderr bytes.Buffer
+			err := run(args, &stdout, &stderr)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("run generate error = %v, wantErr %t", err, tc.wantErr)
+			}
+			if tc.wantErr && !strings.Contains(err.Error(), "generation found 1 unsupported operations") {
+				t.Fatalf("run generate error = %q", err)
+			}
+			if !strings.Contains(stdout.String(), "unsupported") {
+				t.Fatalf("generate output missing unsupported operations: %s", stdout.String())
+			}
+		})
 	}
-	for _, want := range []string{"supported endpoint generation incomplete", "POST /v1/widgets", "widgets_create.go"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Fatalf("run generate error = %q, want %q", err.Error(), want)
-		}
+}
+
+func TestRunGenerateRejectsRemovedFlags(t *testing.T) {
+	t.Parallel()
+
+	for _, flagName := range []string{"--drift", "--supported-additions"} {
+		t.Run(flagName, func(t *testing.T) {
+			t.Parallel()
+
+			var stdout bytes.Buffer
+			var stderr bytes.Buffer
+			err := run([]string{"generate", flagName}, &stdout, &stderr)
+			if err == nil || !strings.Contains(err.Error(), "flag provided but not defined") {
+				t.Fatalf("run generate %s error = %v", flagName, err)
+			}
+		})
 	}
 }
 
