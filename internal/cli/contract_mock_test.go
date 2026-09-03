@@ -142,23 +142,6 @@ func (t *contractRecordingTransport) take() []recordedContractResponse {
 	return responses
 }
 
-type synchronizedBuffer struct {
-	mu sync.Mutex
-	bytes.Buffer
-}
-
-func (b *synchronizedBuffer) Write(p []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.Buffer.Write(p)
-}
-
-func (b *synchronizedBuffer) String() string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.Buffer.String()
-}
-
 func TestContractMockServer(t *testing.T) {
 	requireContractMock(t)
 
@@ -563,10 +546,16 @@ func startContractMockServer(t *testing.T) string {
 		t.Fatalf("release mock port: %v", err)
 	}
 
-	var stderr synchronizedBuffer
+	stderr, err := os.CreateTemp(t.TempDir(), "scalar-stderr-*.log")
+	if err != nil {
+		t.Fatalf("create Scalar stderr log: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = stderr.Close()
+	})
 	cmd := exec.Command("npx", "--yes", "@scalar/cli@2.1.0", "document", "mock", contractMockSpecPath, "--port", strconv.Itoa(port))
 	cmd.Stdout = io.Discard
-	cmd.Stderr = &stderr
+	cmd.Stderr = stderr
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start Scalar mock server: %v", err)
 	}
@@ -604,10 +593,18 @@ func startContractMockServer(t *testing.T) string {
 		}
 		select {
 		case <-done:
-			t.Fatalf("Scalar mock server exited before accepting connections: %v\nstderr:\n%s", waitErr, stderr.String())
+			t.Fatalf("Scalar mock server exited before accepting connections: %v\nstderr:\n%s", waitErr, readContractMockStderr(stderr.Name()))
 		case <-deadline.C:
-			t.Fatalf("Scalar mock server did not accept connections within %s\nstderr:\n%s", contractMockStartup, stderr.String())
+			t.Fatalf("Scalar mock server did not accept connections within %s\nstderr:\n%s", contractMockStartup, readContractMockStderr(stderr.Name()))
 		case <-retry.C:
 		}
 	}
+}
+
+func readContractMockStderr(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Sprintf("read stderr log: %v", err)
+	}
+	return string(data)
 }
