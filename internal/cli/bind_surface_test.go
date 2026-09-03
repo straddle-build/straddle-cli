@@ -119,6 +119,44 @@ func TestBindSurfaceCapturesRequests(t *testing.T) {
 			},
 		},
 		{
+			name:        "explicit zero integer",
+			args:        []string{"widget-1", "--amount", "0"},
+			wantRequest: true,
+			assert: func(t *testing.T, got capturedSurfaceRequest) {
+				t.Helper()
+				if amount, ok := got.body["amount"].(float64); !ok || amount != 0 {
+					t.Fatalf("amount = %#v, want 0", got.body["amount"])
+				}
+			},
+		},
+		{
+			name:        "explicit false boolean",
+			args:        []string{"widget-1", "--config-auto-hold=false"},
+			wantRequest: true,
+			assert: func(t *testing.T, got capturedSurfaceRequest) {
+				t.Helper()
+				config, ok := got.body["config"].(map[string]any)
+				if !ok {
+					t.Fatalf("config = %#v, want object", got.body["config"])
+				}
+				if autoHold, ok := config["auto_hold"].(bool); !ok || autoHold {
+					t.Fatalf("config.auto_hold = %#v, want false", config["auto_hold"])
+				}
+			},
+		},
+		{
+			name:        "explicit empty string",
+			args:        []string{"widget-1", "--paykey="},
+			wantRequest: true,
+			assert: func(t *testing.T, got capturedSurfaceRequest) {
+				t.Helper()
+				paykey, ok := got.body["paykey"]
+				if !ok || paykey != "" {
+					t.Fatalf("paykey = %#v, want empty string", paykey)
+				}
+			},
+		},
+		{
 			name:     "stdin overrides body flags",
 			required: true,
 			args: []string{

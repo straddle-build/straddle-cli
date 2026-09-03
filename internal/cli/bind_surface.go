@@ -155,26 +155,7 @@ func (b *surfaceFlagBinding) included(cmd *cobra.Command) bool {
 	if b.definition.In == surface.InQuery && b.definition.Name == "page-number" {
 		return true
 	}
-	if b.definition.Array {
-		switch b.definition.Kind {
-		case surface.KindString:
-			return len(b.stringValues) != 0
-		case surface.KindInteger:
-			return len(b.intValues) != 0
-		}
-	}
-	switch b.definition.Kind {
-	case surface.KindString, surface.KindJSON:
-		return b.stringValue != ""
-	case surface.KindInteger:
-		return b.intValue != 0
-	case surface.KindNumber:
-		return b.floatValue != 0
-	case surface.KindBoolean:
-		return b.boolValue || cmd.Flags().Changed(b.definition.Name)
-	default:
-		return false
-	}
+	return cmd.Flags().Changed(b.definition.Name) || b.definition.Default != ""
 }
 
 func (b *surfaceFlagBinding) value() (surfaceFlagValue, error) {

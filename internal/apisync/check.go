@@ -13,6 +13,7 @@ type CheckResult struct {
 	InvalidAnnotations    []AnnotationIssue      `json:"invalid_annotations,omitempty"`
 	OperationIDMismatches []OperationIDMismatch  `json:"operation_id_mismatches,omitempty"`
 	UnsupportedOperations []UnsupportedOperation `json:"unsupported_operations,omitempty"`
+	StaleGenerated        []string               `json:"stale_generated,omitempty"`
 }
 
 type OperationIDMismatch struct {
@@ -27,7 +28,7 @@ type Duplicate struct {
 }
 
 func (result CheckResult) HasBlockingIssues() bool {
-	return len(result.Missing) > 0 || len(result.DuplicateAnnotations) > 0 || len(result.InvalidAnnotations) > 0
+	return len(result.Missing) > 0 || len(result.DuplicateAnnotations) > 0 || len(result.InvalidAnnotations) > 0 || len(result.StaleGenerated) > 0
 }
 
 func CheckSpecAgainstRepo(specPath, repo string) (CheckResult, error) {
@@ -57,6 +58,14 @@ func CheckSpecAgainstRepo(specPath, repo string) (CheckResult, error) {
 	result := CheckCoverage(supported, inv)
 	result.SpecOperations = len(ops)
 	result.UnsupportedOperations = unsupported
+	generated, err := GenerateAll(specPath, repo, true)
+	if err != nil {
+		return CheckResult{}, err
+	}
+	result.StaleGenerated = append(result.StaleGenerated, generated.Generated...)
+	result.StaleGenerated = append(result.StaleGenerated, generated.Deleted...)
+	sort.Strings(result.StaleGenerated)
+	result.OK = result.OK && len(result.StaleGenerated) == 0
 	return result, nil
 }
 

@@ -125,7 +125,7 @@ func runCheck(args []string, stdout, stderr io.Writer) error {
 		writeCheckSummary(stdout, result)
 	}
 	if !result.OK && (!*reviewDrift || result.HasBlockingIssues()) {
-		return fmt.Errorf("endpoint coverage check failed: %d missing, %d extra, %d duplicate groups, %d invalid annotations, %d operationId mismatches", len(result.Missing), len(result.Extra), len(result.DuplicateAnnotations), len(result.InvalidAnnotations), len(result.OperationIDMismatches))
+		return fmt.Errorf("endpoint coverage check failed: %d missing, %d extra, %d duplicate groups, %d invalid annotations, %d operationId mismatches, %d stale generated files", len(result.Missing), len(result.Extra), len(result.DuplicateAnnotations), len(result.InvalidAnnotations), len(result.OperationIDMismatches), len(result.StaleGenerated))
 	}
 	return nil
 }
@@ -264,6 +264,7 @@ func writeCheckSummary(w io.Writer, result apisync.CheckResult) {
 	fmt.Fprintf(w, "duplicate_annotations: %d\n", len(result.DuplicateAnnotations))
 	fmt.Fprintf(w, "invalid_annotations: %d\n", len(result.InvalidAnnotations))
 	fmt.Fprintf(w, "operation_id_mismatches: %d\n", len(result.OperationIDMismatches))
+	fmt.Fprintf(w, "stale_generated: %d\n", len(result.StaleGenerated))
 	fmt.Fprintf(w, "unsupported_operations: %d\n", len(result.UnsupportedOperations))
 }
 

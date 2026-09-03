@@ -309,7 +309,7 @@ func TestRunGenerateRejectsRemovedFlags(t *testing.T) {
 	}
 }
 
-func TestRunCheckReviewDriftAllowsRemovedAndRenamedOperations(t *testing.T) {
+func TestRunCheckReviewDriftRejectsStaleGeneratedOperations(t *testing.T) {
 	t.Parallel()
 
 	repo := t.TempDir()
@@ -336,15 +336,15 @@ func TestRunCheckReviewDriftAllowsRemovedAndRenamedOperations(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	if err := run([]string{"check", "--spec", spec, "--repo", repo, "--review-drift", "--agent"}, &stdout, &stderr); err != nil {
-		t.Fatalf("review-drift coverage check: %v\nstderr: %s", err, stderr.String())
+	if err := run([]string{"check", "--spec", spec, "--repo", repo, "--review-drift", "--agent"}, &stdout, &stderr); err == nil {
+		t.Fatal("review-drift coverage check accepted stale generated operations")
 	}
 	var result apisync.CheckResult
 	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
 		t.Fatalf("decode coverage result: %v", err)
 	}
-	if len(result.Extra) != 1 || len(result.OperationIDMismatches) != 1 || len(result.Missing) != 0 {
-		t.Fatalf("coverage result = %#v, want one removal and one operationId mismatch", result)
+	if len(result.Extra) != 1 || len(result.OperationIDMismatches) != 1 || len(result.Missing) != 0 || len(result.StaleGenerated) != 1 {
+		t.Fatalf("coverage result = %#v, want one removal, one operationId mismatch, and one stale generated file", result)
 	}
 }
 

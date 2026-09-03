@@ -193,6 +193,58 @@ var commandAnnotation = map[string]string{
 	}
 }
 
+func TestCheckSpecAgainstRepoReportsStaleGeneratedSurface(t *testing.T) {
+	t.Parallel()
+
+	repo := t.TempDir()
+	specPath := writeSpec(t, `{
+		"openapi": "3.1.0",
+		"paths": {
+			"/v1/widgets": {
+				"get": {
+					"operationId": "listWidgets",
+					"tags": ["widgets"],
+					"parameters": [
+						{"name": "status", "in": "query", "schema": {"type": "string", "default": "active"}},
+						{"name": "Straddle-Account-Id", "in": "header", "schema": {"type": "string"}}
+					]
+				}
+			}
+		}
+	}`)
+	generated, err := apisync.GenerateAll(specPath, repo, false)
+	if err != nil {
+		t.Fatalf("GenerateAll: %v", err)
+	}
+	if len(generated.Generated) != 1 {
+		t.Fatalf("Generated = %#v, want one file", generated.Generated)
+	}
+	path := generated.Generated[0]
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read generated file: %v", err)
+	}
+	stale := strings.ReplaceAll(string(content), `Default: "active"`, `Default: "inactive"`)
+	stale = strings.ReplaceAll(stale, "AcceptsAccountHeader: true", "AcceptsAccountHeader: false")
+	if stale == string(content) || !strings.Contains(stale, `Default: "inactive"`) || !strings.Contains(stale, "AcceptsAccountHeader: false") {
+		t.Fatalf("generated fixture did not contain expected surface values:\n%s", content)
+	}
+	if err := os.WriteFile(path, []byte(stale), 0o644); err != nil {
+		t.Fatalf("write stale generated file: %v", err)
+	}
+
+	result, err := apisync.CheckSpecAgainstRepo(specPath, repo)
+	if err != nil {
+		t.Fatalf("CheckSpecAgainstRepo: %v", err)
+	}
+	if result.OK || !result.HasBlockingIssues() {
+		t.Fatalf("result = %#v, want blocking stale generated file", result)
+	}
+	if want := []string{path}; !reflect.DeepEqual(result.StaleGenerated, want) {
+		t.Fatalf("StaleGenerated = %#v, want %#v", result.StaleGenerated, want)
+	}
+}
+
 func TestAPISyncWorkflowAlwaysProposesNewPublishedContracts(t *testing.T) {
 	t.Parallel()
 
