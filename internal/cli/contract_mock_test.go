@@ -571,12 +571,10 @@ func startContractMockServer(t *testing.T) string {
 			return
 		default:
 		}
-		_ = cmd.Process.Signal(os.Interrupt)
+		_ = cmd.Process.Kill()
 		select {
 		case <-done:
 		case <-time.After(2 * time.Second):
-			_ = cmd.Process.Kill()
-			<-done
 		}
 	})
 
