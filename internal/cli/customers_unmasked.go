@@ -13,6 +13,5 @@ func newCustomersUnmaskedCmd(flags *rootFlags) *cobra.Command {
 		RunE:  parentNoSubcommandRunE(flags),
 	}
 
-	cmd.AddCommand(newCustomersUnmaskedGetCustomerCmd(flags))
 	return cmd
 }

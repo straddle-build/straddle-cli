@@ -14,11 +14,7 @@ func newBridgeCmd(flags *rootFlags) *cobra.Command {
 		RunE:   parentNoSubcommandRunE(flags),
 	}
 
-	cmd.AddCommand(newBridgeCreateCmd(flags))
-	cmd.AddCommand(newBridgeCreateBankAccountPaykeyCmd(flags))
-	cmd.AddCommand(newBridgeCreatePlaidPaykeyCmd(flags))
 	cmd.AddCommand(newBridgeCreateSpeedchexCmd(flags))
 	cmd.AddCommand(newBridgeCreateTanCmd(flags))
-	cmd.AddCommand(newBridgeCreateTokenCmd(flags))
 	return cmd
 }

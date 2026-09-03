@@ -4,13 +4,15 @@ Usage:
   straddle charges unmask charges-v1-get <id> [flags]
 
 Aliases:
-  charges-v1-get, get
+  charges-v1-get, charges-v1-get, get
 
 Examples:
   straddle charges unmask charges-v1-get 550e8400-e29b-41d4-a716-446655440000
 
 Flags:
-  -h, --help   help for charges-v1-get
+      --correlation-id string   Optional client-generated identifier for tracing a series of related requests.
+  -h, --help                    help for charges-v1-get
+      --request-id string       Optional client-generated identifier for tracing one request.
 
 Global Flags:
       --account string          Embedded account id sent as the Straddle-Account-Id header (Embed platform scoping)

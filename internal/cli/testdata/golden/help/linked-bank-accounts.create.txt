@@ -11,11 +11,14 @@ Flags:
       --bank-account-account-holder string   The name of the account holder as it appears on the bank account. Typically, this is the legal name of the business...
       --bank-account-account-number string   The bank account number.
       --bank-account-routing-number string   The routing number of the bank account.
+      --correlation-id string                Optional client-generated identifier for tracing a series of related requests.
       --description string                   Optional description for the bank account.
   -h, --help                                 help for create
+      --idempotency-key string               Optional client-generated key for an idempotent request.
       --metadata string                      Up to 20 additional user-defined key-value pairs. Useful for storing additional information about the linked bank...
       --platform-id string                   The unique identifier of the Straddle Platform to associate this bank account with.
-      --purposes string                      The purposes for the linked bank account.
+      --purposes strings                     The purposes for the linked bank account.
+      --request-id string                    Optional client-generated identifier for tracing one request.
       --stdin                                Read request body as JSON from stdin
 
 Global Flags:

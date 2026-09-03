@@ -9,9 +9,12 @@ Examples:
 Flags:
       --config-processing-method string   Processing method
       --config-sandbox-outcome string     Sandbox outcome
+      --correlation-id string             Optional client-generated identifier for tracing a series of related requests.
       --customer-id customer              The Straddle generated unique identifier of the customer to create a bridge token for.
       --external-id string                Unique identifier for the paykey in your database, used for cross-referencing between Straddle and your systems.
   -h, --help                              help for create-token
+      --idempotency-key string            Optional client-generated key for an idempotent request.
+      --request-id string                 Optional client-generated identifier for tracing one request.
       --stdin                             Read request body as JSON from stdin
 
 Global Flags:

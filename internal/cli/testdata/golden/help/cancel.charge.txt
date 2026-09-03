@@ -4,15 +4,18 @@ Usage:
   straddle charges cancel charge <id> [flags]
 
 Aliases:
-  charge, update
+  charge, charge, update
 
 Examples:
   straddle charges cancel charge 550e8400-e29b-41d4-a716-446655440000
 
 Flags:
-  -h, --help            help for charge
-      --reason string   Details about why the charge status was updated.
-      --stdin           Read request body as JSON from stdin
+      --correlation-id string    Optional client-generated identifier for tracing a series of related requests.
+  -h, --help                     help for charge
+      --idempotency-key string   Optional client-generated key for an idempotent request.
+      --reason string            Details about why the charge status was updated.
+      --request-id string        Optional client-generated identifier for tracing one request.
+      --stdin                    Read request body as JSON from stdin
 
 Global Flags:
       --account string          Embedded account id sent as the Straddle-Account-Id header (Embed platform scoping)

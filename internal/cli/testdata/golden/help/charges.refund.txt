@@ -7,9 +7,14 @@ Examples:
   straddle charges refund <id>
 
 Flags:
+      --amount int               Refund amount in cents.
       --correlation-id string    Optional client-generated identifier for tracing a series of related requests.
+      --description string       Description for the refund payout.
+      --external-id string       Your unique identifier for the refund.
   -h, --help                     help for refund
       --idempotency-key string   Optional client-generated key for an idempotent request.
+      --metadata string          User-defined string key-value pairs for the refund payout.
+      --payment-date string      Date when Straddle submits the refund payout for processing.
       --request-id string        Optional client-generated identifier for tracing one request.
       --stdin                    Read JSON request body from stdin
 

@@ -4,13 +4,15 @@ Usage:
   straddle linked-bank-accounts unmask get-linked-bank-account-unmasked <linked_bank_account_id> [flags]
 
 Aliases:
-  get-linked-bank-account-unmasked, get
+  get-linked-bank-account-unmasked, get-linked-bank-account-unmasked, get
 
 Examples:
   straddle linked-bank-accounts unmask get-linked-bank-account-unmasked 550e8400-e29b-41d4-a716-446655440000
 
 Flags:
-  -h, --help   help for get-linked-bank-account-unmasked
+      --correlation-id string   Optional client-generated identifier for tracing a series of related requests.
+  -h, --help                    help for get-linked-bank-account-unmasked
+      --request-id string       Optional client-generated identifier for tracing one request.
 
 Global Flags:
       --account string          Embedded account id sent as the Straddle-Account-Id header (Embed platform scoping)

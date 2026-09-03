@@ -17,7 +17,7 @@ stdout:
   "success": false
 }
 >>>
-stderr_bytes: 447
+stderr_bytes: 388
 stderr:
 <<<
 PUT http://golden.test/v1/accounts/550e8400-e29b-41d4-a716-446655440000
@@ -25,12 +25,10 @@ PUT http://golden.test/v1/accounts/550e8400-e29b-41d4-a716-446655440000
 {
     "business_profile": {
       "address": {
-        "address1": "123 Main St",
         "city": "Denver",
         "line1": "123 Main St",
         "postal_code": "80202",
-        "state": "CO",
-        "zip": "80202"
+        "state": "CO"
       },
       "name": "Golden Account",
       "website": "https://example.com"
@@ -60,7 +58,7 @@ stdout:
   "success": false
 }
 >>>
-stderr_bytes: 447
+stderr_bytes: 388
 stderr:
 <<<
 PUT http://golden.test/v1/accounts/550e8400-e29b-41d4-a716-446655440000
@@ -68,12 +66,10 @@ PUT http://golden.test/v1/accounts/550e8400-e29b-41d4-a716-446655440000
 {
     "business_profile": {
       "address": {
-        "address1": "123 Main St",
         "city": "Denver",
         "line1": "123 Main St",
         "postal_code": "80202",
-        "state": "CO",
-        "zip": "80202"
+        "state": "CO"
       },
       "name": "Golden Account",
       "website": "https://example.com"

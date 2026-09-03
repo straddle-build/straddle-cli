@@ -11,10 +11,13 @@ Flags:
       --account-type string               Account type
       --config-processing-method string   Processing method
       --config-sandbox-outcome string     Sandbox outcome
+      --correlation-id string             Optional client-generated identifier for tracing a series of related requests.
       --customer-id string                Unique identifier of the related customer object.
       --external-id string                Unique identifier for the paykey in your database, used for cross-referencing between Straddle and your systems.
   -h, --help                              help for create-bank-account-paykey
+      --idempotency-key string            Optional client-generated key for an idempotent request.
       --metadata string                   Up to 20 additional user-defined key-value pairs. Useful for storing additional information about the paykey in a...
+      --request-id string                 Optional client-generated identifier for tracing one request.
       --routing-number string             The routing number of the bank account.
       --stdin                             Read request body as JSON from stdin
 

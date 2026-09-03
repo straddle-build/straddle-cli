@@ -3,73 +3,182 @@
 package cli
 
 import (
-	"encoding/json"
-	"fmt"
-	"io"
-	"os"
-
 	"github.com/spf13/cobra"
+	"github.com/straddle-build/straddle-cli/internal/surface"
 )
 
 func init() {
 	registerGeneratedEndpoint("charges.refund", newChargesRefundCmd)
+	registerSurface(surface.Surface{
+		Endpoint:    "charges.refund",
+		OperationID: "refundCharge",
+		Method:      "POST",
+		Path:        "/v1/charges/{id}/refund",
+		PathParams:  []string{"id"},
+		Flags: []surface.Flag{
+			{
+				Name:        "correlation-id",
+				In:          surface.InHeader,
+				Key:         "Correlation-Id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleSimple,
+				Description: "Optional client-generated identifier for tracing a series of related requests.",
+			},
+			{
+				Name:        "idempotency-key",
+				In:          surface.InHeader,
+				Key:         "Idempotency-Key",
+				Kind:        surface.KindString,
+				Style:       surface.StyleSimple,
+				Description: "Optional client-generated key for an idempotent request.",
+			},
+			{
+				Name:        "request-id",
+				In:          surface.InHeader,
+				Key:         "Request-Id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleSimple,
+				Description: "Optional client-generated identifier for tracing one request.",
+			},
+			{
+				Name:        "amount",
+				In:          surface.InBody,
+				Key:         "/amount",
+				Kind:        surface.KindInteger,
+				Description: "Refund amount in cents.",
+				Format:      "int32",
+			},
+			{
+				Name:        "description",
+				In:          surface.InBody,
+				Key:         "/description",
+				Kind:        surface.KindString,
+				Description: "Description for the refund payout.",
+			},
+			{
+				Name:        "external-id",
+				In:          surface.InBody,
+				Key:         "/external_id",
+				Kind:        surface.KindString,
+				Description: "Your unique identifier for the refund.",
+			},
+			{
+				Name:        "metadata",
+				In:          surface.InBody,
+				Key:         "/metadata",
+				Kind:        surface.KindJSON,
+				Description: "User-defined string key-value pairs for the refund payout.",
+			},
+			{
+				Name:        "payment-date",
+				In:          surface.InBody,
+				Key:         "/payment_date",
+				Kind:        surface.KindString,
+				Description: "Date when Straddle submits the refund payout for processing.",
+				Format:      "date",
+			},
+		},
+		HasBody:              true,
+		BodyRequired:         false,
+		AcceptsAccountHeader: true,
+		ReadOnly:             false,
+	})
 }
 
 func newChargesRefundCmd(flags *rootFlags) *cobra.Command {
-	var flagRequestIdHeader string
-	var flagCorrelationIdHeader string
-	var flagIdempotencyKeyHeader string
-	var stdinBody bool
-
+	s := surface.Surface{
+		Endpoint:    "charges.refund",
+		OperationID: "refundCharge",
+		Method:      "POST",
+		Path:        "/v1/charges/{id}/refund",
+		PathParams:  []string{"id"},
+		Flags: []surface.Flag{
+			{
+				Name:        "correlation-id",
+				In:          surface.InHeader,
+				Key:         "Correlation-Id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleSimple,
+				Description: "Optional client-generated identifier for tracing a series of related requests.",
+			},
+			{
+				Name:        "idempotency-key",
+				In:          surface.InHeader,
+				Key:         "Idempotency-Key",
+				Kind:        surface.KindString,
+				Style:       surface.StyleSimple,
+				Description: "Optional client-generated key for an idempotent request.",
+			},
+			{
+				Name:        "request-id",
+				In:          surface.InHeader,
+				Key:         "Request-Id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleSimple,
+				Description: "Optional client-generated identifier for tracing one request.",
+			},
+			{
+				Name:        "amount",
+				In:          surface.InBody,
+				Key:         "/amount",
+				Kind:        surface.KindInteger,
+				Description: "Refund amount in cents.",
+				Format:      "int32",
+			},
+			{
+				Name:        "description",
+				In:          surface.InBody,
+				Key:         "/description",
+				Kind:        surface.KindString,
+				Description: "Description for the refund payout.",
+			},
+			{
+				Name:        "external-id",
+				In:          surface.InBody,
+				Key:         "/external_id",
+				Kind:        surface.KindString,
+				Description: "Your unique identifier for the refund.",
+			},
+			{
+				Name:        "metadata",
+				In:          surface.InBody,
+				Key:         "/metadata",
+				Kind:        surface.KindJSON,
+				Description: "User-defined string key-value pairs for the refund payout.",
+			},
+			{
+				Name:        "payment-date",
+				In:          surface.InBody,
+				Key:         "/payment_date",
+				Kind:        surface.KindString,
+				Description: "Date when Straddle submits the refund payout for processing.",
+				Format:      "date",
+			},
+		},
+		HasBody:              true,
+		BodyRequired:         false,
+		AcceptsAccountHeader: true,
+		ReadOnly:             false,
+	}
 	cmd := &cobra.Command{
-		Use:         "refund <id>",
-		Short:       "Refund a paid charge",
-		Example:     "  straddle charges refund <id>",
-		Annotations: map[string]string{"straddle:endpoint": "charges.refund", "straddle:operation-id": "refundCharge", "straddle:method": "POST", "straddle:path": "/v1/charges/{id}/refund"},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) < 1 {
-				return cmd.Help()
-			}
-			c, err := flags.newClient()
-			if err != nil {
-				return err
-			}
-
-			path := "/v1/charges/{id}/refund"
-			path = replacePathParam(path, "id", args[0])
-			params := map[string]string{}
-			headers := map[string]string{}
-			if cmd.Flags().Changed("request-id") {
-				headers["Request-Id"] = flagRequestIdHeader
-			}
-			if cmd.Flags().Changed("correlation-id") {
-				headers["Correlation-Id"] = flagCorrelationIdHeader
-			}
-			if cmd.Flags().Changed("idempotency-key") {
-				headers["Idempotency-Key"] = flagIdempotencyKeyHeader
-			}
-			var body map[string]any
-			if stdinBody {
-				stdinData, err := io.ReadAll(os.Stdin)
-				if err != nil {
-					return fmt.Errorf("reading stdin: %w", err)
-				}
-				if err := json.Unmarshal(stdinData, &body); err != nil {
-					return fmt.Errorf("parsing stdin JSON: %w", err)
-				}
-			} else {
-				body = map[string]any{}
-			}
-			data, statusCode, err := c.PostWithParamsAndHeaders(path, params, body, headers)
-			if err != nil {
-				return classifyAPIError(err, flags)
-			}
-			return printGeneratedMutationOutput(cmd, flags, "POST", "charges.refund", path, statusCode, data)
+		Use:     "refund <id>",
+		Short:   "Refund a paid charge",
+		Example: "  straddle charges refund <id>",
+		Annotations: map[string]string{
+			"straddle:endpoint":     "charges.refund",
+			"straddle:operation-id": "refundCharge",
+			"straddle:method":       "POST",
+			"straddle:path":         "/v1/charges/{id}/refund",
 		},
 	}
-	cmd.Flags().StringVar(&flagRequestIdHeader, "request-id", "", "Optional client-generated identifier for tracing one request.")
-	cmd.Flags().StringVar(&flagCorrelationIdHeader, "correlation-id", "", "Optional client-generated identifier for tracing a series of related requests.")
-	cmd.Flags().StringVar(&flagIdempotencyKeyHeader, "idempotency-key", "", "Optional client-generated key for an idempotent request.")
-	cmd.Flags().BoolVar(&stdinBody, "stdin", false, "Read JSON request body from stdin")
+	bind := bindSurface(cmd, flags, s)
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		req, err := bind(args)
+		if err != nil {
+			return err
+		}
+		return executeSurface(cmd, flags, s, req)
+	}
+	applyOverlay("charges.refund", cmd)
 	return cmd
 }

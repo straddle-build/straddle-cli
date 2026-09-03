@@ -4,13 +4,15 @@ Usage:
   straddle customers review get-customer <id> [flags]
 
 Aliases:
-  get-customer, get
+  get-customer, get-customer, get
 
 Examples:
   straddle customers review get-customer 550e8400-e29b-41d4-a716-446655440000
 
 Flags:
-  -h, --help   help for get-customer
+      --correlation-id string   Optional client-generated identifier for tracing a series of related requests.
+  -h, --help                    help for get-customer
+      --request-id string       Optional client-generated identifier for tracing one request.
 
 Global Flags:
       --account string          Embedded account id sent as the Straddle-Account-Id header (Embed platform scoping)

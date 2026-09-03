@@ -2,17 +2,12 @@
 
 package cli
 
-import (
-	"github.com/spf13/cobra"
-)
+import "github.com/spf13/cobra"
 
 func newLinkedBankAccountsCancelCmd(flags *rootFlags) *cobra.Command {
-	cmd := &cobra.Command{
+	return &cobra.Command{
 		Use:   "cancel",
 		Short: "Manage cancel",
 		RunE:  parentNoSubcommandRunE(flags),
 	}
-
-	cmd.AddCommand(newLinkedBankAccountsCancelUpdateCmd(flags))
-	return cmd
 }

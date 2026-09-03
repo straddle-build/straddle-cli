@@ -8,6 +8,7 @@ Examples:
 
 Flags:
       --all                       Fetch all pages
+      --correlation-id string     Optional client-generated identifier for tracing a series of related requests.
       --created-from created_at   Start date for filtering by created_at date.
       --created-to created_at     End date for filtering by created_at date.
       --email email               Filter customers by email address.
@@ -16,11 +17,12 @@ Flags:
       --name name                 Filter customers by name (partial match).
       --page-number int           Page number for paginated results. Starts at 1.
       --page-size int             Number of results per page. Maximum: 1000.
+      --request-id string         Optional client-generated identifier for tracing one request.
       --search-text string        General search term to filter customers.
       --sort-by string            Sort by (one of: name, created_at)
       --sort-order string         Sort order (one of: asc, desc) (default "asc")
-      --status status             Filter customers by their current status.
-      --types individual          Filter by customer type individual or `business`.
+      --status status             Filter customers by their current status. (default )
+      --types individual          Filter by customer type individual or `business`. (default )
 
 Global Flags:
       --account string          Embedded account id sent as the Straddle-Account-Id header (Embed platform scoping)

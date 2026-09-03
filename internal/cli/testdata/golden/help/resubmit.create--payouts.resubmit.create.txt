@@ -7,11 +7,14 @@ Examples:
   straddle payouts resubmit create 550e8400-e29b-41d4-a716-446655440000
 
 Flags:
-      --description string    Description.
-      --external-id string    External id.
-  -h, --help                  help for create
-      --payment-date string   Payment date.
-      --stdin                 Read request body as JSON from stdin
+      --correlation-id string    Optional client-generated identifier for tracing a series of related requests.
+      --description string       Description.
+      --external-id string       External id.
+  -h, --help                     help for create
+      --idempotency-key string   Optional client-generated key for an idempotent request.
+      --payment-date string      Payment date.
+      --request-id string        Optional client-generated identifier for tracing one request.
+      --stdin                    Read request body as JSON from stdin
 
 Global Flags:
       --account string          Embedded account id sent as the Straddle-Account-Id header (Embed platform scoping)

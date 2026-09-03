@@ -50,12 +50,17 @@ func bindSurface(cmd *cobra.Command, flags *rootFlags, s surface.Surface) func(a
 	}
 
 	return func(args []string) (boundRequest, error) {
+		hasBody := s.HasBody || cmd.Annotations["straddle:body"] == "true"
+		readStdin := stdinBody
+		if hasBody && !s.HasBody {
+			readStdin, _ = cmd.Flags().GetBool("stdin")
+		}
 		req := boundRequest{
 			Path:    s.Path,
 			Query:   url.Values{},
 			Headers: map[string]string{},
 		}
-		if s.HasBody {
+		if hasBody {
 			req.Body = map[string]any{}
 		}
 		if len(args) < len(s.PathParams) {
@@ -65,15 +70,15 @@ func bindSurface(cmd *cobra.Command, flags *rootFlags, s surface.Surface) func(a
 			req.Path = replacePathParam(req.Path, name, args[i])
 		}
 
-		if !stdinBody && !flags.dryRun {
+		if !readStdin && !flags.dryRun {
 			for _, binding := range bindings {
-				if binding.definition.Required && !cmd.Flags().Changed(binding.definition.Name) {
+				if binding.definition.Required && !cmd.Flags().Changed(binding.definition.Name) && !binding.included(cmd) {
 					return req, fmt.Errorf("required flag %q not set", binding.definition.Name)
 				}
 			}
 		}
 
-		if stdinBody {
+		if readStdin {
 			stdinData, err := io.ReadAll(cmd.InOrStdin())
 			if err != nil {
 				return req, fmt.Errorf("reading stdin: %w", err)
@@ -87,14 +92,14 @@ func bindSurface(cmd *cobra.Command, flags *rootFlags, s surface.Surface) func(a
 
 		for _, binding := range bindings {
 			definition := binding.definition
-			if !cmd.Flags().Changed(definition.Name) || stdinBody && definition.In == surface.InBody {
+			if readStdin && definition.In == surface.InBody || !binding.included(cmd) {
 				continue
 			}
 			value, err := binding.value()
 			if err != nil {
 				return req, err
 			}
-			if err := validateSurfaceEnum(definition, value.wire); err != nil {
+			if err := validateSurfaceEnum(cmd, definition, value.wire); err != nil {
 				return req, err
 			}
 			switch definition.In {
@@ -146,6 +151,32 @@ func (b *surfaceFlagBinding) register(cmd *cobra.Command) {
 	}
 }
 
+func (b *surfaceFlagBinding) included(cmd *cobra.Command) bool {
+	if b.definition.In == surface.InQuery && b.definition.Name == "page-number" {
+		return true
+	}
+	if b.definition.Array {
+		switch b.definition.Kind {
+		case surface.KindString:
+			return len(b.stringValues) != 0
+		case surface.KindInteger:
+			return len(b.intValues) != 0
+		}
+	}
+	switch b.definition.Kind {
+	case surface.KindString, surface.KindJSON:
+		return b.stringValue != ""
+	case surface.KindInteger:
+		return b.intValue != 0
+	case surface.KindNumber:
+		return b.floatValue != 0
+	case surface.KindBoolean:
+		return b.boolValue || cmd.Flags().Changed(b.definition.Name)
+	default:
+		return false
+	}
+}
+
 func (b *surfaceFlagBinding) value() (surfaceFlagValue, error) {
 	if b.definition.Array {
 		switch b.definition.Kind {
@@ -159,7 +190,6 @@ func (b *surfaceFlagBinding) value() (surfaceFlagValue, error) {
 			return surfaceFlagValue{body: b.intValues, wire: wire}, nil
 		}
 	}
-
 	switch b.definition.Kind {
 	case surface.KindString:
 		return surfaceFlagValue{body: b.stringValue, wire: []string{b.stringValue}}, nil
@@ -182,20 +212,26 @@ func (b *surfaceFlagBinding) value() (surfaceFlagValue, error) {
 	}
 }
 
-func validateSurfaceEnum(definition surface.Flag, values []string) error {
-	if len(definition.Enum) == 0 {
+func validateSurfaceEnum(cmd *cobra.Command, definition surface.Flag, values []string) error {
+	allowedValues := definition.Enum
+	if flag := cmd.Flags().Lookup(definition.Name); flag != nil {
+		if values, exists := flag.Annotations["straddle:enum"]; exists {
+			allowedValues = values
+		}
+	}
+	if len(allowedValues) == 0 {
 		return nil
 	}
 	for _, value := range values {
 		valid := false
-		for _, allowed := range definition.Enum {
+		for _, allowed := range allowedValues {
 			if value == allowed {
 				valid = true
 				break
 			}
 		}
 		if !valid {
-			return fmt.Errorf("invalid value %q for --%s (allowed: %s)", value, definition.Name, strings.Join(definition.Enum, ", "))
+			return fmt.Errorf("invalid value %q for --%s (allowed: %s)", value, definition.Name, strings.Join(allowedValues, ", "))
 		}
 	}
 	return nil
@@ -251,11 +287,28 @@ func executeSurface(cmd *cobra.Command, flags *rootFlags, s surface.Surface, req
 		return err
 	}
 	if s.Method == "GET" {
-		data, err := c.GetWithValues(req.Path, req.Query, req.Headers)
+		resourceType := strings.SplitN(s.Endpoint, ".", 2)[0]
+		if resource := cmd.Annotations["straddle:resource"]; resource != "" {
+			resourceType = resource
+		}
+		var data json.RawMessage
+		var provenance DataProvenance
+		if cmd.Flags().Lookup("all") != nil {
+			fetchAll, flagErr := cmd.Flags().GetBool("all")
+			if flagErr != nil {
+				return flagErr
+			}
+			data, provenance, err = resolvePaginatedReadWithValues(cmd.Context(), c, flags, resourceType, req.Path, req.Query, req.Headers, fetchAll, "page_number", "", "")
+		} else {
+			data, provenance, err = resolveReadWithValues(cmd.Context(), c, flags, resourceType, false, req.Path, req.Query, req.Headers)
+		}
 		if err != nil {
 			return classifyAPIError(err, flags)
 		}
-		return printOutputWithFlags(cmd.OutOrStdout(), data, flags)
+		if cmd.Annotations["straddle:unwrap-response"] == "true" {
+			data = extractResponseData(data)
+		}
+		return printSurfaceReadOutput(cmd, flags, data, provenance)
 	}
 
 	data, statusCode, err := c.DoWithValues(s.Method, req.Path, req.Query, req.Body, req.Headers)
@@ -266,4 +319,40 @@ func executeSurface(cmd *cobra.Command, flags *rootFlags, s surface.Surface, req
 		return classifyAPIError(err, flags)
 	}
 	return printGeneratedMutationOutput(cmd, flags, s.Method, s.Endpoint, req.Path, statusCode, data)
+}
+
+func printSurfaceReadOutput(cmd *cobra.Command, flags *rootFlags, data json.RawMessage, provenance DataProvenance) error {
+	if wantsHumanTable(cmd.OutOrStdout(), flags) {
+		var items []json.RawMessage
+		if json.Unmarshal(data, &items) != nil {
+			items = []json.RawMessage{data}
+		}
+		printProvenance(cmd, len(items), provenance)
+	}
+	if flags.asJSON || (!isTerminal(cmd.OutOrStdout()) && !flags.csv && !flags.quiet && !flags.plain) {
+		filtered := data
+		if flags.selectFields != "" {
+			filtered = filterFields(filtered, flags.selectFields)
+		} else if flags.compact {
+			filtered = compactFields(filtered)
+		}
+		wrapped, err := wrapWithProvenance(filtered, provenance)
+		if err != nil {
+			return err
+		}
+		return printOutput(cmd.OutOrStdout(), wrapped, true)
+	}
+	if wantsHumanTable(cmd.OutOrStdout(), flags) {
+		var items []map[string]any
+		if json.Unmarshal(data, &items) == nil && len(items) > 0 {
+			if err := printAutoTable(cmd.OutOrStdout(), items); err != nil {
+				return err
+			}
+			if len(items) >= 25 {
+				fmt.Fprintf(cmd.ErrOrStderr(), "\nShowing %d results. To narrow: add --limit, --json --select, or filter flags.\n", len(items))
+			}
+			return nil
+		}
+	}
+	return printOutputWithFlags(cmd.OutOrStdout(), data, flags)
 }

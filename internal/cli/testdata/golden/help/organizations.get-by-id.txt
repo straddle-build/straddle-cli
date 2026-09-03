@@ -4,13 +4,15 @@ Usage:
   straddle organizations get-by-id <organization_id> [flags]
 
 Aliases:
-  get-by-id, get
+  get-by-id, get-by-id, get
 
 Examples:
   straddle organizations get-by-id 550e8400-e29b-41d4-a716-446655440000
 
 Flags:
-  -h, --help   help for get-by-id
+      --correlation-id string   Optional client-generated identifier for tracing a series of related requests.
+  -h, --help                    help for get-by-id
+      --request-id string       Optional client-generated identifier for tracing one request.
 
 Global Flags:
       --account string          Embedded account id sent as the Straddle-Account-Id header (Embed platform scoping)

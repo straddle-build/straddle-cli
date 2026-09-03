@@ -2,17 +2,12 @@
 
 package cli
 
-import (
-	"github.com/spf13/cobra"
-)
+import "github.com/spf13/cobra"
 
 func newChargesHoldCmd(flags *rootFlags) *cobra.Command {
-	cmd := &cobra.Command{
+	return &cobra.Command{
 		Use:   "hold",
 		Short: "Manage hold",
 		RunE:  parentNoSubcommandRunE(flags),
 	}
-
-	cmd.AddCommand(newChargesHoldChargeCmd(flags))
-	return cmd
 }

@@ -3,131 +3,259 @@
 package cli
 
 import (
-	"encoding/json"
-	"fmt"
-	"os"
-
 	"github.com/spf13/cobra"
+	"github.com/straddle-build/straddle-cli/internal/surface"
 )
 
+func init() {
+	registerGeneratedEndpoint("representatives.list", newRepresentativesListCmd)
+	registerSurface(surface.Surface{
+		Endpoint:    "representatives.list",
+		OperationID: "listRepresentatives",
+		Method:      "GET",
+		Path:        "/v1/representatives",
+		PathParams:  []string{},
+		Flags: []surface.Flag{
+			{
+				Name:        "account-id",
+				In:          surface.InQuery,
+				Key:         "account_id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Account ID used to filter the results.",
+				Format:      "uuid",
+			},
+			{
+				Name:        "level",
+				In:          surface.InQuery,
+				Key:         "level",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Enum:        []string{"account", "platform"},
+				Description: "Scope of representatives to return.",
+			},
+			{
+				Name:        "organization-id",
+				In:          surface.InQuery,
+				Key:         "organization_id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Organization ID used to filter the results.",
+				Format:      "uuid",
+			},
+			{
+				Name:        "page-number",
+				In:          surface.InQuery,
+				Key:         "page_number",
+				Kind:        surface.KindInteger,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Page number.",
+				Format:      "int32",
+				Default:     "1",
+			},
+			{
+				Name:        "page-size",
+				In:          surface.InQuery,
+				Key:         "page_size",
+				Kind:        surface.KindInteger,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Number of results per page.",
+				Format:      "int32",
+				Default:     "100",
+			},
+			{
+				Name:        "platform-id",
+				In:          surface.InQuery,
+				Key:         "platform_id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Platform ID used to filter the results.",
+				Format:      "uuid",
+			},
+			{
+				Name:        "sort-by",
+				In:          surface.InQuery,
+				Key:         "sort_by",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Field used to sort results.",
+				Default:     "id",
+			},
+			{
+				Name:        "sort-order",
+				In:          surface.InQuery,
+				Key:         "sort_order",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Enum:        []string{"asc", "desc"},
+				Description: "Sort direction.",
+				Default:     "asc",
+			},
+			{
+				Name:        "correlation-id",
+				In:          surface.InHeader,
+				Key:         "Correlation-Id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleSimple,
+				Description: "Optional client-generated identifier for tracing a series of related requests.",
+			},
+			{
+				Name:        "request-id",
+				In:          surface.InHeader,
+				Key:         "Request-Id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleSimple,
+				Description: "Optional client-generated identifier for tracing one request.",
+			},
+		},
+		HasBody:              false,
+		BodyRequired:         false,
+		AcceptsAccountHeader: false,
+		ReadOnly:             true,
+	})
+}
+
 func newRepresentativesListCmd(flags *rootFlags) *cobra.Command {
-	var flagAccountId string
-	var flagPageNumber int
-	var flagPageSize int
-	var flagSortBy string
-	var flagSortOrder string
-	var flagPlatformId string
-	var flagOrganizationId string
-	var flagLevel string
-	var flagAll bool
-
+	s := surface.Surface{
+		Endpoint:    "representatives.list",
+		OperationID: "listRepresentatives",
+		Method:      "GET",
+		Path:        "/v1/representatives",
+		PathParams:  []string{},
+		Flags: []surface.Flag{
+			{
+				Name:        "account-id",
+				In:          surface.InQuery,
+				Key:         "account_id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Account ID used to filter the results.",
+				Format:      "uuid",
+			},
+			{
+				Name:        "level",
+				In:          surface.InQuery,
+				Key:         "level",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Enum:        []string{"account", "platform"},
+				Description: "Scope of representatives to return.",
+			},
+			{
+				Name:        "organization-id",
+				In:          surface.InQuery,
+				Key:         "organization_id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Organization ID used to filter the results.",
+				Format:      "uuid",
+			},
+			{
+				Name:        "page-number",
+				In:          surface.InQuery,
+				Key:         "page_number",
+				Kind:        surface.KindInteger,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Page number.",
+				Format:      "int32",
+				Default:     "1",
+			},
+			{
+				Name:        "page-size",
+				In:          surface.InQuery,
+				Key:         "page_size",
+				Kind:        surface.KindInteger,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Number of results per page.",
+				Format:      "int32",
+				Default:     "100",
+			},
+			{
+				Name:        "platform-id",
+				In:          surface.InQuery,
+				Key:         "platform_id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Platform ID used to filter the results.",
+				Format:      "uuid",
+			},
+			{
+				Name:        "sort-by",
+				In:          surface.InQuery,
+				Key:         "sort_by",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Field used to sort results.",
+				Default:     "id",
+			},
+			{
+				Name:        "sort-order",
+				In:          surface.InQuery,
+				Key:         "sort_order",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Enum:        []string{"asc", "desc"},
+				Description: "Sort direction.",
+				Default:     "asc",
+			},
+			{
+				Name:        "correlation-id",
+				In:          surface.InHeader,
+				Key:         "Correlation-Id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleSimple,
+				Description: "Optional client-generated identifier for tracing a series of related requests.",
+			},
+			{
+				Name:        "request-id",
+				In:          surface.InHeader,
+				Key:         "Request-Id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleSimple,
+				Description: "Optional client-generated identifier for tracing one request.",
+			},
+		},
+		HasBody:              false,
+		BodyRequired:         false,
+		AcceptsAccountHeader: false,
+		ReadOnly:             true,
+	}
 	cmd := &cobra.Command{
-		Use:         "list",
-		Short:       "Returns a list of representatives associated with a specific account or organization. The representatives are...",
-		Example:     "  straddle representatives list",
-		Annotations: map[string]string{"straddle:endpoint": "representatives.list", "straddle:operation-id": "listRepresentatives", "straddle:method": "GET", "straddle:path": "/v1/representatives", "mcp:read-only": "true"},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if cmd.Flags().Changed("sort-order") {
-				allowedSortOrder := []string{"asc", "desc"}
-				validSortOrder := false
-				for _, v := range allowedSortOrder {
-					if flagSortOrder == v {
-						validSortOrder = true
-						break
-					}
-				}
-				if !validSortOrder {
-					fmt.Fprintf(os.Stderr, "warning: --%s %q not in allowed set %v\n", "sort-order", flagSortOrder, allowedSortOrder)
-				}
-			}
-			if cmd.Flags().Changed("level") {
-				allowedLevel := []string{"account", "platform"}
-				validLevel := false
-				for _, v := range allowedLevel {
-					if flagLevel == v {
-						validLevel = true
-						break
-					}
-				}
-				if !validLevel {
-					fmt.Fprintf(os.Stderr, "warning: --%s %q not in allowed set %v\n", "level", flagLevel, allowedLevel)
-				}
-			}
-			c, err := flags.newClient()
-			if err != nil {
-				return err
-			}
-
-			path := "/v1/representatives"
-			data, prov, err := resolvePaginatedRead(cmd.Context(), c, flags, "representatives", path, map[string]string{
-				"account_id":      fmt.Sprintf("%v", flagAccountId),
-				"page_number":     fmt.Sprintf("%v", flagPageNumber),
-				"page_size":       fmt.Sprintf("%v", flagPageSize),
-				"sort_by":         fmt.Sprintf("%v", flagSortBy),
-				"sort_order":      fmt.Sprintf("%v", flagSortOrder),
-				"platform_id":     fmt.Sprintf("%v", flagPlatformId),
-				"organization_id": fmt.Sprintf("%v", flagOrganizationId),
-				"level":           fmt.Sprintf("%v", flagLevel),
-			}, nil, flagAll, "page_number", "", "")
-			if err != nil {
-				return classifyAPIError(err, flags)
-			}
-			// Print provenance to stderr for human-facing output only.
-			// Machine-format flags (--json, --csv, --compact, --quiet, --plain,
-			// --select) and piped stdout suppress this line; the JSON envelope
-			// already carries meta.source for those consumers.
-			// SYNC: keep this gate aligned with command_promoted.go.tmpl.
-			if wantsHumanTable(cmd.OutOrStdout(), flags) {
-				var countItems []json.RawMessage
-				if json.Unmarshal(data, &countItems) != nil {
-					// Single object, not an array
-					countItems = []json.RawMessage{data}
-				}
-				printProvenance(cmd, len(countItems), prov)
-			}
-			// For JSON output, wrap with provenance envelope before passing through flags.
-			// --select wins over --compact when both are set; --compact only runs when
-			// no explicit fields were requested. Explicit format flags (--csv, --quiet,
-			// --plain) opt out of the auto-JSON path so piped consumers that asked for
-			// a non-JSON format reach the standard pipeline below.
-			if flags.asJSON || (!isTerminal(cmd.OutOrStdout()) && !flags.csv && !flags.quiet && !flags.plain) {
-				filtered := data
-				if flags.selectFields != "" {
-					filtered = filterFields(filtered, flags.selectFields)
-				} else if flags.compact {
-					filtered = compactFields(filtered)
-				}
-				wrapped, wrapErr := wrapWithProvenance(filtered, prov)
-				if wrapErr != nil {
-					return wrapErr
-				}
-				return printOutput(cmd.OutOrStdout(), wrapped, true)
-			}
-			// For all other output modes (table, csv, plain, quiet), use the standard pipeline
-			if wantsHumanTable(cmd.OutOrStdout(), flags) {
-				var items []map[string]any
-				if json.Unmarshal(data, &items) == nil && len(items) > 0 {
-					if err := printAutoTable(cmd.OutOrStdout(), items); err != nil {
-						return err
-					}
-					if len(items) >= 25 {
-						fmt.Fprintf(os.Stderr, "\nShowing %d results. To narrow: add --limit, --json --select, or filter flags.\n", len(items))
-					}
-					return nil
-				}
-			}
-			return printOutputWithFlags(cmd.OutOrStdout(), data, flags)
+		Use:     "list",
+		Short:   "List representatives",
+		Example: "  straddle representatives list",
+		Annotations: map[string]string{
+			"straddle:endpoint":     "representatives.list",
+			"straddle:operation-id": "listRepresentatives",
+			"straddle:method":       "GET",
+			"straddle:path":         "/v1/representatives",
+			"mcp:read-only":         "true",
 		},
 	}
-	cmd.Flags().StringVar(&flagAccountId, "account-id", "", "The unique identifier of the account to list representatives for.")
-	cmd.Flags().IntVar(&flagPageNumber, "page-number", 1, "Results page number. Starts at page 1.")
-	cmd.Flags().IntVar(&flagPageSize, "page-size", 100, "Page size. Max value: 1000")
-	cmd.Flags().StringVar(&flagSortBy, "sort-by", "id", "Sort By.")
-	cmd.Flags().StringVar(&flagSortOrder, "sort-order", "asc", "Sort Order. (one of: asc, desc)")
-	cmd.Flags().StringVar(&flagPlatformId, "platform-id", "", "Platform id")
-	cmd.Flags().StringVar(&flagOrganizationId, "organization-id", "", "Organization id")
-	cmd.Flags().StringVar(&flagLevel, "level", "", "Level (one of: account, platform)")
-	cmd.Flags().BoolVar(&flagAll, "all", false, "Fetch all pages")
-
+	bind := bindSurface(cmd, flags, s)
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		req, err := bind(args)
+		if err != nil {
+			return err
+		}
+		return executeSurface(cmd, flags, s, req)
+	}
+	applyOverlay("representatives.list", cmd)
 	return cmd
 }

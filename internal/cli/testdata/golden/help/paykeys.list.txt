@@ -7,19 +7,21 @@ Examples:
   straddle paykeys list
 
 Flags:
-      --all                   Fetch all pages
-      --created-from string   Start date for filtering by creation date.
-      --created-to string     End date for filtering by creation date.
-      --customer-id string    Filter paykeys by related customer ID.
-  -h, --help                  help for list
-      --page-number int       Page number for paginated results. Starts at 1. (default 1)
-      --page-size int         Number of results per page. Maximum: 1000. (default 100)
-      --search-text string    General search term to filter paykeys.
-      --sort-by string        Sort by (one of: institution_name, expires_at, created_at)
-      --sort-order string     Sort order (one of: asc, desc) (default "asc")
-      --source string         Filter paykeys by their source.
-      --status string         Filter paykeys by their current status.
-      --unblock-eligible      Filter paykeys by unblock eligibility. When true, returns only blocked paykeys eligible for client-initiated...
+      --all                     Fetch all pages
+      --correlation-id string   Optional client-generated identifier for tracing a series of related requests.
+      --created-from string     Start date for filtering by creation date.
+      --created-to string       End date for filtering by creation date.
+      --customer-id string      Filter paykeys by related customer ID.
+  -h, --help                    help for list
+      --page-number int         Page number for paginated results. Starts at 1. (default 1)
+      --page-size int           Number of results per page. Maximum: 1000. (default 100)
+      --request-id string       Optional client-generated identifier for tracing one request.
+      --search-text string      General search term to filter paykeys.
+      --sort-by string          Sort by (one of: institution_name, expires_at, created_at)
+      --sort-order string       Sort order (one of: asc, desc) (default "asc")
+      --source strings          Filter paykeys by their source. (default )
+      --status strings          Filter paykeys by their current status. (default )
+      --unblock-eligible        Filter paykeys by unblock eligibility. When true, returns only blocked paykeys eligible for client-initiated...
 
 Global Flags:
       --account string          Embedded account id sent as the Straddle-Account-Id header (Embed platform scoping)

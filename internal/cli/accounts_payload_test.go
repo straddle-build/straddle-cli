@@ -9,14 +9,12 @@ import (
 	"testing"
 )
 
-func TestAccountAddressPayloadIncludesLegacyAndCanonicalFields(t *testing.T) {
+func TestAccountAddressPayloadUsesCanonicalFields(t *testing.T) {
 	address := map[string]string{
 		"city":        "Denver",
 		"state":       "CO",
 		"line1":       "123 Main St",
-		"address1":    "123 Main St",
 		"postal_code": "80202",
-		"zip":         "80202",
 	}
 	tests := []struct {
 		name   string
@@ -88,6 +86,11 @@ func TestAccountAddressPayloadIncludesLegacyAndCanonicalFields(t *testing.T) {
 				for name, want := range address {
 					if got := gotAddress[name]; got != want {
 						t.Fatalf("address[%q] = %v, want %s", name, got, want)
+					}
+				}
+				for _, name := range []string{"address1", "zip"} {
+					if _, exists := gotAddress[name]; exists {
+						t.Fatalf("address contains non-contract field %q", name)
 					}
 				}
 

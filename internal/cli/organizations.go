@@ -14,8 +14,5 @@ func newOrganizationsCmd(flags *rootFlags) *cobra.Command {
 		RunE:   parentNoSubcommandRunE(flags),
 	}
 
-	cmd.AddCommand(newOrganizationsCreateCmd(flags))
-	cmd.AddCommand(newOrganizationsGetByIdCmd(flags))
-	cmd.AddCommand(newOrganizationsListCmd(flags))
 	return cmd
 }

@@ -13,7 +13,9 @@ Flags:
       --charges-max-amount float       The maximum amount of a single charge.
       --charges-monthly-amount float   The maximum dollar amount of charges in a calendar month.
       --charges-monthly-count int      The maximum number of charges in a calendar month.
+      --correlation-id string          Optional client-generated identifier for tracing a series of related requests.
   -h, --help                           help for create
+      --idempotency-key string         Optional client-generated key for an idempotent request.
       --individuals-enable             Enable
       --internet-enable                Enable
       --payouts-daily-amount float     The maximum dollar amount of payouts in a day.
@@ -21,6 +23,7 @@ Flags:
       --payouts-max-amount float       The maximum amount of a single payout.
       --payouts-monthly-amount float   The maximum dollar amount of payouts in a month.
       --payouts-monthly-count int      The maximum number of payouts in a month.
+      --request-id string              Optional client-generated identifier for tracing one request.
       --signed-agreement-enable        Enable
       --stdin                          Read request body as JSON from stdin
 

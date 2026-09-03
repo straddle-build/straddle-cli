@@ -4,15 +4,18 @@ Usage:
   straddle payouts cancel payout <id> [flags]
 
 Aliases:
-  payout, update
+  payout, payout, update
 
 Examples:
   straddle payouts cancel payout 550e8400-e29b-41d4-a716-446655440000 --reason example-value
 
 Flags:
-  -h, --help            help for payout
-      --reason string   Details about why the payout status was updated.
-      --stdin           Read request body as JSON from stdin
+      --correlation-id string    Optional client-generated identifier for tracing a series of related requests.
+  -h, --help                     help for payout
+      --idempotency-key string   Optional client-generated key for an idempotent request.
+      --reason string            Details about why the payout status was updated.
+      --request-id string        Optional client-generated identifier for tracing one request.
+      --stdin                    Read request body as JSON from stdin
 
 Global Flags:
       --account string          Embedded account id sent as the Straddle-Account-Id header (Embed platform scoping)

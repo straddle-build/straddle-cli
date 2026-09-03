@@ -5,26 +5,49 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
 )
 
 func printGeneratedMutationOutput(cmd *cobra.Command, flags *rootFlags, method, endpoint, path string, status int, data json.RawMessage) error {
+	resource := cmd.Annotations["straddle:resource"]
+	if resource == "" {
+		resource = generatedMutationLabel(endpoint)
+	}
 	partialFailure := generatedMutationPartialFailure(flags, status, data)
+	if wantsHumanTable(cmd.OutOrStdout(), flags) {
+		var items []map[string]any
+		if json.Unmarshal(data, &items) != nil || len(items) == 0 {
+			var wrapped struct {
+				Data []map[string]any `json:"data"`
+			}
+			if json.Unmarshal(data, &wrapped) == nil {
+				items = wrapped.Data
+			}
+		}
+		if len(items) != 0 {
+			if err := printAutoTable(cmd.OutOrStdout(), items); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: table rendering failed, falling back to JSON: %v\n", err)
+			} else {
+				return generatedMutationPartialFailureErr(flags, resource, partialFailure)
+			}
+		}
+	}
 	if shouldPrintMutationEnvelope(cmd, flags) {
 		if flags.quiet {
-			return generatedMutationPartialFailureErr(flags, endpoint, partialFailure)
+			return generatedMutationPartialFailureErr(flags, resource, partialFailure)
 		}
-		if err := printGeneratedMutationEnvelope(cmd, flags, method, endpoint, path, status, data, partialFailure); err != nil {
+		if err := printGeneratedMutationEnvelope(cmd, flags, method, resource, path, status, data, partialFailure); err != nil {
 			return err
 		}
-		return generatedMutationPartialFailureErr(flags, endpoint, partialFailure)
+		return generatedMutationPartialFailureErr(flags, resource, partialFailure)
 	}
 	if err := printOutputWithFlags(cmd.OutOrStdout(), data, flags); err != nil {
 		return err
 	}
-	return generatedMutationPartialFailureErr(flags, endpoint, partialFailure)
+	return generatedMutationPartialFailureErr(flags, resource, partialFailure)
 }
 
 func shouldPrintMutationEnvelope(cmd *cobra.Command, flags *rootFlags) bool {
@@ -38,15 +61,18 @@ func generatedMutationPartialFailure(flags *rootFlags, status int, data json.Raw
 	return detectPartialFailure(data)
 }
 
-func generatedMutationPartialFailureErr(flags *rootFlags, endpoint string, partialFailure *partialFailureReport) error {
+func generatedMutationPartialFailureErr(flags *rootFlags, resource string, partialFailure *partialFailureReport) error {
 	if partialFailure == nil || flags.allowPartialFailure {
 		return nil
 	}
-	return partialFailureErr(fmt.Errorf("partial failure in %s response: %s", generatedMutationLabel(endpoint), partialFailure.Message))
+	return partialFailureErr(fmt.Errorf("partial failure in %s response: %s", resource, partialFailure.Message))
 }
 
-func printGeneratedMutationEnvelope(cmd *cobra.Command, flags *rootFlags, method, endpoint, path string, status int, data json.RawMessage, partialFailure *partialFailureReport) error {
-	action, resource := generatedMutationActionResource(method, endpoint)
+func printGeneratedMutationEnvelope(cmd *cobra.Command, flags *rootFlags, method, resource, path string, status int, data json.RawMessage, partialFailure *partialFailureReport) error {
+	action := cmd.Annotations["straddle:action"]
+	if action == "" {
+		action = strings.ToLower(method)
+	}
 	envelope := map[string]any{
 		"action":   action,
 		"resource": resource,
@@ -90,20 +116,15 @@ func printGeneratedMutationEnvelope(cmd *cobra.Command, flags *rootFlags, method
 }
 
 func generatedMutationActionResource(method, endpoint string) (string, string) {
-	endpoint = strings.TrimSpace(endpoint)
 	action := strings.ToLower(method)
-	resource := "endpoint"
+	endpoint = strings.TrimSpace(endpoint)
 	if endpoint == "" {
-		return action, resource
+		return action, "endpoint"
 	}
 	if dot := strings.LastIndex(endpoint, "."); dot >= 0 {
-		if left := strings.TrimSpace(endpoint[:dot]); left != "" {
-			resource = left
+		if resource := strings.TrimSpace(endpoint[:dot]); resource != "" {
+			return action, resource
 		}
-		if right := strings.TrimSpace(endpoint[dot+1:]); right != "" {
-			action = right
-		}
-		return action, resource
 	}
 	return action, endpoint
 }

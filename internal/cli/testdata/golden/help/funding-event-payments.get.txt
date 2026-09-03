@@ -8,6 +8,7 @@ Examples:
 
 Flags:
       --all                         Fetch all pages
+      --correlation-id string       Optional client-generated identifier for tracing a series of related requests.
       --default-page-size int       Default page size
       --default-sort string         Default sort (one of: created_at, payment_date, effective_at, id)
       --default-sort-order string   Default sort order (one of: asc, desc) (default "asc")
@@ -15,6 +16,7 @@ Flags:
       --include-metadata            Include the metadata for payments in the returned data.
       --page-number int             Results page number. Starts at page 1. Default value: 1
       --page-size int               Results page size. Default value: 100. Max value: 1000
+      --request-id string           Optional client-generated identifier for tracing one request.
       --sort-by string              Sort by (one of: created_at, payment_date, effective_at, id)
       --sort-order string           Sort order (one of: asc, desc) (default "asc")
 

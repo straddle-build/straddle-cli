@@ -8,6 +8,7 @@ Examples:
 
 Flags:
       --all                       Fetch all pages
+      --correlation-id string     Optional client-generated identifier for tracing a series of related requests.
       --created-from YYYY-MM-DD   The start date of the range to filter by using the YYYY-MM-DD format.
       --created-to YYYY-MM-DD     The end date of the range to filter by using the YYYY-MM-DD format.
       --direction string          Direction (one of: deposit, withdrawal)
@@ -15,12 +16,13 @@ Flags:
   -h, --help                      help for list
       --page-number int           Results page number. Starts at page 1. (default 1)
       --page-size int             Results page size. Max value: 1000 (default 100)
+      --request-id string         Optional client-generated identifier for tracing one request.
       --search-text string        Search text.
       --sort-by string            Sort by (one of: transfer_date, id, amount) (default "id")
       --sort-order string         Sort order (one of: asc, desc) (default "asc")
-      --status string             Funding Event status.
-      --status-reason string      Reason for latest payment status change.
-      --status-source string      Source of latest payment status change.
+      --status strings            Funding Event status. (default )
+      --status-reason strings     Reason for latest payment status change. (default )
+      --status-source strings     Source of latest payment status change. (default )
       --trace-id string           Trace Id.
       --trace-number string       Trace number.
 

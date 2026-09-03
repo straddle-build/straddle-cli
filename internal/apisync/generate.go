@@ -76,8 +76,15 @@ func GenerateAll(specPath, repo string, dryRun bool) (GenerateResult, error) {
 	if err != nil {
 		return result, err
 	}
+	generatedPathByKey := make(map[string]string, len(existingGenerated))
+	generatedKeyByPath := make(map[string]string, len(existingGenerated))
 	for _, existing := range existingGenerated {
+		generatedKeyByPath[existing.Path] = existing.Key
 		if supportedKeys[existing.Key] {
+			if previous := generatedPathByKey[existing.Key]; previous != "" {
+				return result, fmt.Errorf("supported operation %s is registered by both %s and %s", existing.Key, previous, existing.Path)
+			}
+			generatedPathByKey[existing.Key] = existing.Path
 			continue
 		}
 		result.Deleted = append(result.Deleted, existing.Path)
@@ -98,10 +105,22 @@ func GenerateAll(specPath, repo string, dryRun bool) (GenerateResult, error) {
 		if !ok {
 			return result, fmt.Errorf("derived surface %s has no matching operation", key)
 		}
-		file, err := GenerateEndpointFile(commandSurface, op, outDir)
+		basePath := filepath.Join(outDir, fileName(op))
+		resolvedPath, err := resolveGeneratedPath(basePath, key, generatedPathByKey, generatedKeyByPath, supportedKeys)
+		if err != nil {
+			return result, err
+		}
+		funcName := functionName(op)
+		if resolvedPath != basePath {
+			funcName = generatedFunctionName(op)
+		}
+		file, err := generateEndpointFile(commandSurface, op, outDir, funcName)
 		if err != nil {
 			return result, fmt.Errorf("generating %s: %w", key, err)
 		}
+		file.Path = resolvedPath
+		generatedPathByKey[key] = file.Path
+		generatedKeyByPath[file.Path] = key
 		current, err := os.ReadFile(file.Path) // #nosec G304 -- generated source paths are rooted under the explicit repository.
 		if err == nil && bytes.Equal(current, []byte(file.Content)) {
 			result.Unchanged = append(result.Unchanged, file.Path)
@@ -129,6 +148,10 @@ func GenerateAll(specPath, repo string, dryRun bool) (GenerateResult, error) {
 }
 
 func GenerateEndpointFile(commandSurface surface.Surface, op Operation, outDir string) (GeneratedFile, error) {
+	return generateEndpointFile(commandSurface, op, outDir, functionName(op))
+}
+
+func generateEndpointFile(commandSurface surface.Surface, op Operation, outDir, funcName string) (GeneratedFile, error) {
 	reasons := append(UnsupportedReasons(op), surfaceUnsupportedReasons(commandSurface)...)
 	if len(reasons) > 0 {
 		key := op.Key
@@ -138,7 +161,7 @@ func GenerateEndpointFile(commandSurface surface.Surface, op Operation, outDir s
 		return GeneratedFile{}, fmt.Errorf("unsupported operation %s: %s", key, strings.Join(uniqueSortedStrings(reasons), "; "))
 	}
 	data := fileTemplateData{
-		FuncName:       functionName(op),
+		FuncName:       funcName,
 		CommandUse:     commandUse(op),
 		Short:          firstSentence(op),
 		Example:        example(op),
@@ -198,6 +221,41 @@ func inventoryGeneratedEndpointFiles(dir string) ([]generatedEndpointFile, error
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
 	return files, nil
+}
+
+func resolveGeneratedPath(basePath, key string, generatedPathByKey, generatedKeyByPath map[string]string, supportedKeys map[string]bool) (string, error) {
+	if existing := generatedPathByKey[key]; existing != "" {
+		return existing, nil
+	}
+	available, err := generatedPathAvailable(basePath, generatedKeyByPath, supportedKeys)
+	if err != nil {
+		return "", err
+	}
+	if available {
+		return basePath, nil
+	}
+	ext := filepath.Ext(basePath)
+	alternate := strings.TrimSuffix(basePath, ext) + "_generated" + ext
+	available, err = generatedPathAvailable(alternate, generatedKeyByPath, supportedKeys)
+	if err != nil {
+		return "", err
+	}
+	if available {
+		return alternate, nil
+	}
+	return "", fmt.Errorf("generated paths %s and %s for %s are both occupied", basePath, alternate, key)
+}
+
+func generatedPathAvailable(path string, generatedKeyByPath map[string]string, supportedKeys map[string]bool) (bool, error) {
+	if owner, ok := generatedKeyByPath[path]; ok {
+		return !supportedKeys[owner], nil
+	}
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return true, nil
+	} else if err != nil {
+		return false, fmt.Errorf("stat %s: %w", path, err)
+	}
+	return false, nil
 }
 
 func registeredSurfaceKey(path string, content []byte) (string, error) {
@@ -478,6 +536,10 @@ func functionName(op Operation) string {
 	}
 	b.WriteString("Cmd")
 	return b.String()
+}
+
+func generatedFunctionName(op Operation) string {
+	return strings.TrimSuffix(functionName(op), "Cmd") + "GeneratedCmd"
 }
 
 func commandUse(op Operation) string {

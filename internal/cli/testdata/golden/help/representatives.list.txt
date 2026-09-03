@@ -9,12 +9,14 @@ Examples:
 Flags:
       --account-id string        The unique identifier of the account to list representatives for.
       --all                      Fetch all pages
+      --correlation-id string    Optional client-generated identifier for tracing a series of related requests.
   -h, --help                     help for list
       --level string             Level (one of: account, platform)
       --organization-id string   Organization id
       --page-number int          Results page number. Starts at page 1. (default 1)
       --page-size int            Page size. Max value: 1000 (default 100)
       --platform-id string       Platform id
+      --request-id string        Optional client-generated identifier for tracing one request.
       --sort-by string           Sort By. (default "id")
       --sort-order string        Sort Order. (one of: asc, desc) (default "asc")
 

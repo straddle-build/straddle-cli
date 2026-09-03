@@ -7,11 +7,14 @@ Examples:
   straddle organizations create --name example-resource
 
 Flags:
-      --external-id string   Unique identifier for the organization in your database, used for cross-referencing between Straddle and your systems.
-  -h, --help                 help for create
-      --metadata string      Up to 20 additional user-defined key-value pairs. Useful for storing additional information about the organization...
-      --name string          The name of the organization.
-      --stdin                Read request body as JSON from stdin
+      --correlation-id string    Optional client-generated identifier for tracing a series of related requests.
+      --external-id string       Unique identifier for the organization in your database, used for cross-referencing between Straddle and your systems.
+  -h, --help                     help for create
+      --idempotency-key string   Optional client-generated key for an idempotent request.
+      --metadata string          Up to 20 additional user-defined key-value pairs. Useful for storing additional information about the organization...
+      --name string              The name of the organization.
+      --request-id string        Optional client-generated identifier for tracing one request.
+      --stdin                    Read request body as JSON from stdin
 
 Global Flags:
       --account string          Embedded account id sent as the Straddle-Account-Id header (Embed platform scoping)

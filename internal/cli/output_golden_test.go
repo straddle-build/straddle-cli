@@ -258,6 +258,42 @@ var goldenInvocations = map[string][]string{
 
 var goldenSkips = map[string]string{}
 
+var legacyGoldenEndpointIDs = map[string]string{
+	"account-settings.get":                                  "account-settings.get-settings",
+	"accounts.onboard":                                      "onboard.account",
+	"accounts.simulate-account-onboarding":                  "simulate.create",
+	"bridge.create-bridge-token":                            "bridge.create-token",
+	"bridge.create-quiltt-paykey":                           "bridge.create",
+	"charges.cancel":                                        "cancel.charge",
+	"charges.get-unmasked-charge":                           "unmask.charges-v1-get",
+	"charges.hold":                                          "hold.charge",
+	"charges.release":                                       "release.charge",
+	"charges.resubmit":                                      "resubmit.create",
+	"customers.get-customer-review":                         "review.get-customer",
+	"customers.get-unmasked-customer":                       "unmasked.get-customer",
+	"customers.refresh-customer-review":                     "refresh-review.update",
+	"customers.set-customer-verification-decision":          "review.update-customer",
+	"funding-events.list-funding-event-payments":            "funding-event-payments.get",
+	"funding-events.simulate":                               "funding-events.create",
+	"linked-bank-accounts.cancel":                           "cancel.update",
+	"linked-bank-accounts.get-unmasked-linked-bank-account": "unmask.get-linked-bank-account-unmasked",
+	"organizations.get":                                     "organizations.get-by-id",
+	"paykeys.cancel":                                        "cancel.update",
+	"paykeys.get-paykey-review":                             "review.get",
+	"paykeys.get-unmasked-paykey":                           "unmasked.get-paykey",
+	"paykeys.refresh-paykey-balance":                        "refresh-balance.update",
+	"paykeys.refresh-paykey-review":                         "refresh-review.update",
+	"paykeys.reveal":                                        "reveal.get",
+	"paykeys.set-paykey-verification-decision":              "review.update",
+	"paykeys.unblock-paykey":                                "unblock.update",
+	"payouts.cancel":                                        "cancel.payout",
+	"payouts.get-unmasked-payout":                           "unmask.payouts-v1-get",
+	"payouts.hold":                                          "hold.payout",
+	"payouts.release":                                       "release.payout",
+	"payouts.resubmit":                                      "resubmit.create",
+	"representatives.get-unmasked-representative":           "unmask.get",
+}
+
 func TestOutputGolden(t *testing.T) {
 	setGoldenEnvironment(t)
 	root := RootCmd()
@@ -299,6 +335,9 @@ func collectGoldenEndpoints(root *cobra.Command) []goldenEndpoint {
 	var walk func(*cobra.Command)
 	walk = func(cmd *cobra.Command) {
 		if endpoint := cmd.Annotations["straddle:endpoint"]; endpoint != "" {
+			if legacyEndpoint, ok := legacyGoldenEndpointIDs[endpoint]; ok {
+				endpoint = legacyEndpoint
+			}
 			endpoints = append(endpoints, goldenEndpoint{
 				commandPath: strings.Fields(strings.TrimPrefix(cmd.CommandPath(), root.Name()+" ")),
 				endpoint:    endpoint,

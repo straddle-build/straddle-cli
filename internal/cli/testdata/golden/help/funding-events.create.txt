@@ -7,8 +7,11 @@ Examples:
   straddle funding-events create --funding-event-job-type charges
 
 Flags:
+      --correlation-id string           Optional client-generated identifier for tracing a series of related requests.
       --funding-event-job-type string   Supported job types are Charges and Payouts
   -h, --help                            help for create
+      --idempotency-key string          Optional client-generated key for an idempotent request.
+      --request-id string               Optional client-generated identifier for tracing one request.
       --sandbox-outcome string          Payment will simulate processing if not Standard.
       --stdin                           Read request body as JSON from stdin
 

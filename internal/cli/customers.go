@@ -14,11 +14,6 @@ func newCustomersCmd(flags *rootFlags) *cobra.Command {
 		RunE:   parentNoSubcommandRunE(flags),
 	}
 
-	cmd.AddCommand(newCustomersCreateCmd(flags))
-	cmd.AddCommand(newCustomersDeleteCmd(flags))
-	cmd.AddCommand(newCustomersGetCmd(flags))
-	cmd.AddCommand(newCustomersListCmd(flags))
-	cmd.AddCommand(newCustomersUpdateCmd(flags))
 	cmd.AddCommand(newCustomersRefreshReviewCmd(flags))
 	cmd.AddCommand(newCustomersReviewCmd(flags))
 	cmd.AddCommand(newCustomersUnmaskedCmd(flags))

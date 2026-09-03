@@ -8,11 +8,13 @@ Examples:
 
 Flags:
       --account-id string                      The unique identifier of the account this representative is associated with.
+      --correlation-id string                  Optional client-generated identifier for tracing a series of related requests.
       --dob string                             Date of birth for the representative in ISO 8601 format (YYYY-MM-DD).
       --email string                           The company email address of the representative.
       --external-id string                     Unique identifier for the representative in your database, used for cross-referencing between Straddle and your systems.
       --first-name string                      The first name of the representative.
   -h, --help                                   help for create
+      --idempotency-key string                 Optional client-generated key for an idempotent request.
       --last-name string                       The last name of the representative.
       --metadata string                        Up to 20 additional user-defined key-value pairs. Useful for storing additional information about the represetative...
       --mobile-number string                   The mobile phone number of the representative.
@@ -21,6 +23,7 @@ Flags:
       --relationship-percent-ownership float   The percentage of ownership the representative has. Required if 'Owner' is true.
       --relationship-primary                   Whether the person is authorized as the primary representative of the account. This is the person chosen by the...
       --relationship-title string              The job title of the representative.
+      --request-id string                      Optional client-generated identifier for tracing one request.
       --ssn-last4 string                       The last 4 digits of the representative's Social Security Number.
       --stdin                                  Read request body as JSON from stdin
 

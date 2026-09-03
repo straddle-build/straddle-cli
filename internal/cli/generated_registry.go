@@ -3,6 +3,7 @@
 package cli
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 
@@ -52,8 +53,23 @@ func installGeneratedEndpoint(root *cobra.Command, flags *rootFlags, registratio
 	if root == nil || registration.newCommand == nil {
 		return
 	}
-	segments := endpointSegments(registration.endpoint)
 	cmd := registration.newCommand(flags)
+	if use, ok := endpointUses[registration.endpoint]; ok {
+		cmd.Use = use
+	}
+	if parentPath, ok := endpointParents[registration.endpoint]; ok {
+		parent := root
+		for _, segment := range strings.Fields(parentPath) {
+			parent = findChildCommand(parent, segment)
+			if parent == nil {
+				panic(fmt.Sprintf("generated endpoint %q has missing parent command %q", registration.endpoint, parentPath))
+			}
+		}
+		parent.AddCommand(cmd)
+		return
+	}
+
+	segments := endpointSegments(registration.endpoint)
 	if len(segments) == 0 {
 		root.AddCommand(cmd)
 		return

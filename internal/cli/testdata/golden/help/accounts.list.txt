@@ -7,16 +7,18 @@ Examples:
   straddle accounts list
 
 Flags:
-      --all                  Fetch all pages
-      --external-id string   Filter accounts by their external ID.
-  -h, --help                 help for list
-      --page-number int      Results page number. Starts at page 1. Default value: 1 (default 1)
-      --page-size int        Page size. Default value: 100. Max value: 1000 (default 100)
-      --search-text string   Search text
-      --sort-by string       Sort By. Default value: 'id'. (default "id")
-      --sort-order string    Sort Order. Default value: 'asc'. (one of: asc, desc) (default "asc")
-      --status string        Status (one of: created, onboarding, active, rejected, inactive)
-      --type string          Type (one of: business)
+      --all                     Fetch all pages
+      --correlation-id string   Optional client-generated identifier for tracing a series of related requests.
+      --external-id string      Filter accounts by their external ID.
+  -h, --help                    help for list
+      --page-number int         Results page number. Starts at page 1. Default value: 1 (default 1)
+      --page-size int           Page size. Default value: 100. Max value: 1000 (default 100)
+      --request-id string       Optional client-generated identifier for tracing one request.
+      --search-text string      Search text
+      --sort-by string          Sort By. Default value: 'id'. (default "id")
+      --sort-order string       Sort Order. Default value: 'asc'. (one of: asc, desc) (default "asc")
+      --status string           Status (one of: created, onboarding, active, rejected, inactive)
+      --type string             Type (one of: business)
 
 Global Flags:
       --account string          Embedded account id sent as the Straddle-Account-Id header (Embed platform scoping)

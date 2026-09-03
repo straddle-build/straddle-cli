@@ -14,10 +14,6 @@ func newLinkedBankAccountsCmd(flags *rootFlags) *cobra.Command {
 		RunE:   parentNoSubcommandRunE(flags),
 	}
 
-	cmd.AddCommand(newLinkedBankAccountsCreateCmd(flags))
-	cmd.AddCommand(newLinkedBankAccountsGetCmd(flags))
-	cmd.AddCommand(newLinkedBankAccountsListCmd(flags))
-	cmd.AddCommand(newLinkedBankAccountsUpdateCmd(flags))
 	cmd.AddCommand(newLinkedBankAccountsCancelCmd(flags))
 	cmd.AddCommand(newLinkedBankAccountsUnmaskCmd(flags))
 	return cmd

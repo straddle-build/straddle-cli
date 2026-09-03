@@ -4,21 +4,23 @@ Usage:
   straddle accounts capability-requests list <account_id> [flags]
 
 Aliases:
-  list, get
+  list, list, get
 
 Examples:
   straddle accounts capability-requests list 550e8400-e29b-41d4-a716-446655440000
 
 Flags:
-      --all                 Fetch all pages
-      --category string     Filter capability requests by category. (one of: payment_type, customer_type, consent_type)
-  -h, --help                help for list
-      --page-number int     Results page number. Starts at page 1. (default 1)
-      --page-size int       Page size.Max value: 1000 (default 100)
-      --sort-by string      Sort By. (default "id")
-      --sort-order string   Sort Order. (one of: asc, desc) (default "asc")
-      --status string       Filter capability requests by their current status. (one of: active, inactive, in_review, rejected)
-      --type string         Filter capability requests by the specific type of capability. (one of: charges, payouts, individuals, businesses, signed_agreement, internet)
+      --all                     Fetch all pages
+      --category string         Filter capability requests by category. (one of: payment_type, customer_type, consent_type)
+      --correlation-id string   Optional client-generated identifier for tracing a series of related requests.
+  -h, --help                    help for list
+      --page-number int         Results page number. Starts at page 1. (default 1)
+      --page-size int           Page size.Max value: 1000 (default 100)
+      --request-id string       Optional client-generated identifier for tracing one request.
+      --sort-by string          Sort By. (default "id")
+      --sort-order string       Sort Order. (one of: asc, desc) (default "asc")
+      --status string           Filter capability requests by their current status. (one of: active, inactive, in_review, rejected)
+      --type string             Filter capability requests by the specific type of capability. (one of: charges, payouts, individuals, businesses, signed_agreement, internet)
 
 Global Flags:
       --account string          Embedded account id sent as the Straddle-Account-Id header (Embed platform scoping)

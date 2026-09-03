@@ -77,46 +77,35 @@ func attachFreshness(prov DataProvenance, flags *rootFlags) DataProvenance {
 	return prov
 }
 
-// resolveRead dispatches a GET request to either the live API or local store
-// based on the --data-source flag. Returns the response data and provenance metadata.
-//
-// Parameters:
-//   - c: the HTTP client for live API calls
-//   - flags: root flags containing dataSource setting
-//   - resourceType: the store resource type name (e.g., "links", "domains")
-//   - isList: true for list endpoints, false for get-by-ID endpoints
-//   - path: the API path (e.g., "/links" or "/links/abc123")
-//   - params: query parameters for the API call
-//   - headers: per-endpoint required headers (e.g. cal-api-version, Stripe-Version)
-//     baked in by the command template at codegen time. Pass nil when the endpoint
-//     declares no per-endpoint header overrides. Without this parameter, store-backed
-//     reads on per-endpoint-versioned APIs silently get the wrong response shape
-//     (cal-com retro #334 F1).
-func resolveRead(ctx context.Context, c *client.Client, flags *rootFlags, resourceType string, isList bool, path string, params map[string]string, headers map[string]string) (json.RawMessage, DataProvenance, error) {
+func resolveReadWithValues(ctx context.Context, c *client.Client, flags *rootFlags, resourceType string, isList bool, path string, params url.Values, headers map[string]string) (json.RawMessage, DataProvenance, error) {
+	return resolveReadRequest(ctx, flags, resourceType, isList, path, firstQueryValues(params), func() (json.RawMessage, error) {
+		if queryHasRepeatedValues(params) {
+			return c.GetWithValues(path, params, headers)
+		}
+		return c.GetWithHeaders(path, firstQueryValues(params), headers)
+	})
+}
+func resolveReadRequest(ctx context.Context, flags *rootFlags, resourceType string, isList bool, path string, localParams map[string]string, liveRead func() (json.RawMessage, error)) (json.RawMessage, DataProvenance, error) {
 	switch flags.dataSource {
 	case "local":
-		data, prov, err := resolveLocal(ctx, resourceType, isList, path, params, "user_requested")
+		data, prov, err := resolveLocal(ctx, resourceType, isList, path, localParams, "user_requested")
 		return data, attachFreshness(prov, flags), err
-
 	case "live":
-		data, err := c.GetWithHeaders(path, params, headers)
+		data, err := liveRead()
 		if err != nil {
 			return nil, DataProvenance{}, err
 		}
 		return data, attachFreshness(DataProvenance{Source: "live"}, flags), nil
-
-	default: // "auto"
-		data, err := c.GetWithHeaders(path, params, headers)
+	default:
+		data, err := liveRead()
 		if err == nil {
 			writeThroughCache(ctx, resourceType, data)
 			return data, attachFreshness(DataProvenance{Source: "live"}, flags), nil
 		}
 		if !isNetworkError(err) {
-			// HTTP 4xx/5xx errors propagate — not a fallback case
 			return nil, DataProvenance{}, err
 		}
-		// Network error — try local fallback
-		fallbackData, fallbackProv, fallbackErr := resolveLocal(ctx, resourceType, isList, path, params, "api_unreachable")
+		fallbackData, fallbackProv, fallbackErr := resolveLocal(ctx, resourceType, isList, path, localParams, "api_unreachable")
 		if fallbackErr != nil {
 			return nil, DataProvenance{}, fmt.Errorf("API unreachable and no local data. Run 'straddle sync' to enable offline access.\n\nOriginal error: %w", err)
 		}
@@ -124,25 +113,25 @@ func resolveRead(ctx context.Context, c *client.Client, flags *rootFlags, resour
 	}
 }
 
-// resolvePaginatedRead dispatches a paginated GET request to either the live API
-// or local store. When local, skips pagination and returns all synced data. The
-// headers argument carries per-endpoint required headers; pass nil when the
-// endpoint declares no overrides.
-func resolvePaginatedRead(ctx context.Context, c *client.Client, flags *rootFlags, resourceType string, path string, params map[string]string, headers map[string]string, fetchAll bool, cursorParam, nextCursorPath, hasMoreField string) (json.RawMessage, DataProvenance, error) {
+func resolvePaginatedReadWithValues(ctx context.Context, c *client.Client, flags *rootFlags, resourceType string, path string, params url.Values, headers map[string]string, fetchAll bool, cursorParam, nextCursorPath, hasMoreField string) (json.RawMessage, DataProvenance, error) {
+	return resolvePaginatedReadRequest(ctx, flags, resourceType, path, firstQueryValues(params), func() (json.RawMessage, error) {
+		return paginatedGetWithValues(c, path, params, headers, fetchAll, cursorParam, nextCursorPath, hasMoreField)
+	})
+}
+
+func resolvePaginatedReadRequest(ctx context.Context, flags *rootFlags, resourceType, path string, localParams map[string]string, liveRead func() (json.RawMessage, error)) (json.RawMessage, DataProvenance, error) {
 	switch flags.dataSource {
 	case "local":
-		data, prov, err := resolveLocal(ctx, resourceType, true, path, params, "user_requested")
+		data, prov, err := resolveLocal(ctx, resourceType, true, path, localParams, "user_requested")
 		return data, attachFreshness(prov, flags), err
-
 	case "live":
-		data, err := paginatedGet(c, path, params, headers, fetchAll, cursorParam, nextCursorPath, hasMoreField)
+		data, err := liveRead()
 		if err != nil {
 			return nil, DataProvenance{}, err
 		}
 		return data, attachFreshness(DataProvenance{Source: "live"}, flags), nil
-
-	default: // "auto"
-		data, err := paginatedGet(c, path, params, headers, fetchAll, cursorParam, nextCursorPath, hasMoreField)
+	default:
+		data, err := liveRead()
 		if err == nil {
 			writeThroughCache(ctx, resourceType, data)
 			return data, attachFreshness(DataProvenance{Source: "live"}, flags), nil
@@ -150,12 +139,31 @@ func resolvePaginatedRead(ctx context.Context, c *client.Client, flags *rootFlag
 		if !isNetworkError(err) {
 			return nil, DataProvenance{}, err
 		}
-		fallbackData, fallbackProv, fallbackErr := resolveLocal(ctx, resourceType, true, path, params, "api_unreachable")
+		fallbackData, fallbackProv, fallbackErr := resolveLocal(ctx, resourceType, true, path, localParams, "api_unreachable")
 		if fallbackErr != nil {
 			return nil, DataProvenance{}, fmt.Errorf("API unreachable and no local data. Run 'straddle sync' to enable offline access.\n\nOriginal error: %w", err)
 		}
 		return fallbackData, attachFreshness(fallbackProv, flags), nil
 	}
+}
+
+func firstQueryValues(values url.Values) map[string]string {
+	params := make(map[string]string, len(values))
+	for key, entries := range values {
+		if len(entries) != 0 {
+			params[key] = entries[0]
+		}
+	}
+	return params
+}
+
+func queryHasRepeatedValues(values url.Values) bool {
+	for _, entries := range values {
+		if len(entries) > 1 {
+			return true
+		}
+	}
+	return false
 }
 
 // listEnvelopeMetadataKeys are top-level keys that, when accompanying a

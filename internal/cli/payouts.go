@@ -14,9 +14,6 @@ func newPayoutsCmd(flags *rootFlags) *cobra.Command {
 		RunE:   parentNoSubcommandRunE(flags),
 	}
 
-	cmd.AddCommand(newPayoutsCreateCmd(flags))
-	cmd.AddCommand(newPayoutsGetCmd(flags))
-	cmd.AddCommand(newPayoutsUpdateCmd(flags))
 	cmd.AddCommand(newPayoutsCancelCmd(flags))
 	cmd.AddCommand(newPayoutsHoldCmd(flags))
 	cmd.AddCommand(newPayoutsReleaseCmd(flags))

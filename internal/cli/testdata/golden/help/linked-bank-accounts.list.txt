@@ -7,16 +7,18 @@ Examples:
   straddle linked-bank-accounts list
 
 Flags:
-      --account-id string   The unique identifier of the related account.
-      --all                 Fetch all pages
-  -h, --help                help for list
-      --level string        Level (one of: account, platform)
-      --page-number int     Results page number. Starts at page 1. (default 1)
-      --page-size int       Page size. Max value: 1000 (default 100)
-      --purpose string      The purpose of the linked bank accounts to return. Possible values: 'charges', 'payouts', 'billing'. (one of: charges, payouts, billing)
-      --sort-by string      Sort By. (default "id")
-      --sort-order string   Sort Order. (one of: asc, desc) (default "asc")
-      --status string       The status of the linked bank accounts to return. Possible values: 'created', 'onboarding', 'active', 'inactive',... (one of: created, onboarding, active, rejected, inactive, canceled)
+      --account-id string       The unique identifier of the related account.
+      --all                     Fetch all pages
+      --correlation-id string   Optional client-generated identifier for tracing a series of related requests.
+  -h, --help                    help for list
+      --level string            Level (one of: account, platform)
+      --page-number int         Results page number. Starts at page 1. (default 1)
+      --page-size int           Page size. Max value: 1000 (default 100)
+      --purpose string          The purpose of the linked bank accounts to return. Possible values: 'charges', 'payouts', 'billing'. (one of: charges, payouts, billing)
+      --request-id string       Optional client-generated identifier for tracing one request.
+      --sort-by string          Sort By. (default "id")
+      --sort-order string       Sort Order. (one of: asc, desc) (default "asc")
+      --status string           The status of the linked bank accounts to return. Possible values: 'created', 'onboarding', 'active', 'inactive',... (one of: created, onboarding, active, rejected, inactive, canceled)
 
 Global Flags:
       --account string          Embedded account id sent as the Straddle-Account-Id header (Embed platform scoping)

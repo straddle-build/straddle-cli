@@ -7,14 +7,16 @@ Examples:
   straddle organizations list
 
 Flags:
-      --all                  Fetch all pages
-      --external-id string   List organizations by their external ID.
-  -h, --help                 help for list
-      --name string          List organizations by name (partial match supported).
-      --page-number int      Results page number. Starts at page 1. (default 1)
-      --page-size int        Page size. Max value: 1000 (default 100)
-      --sort-by string       Sort By. (default "id")
-      --sort-order string    Sort Order. (one of: asc, desc) (default "asc")
+      --all                     Fetch all pages
+      --correlation-id string   Optional client-generated identifier for tracing a series of related requests.
+      --external-id string      List organizations by their external ID.
+  -h, --help                    help for list
+      --name string             List organizations by name (partial match supported).
+      --page-number int         Results page number. Starts at page 1. (default 1)
+      --page-size int           Page size. Max value: 1000 (default 100)
+      --request-id string       Optional client-generated identifier for tracing one request.
+      --sort-by string          Sort By. (default "id")
+      --sort-order string       Sort Order. (one of: asc, desc) (default "asc")
 
 Global Flags:
       --account string          Embedded account id sent as the Straddle-Account-Id header (Embed platform scoping)

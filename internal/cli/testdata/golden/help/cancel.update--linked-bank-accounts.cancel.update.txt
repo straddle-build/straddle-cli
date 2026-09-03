@@ -7,8 +7,11 @@ Examples:
   straddle linked-bank-accounts cancel update 550e8400-e29b-41d4-a716-446655440000
 
 Flags:
-  -h, --help    help for update
-      --stdin   Read request body as JSON from stdin
+      --correlation-id string    Optional client-generated identifier for tracing a series of related requests.
+  -h, --help                     help for update
+      --idempotency-key string   Optional client-generated key for an idempotent request.
+      --request-id string        Optional client-generated identifier for tracing one request.
+      --stdin                    Read request body as JSON from stdin
 
 Global Flags:
       --account string          Embedded account id sent as the Straddle-Account-Id header (Embed platform scoping)

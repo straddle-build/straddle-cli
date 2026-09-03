@@ -14,9 +14,6 @@ func newChargesCmd(flags *rootFlags) *cobra.Command {
 		RunE:   parentNoSubcommandRunE(flags),
 	}
 
-	cmd.AddCommand(newChargesCreateCmd(flags))
-	cmd.AddCommand(newChargesGetCmd(flags))
-	cmd.AddCommand(newChargesUpdateCmd(flags))
 	cmd.AddCommand(newChargesCancelCmd(flags))
 	cmd.AddCommand(newChargesHoldCmd(flags))
 	cmd.AddCommand(newChargesReleaseCmd(flags))

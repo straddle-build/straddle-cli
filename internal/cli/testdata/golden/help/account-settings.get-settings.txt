@@ -7,7 +7,9 @@ Examples:
   straddle account-settings 550e8400-e29b-41d4-a716-446655440000
 
 Flags:
-  -h, --help   help for account-settings
+      --correlation-id string   Optional client-generated identifier for tracing a series of related requests.
+  -h, --help                    help for account-settings
+      --request-id string       Optional client-generated identifier for tracing one request.
 
 Global Flags:
       --account string          Embedded account id sent as the Straddle-Account-Id header (Embed platform scoping)

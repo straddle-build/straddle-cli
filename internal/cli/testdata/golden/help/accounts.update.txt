@@ -26,9 +26,12 @@ Flags:
       --business-profile-tax-id string                   The business's tax identification number (e.g., EIN in the US).
       --business-profile-use-case string                 A description of how the business intends to use Straddle's services.
       --business-profile-website string                  URL of the business's primary marketing website.
+      --correlation-id string                            Optional client-generated identifier for tracing a series of related requests.
       --external-id string                               Unique identifier for the account in your database, used for cross-referencing between Straddle and your systems.
   -h, --help                                             help for update
+      --idempotency-key string                           Optional client-generated key for an idempotent request.
       --metadata string                                  Up to 20 additional user-defined key-value pairs. Useful for storing additional information about the account in a...
+      --request-id string                                Optional client-generated identifier for tracing one request.
       --stdin                                            Read request body as JSON from stdin
 
 Global Flags:

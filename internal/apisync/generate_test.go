@@ -217,6 +217,12 @@ func TestGenerateAllReconcilesGeneratedFiles(t *testing.T) {
 			}
 			writeGeneratedFile(t, newlyUnsupportedFile)
 
+			parentPath := filepath.Join(cliDir, "widgets_create.go")
+			parentContent := []byte("package cli\n\nfunc newWidgetsCreateCmd() {}\n")
+			if err := os.WriteFile(parentPath, parentContent, 0o644); err != nil {
+				t.Fatalf("write colliding parent command: %v", err)
+			}
+
 			handAuthoredPath := filepath.Join(cliDir, "bridge_create_tan.go")
 			handAuthored := `package cli
 
@@ -235,7 +241,7 @@ var bridgeCreateTANAnnotations = map[string]string{
 			if err != nil {
 				t.Fatalf("GenerateAll: %v", err)
 			}
-			newPath := filepath.Join(cliDir, "widgets_create.go")
+			newPath := filepath.Join(cliDir, "widgets_create_generated.go")
 			if want := []string{newPath}; !reflect.DeepEqual(result.Generated, want) {
 				t.Fatalf("Generated = %#v, want %#v", result.Generated, want)
 			}
@@ -254,6 +260,13 @@ var bridgeCreateTANAnnotations = map[string]string{
 			if _, err := os.Stat(handAuthoredPath); err != nil {
 				t.Fatalf("hand-authored annotated command was changed: %v", err)
 			}
+			gotParent, err := os.ReadFile(parentPath)
+			if err != nil {
+				t.Fatalf("read colliding parent command: %v", err)
+			}
+			if !reflect.DeepEqual(gotParent, parentContent) {
+				t.Fatalf("colliding parent command changed:\n%s", gotParent)
+			}
 
 			if tc.dryRun {
 				if _, err := os.Stat(newPath); !os.IsNotExist(err) {
@@ -267,8 +280,12 @@ var bridgeCreateTANAnnotations = map[string]string{
 				}
 				return
 			}
-			if _, err := os.Stat(newPath); err != nil {
-				t.Fatalf("generated file missing: %v", err)
+			generatedContent, err := os.ReadFile(newPath)
+			if err != nil {
+				t.Fatalf("read generated collision file: %v", err)
+			}
+			if !strings.Contains(string(generatedContent), `registerGeneratedEndpoint("widgets.create", newWidgetsCreateGeneratedCmd)`) {
+				t.Fatalf("generated collision file uses parent constructor name:\n%s", generatedContent)
 			}
 			if _, err := os.Stat(staleFile.Path); !os.IsNotExist(err) {
 				t.Fatalf("stale generated file still exists, stat error = %v", err)

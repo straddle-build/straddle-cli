@@ -4,13 +4,16 @@ Usage:
   straddle accounts onboard account <account_id> [flags]
 
 Aliases:
-  account, create
+  account, account, create
 
 Examples:
   straddle accounts onboard account 550e8400-e29b-41d4-a716-446655440000
 
 Flags:
+      --correlation-id string                         Optional client-generated identifier for tracing a series of related requests.
   -h, --help                                          help for account
+      --idempotency-key string                        Optional client-generated key for an idempotent request.
+      --request-id string                             Optional client-generated identifier for tracing one request.
       --stdin                                         Read request body as JSON from stdin
       --terms-of-service-accepted-date string         The datetime of when the terms of service were accepted, in ISO 8601 format.
       --terms-of-service-accepted-ip string           The IP address from which the terms of service were accepted.

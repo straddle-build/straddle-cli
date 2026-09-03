@@ -13,7 +13,5 @@ func newAccountsCapabilityRequestsCmd(flags *rootFlags) *cobra.Command {
 		RunE:  parentNoSubcommandRunE(flags),
 	}
 
-	cmd.AddCommand(newAccountsCapabilityRequestsCreateCmd(flags))
-	cmd.AddCommand(newAccountsCapabilityRequestsListCmd(flags))
 	return cmd
 }

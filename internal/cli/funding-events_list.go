@@ -3,175 +3,381 @@
 package cli
 
 import (
-	"encoding/json"
-	"fmt"
-	"os"
-
 	"github.com/spf13/cobra"
+	"github.com/straddle-build/straddle-cli/internal/surface"
 )
 
+func init() {
+	registerGeneratedEndpoint("funding-events.list", newFundingEventsListCmd)
+	registerSurface(surface.Surface{
+		Endpoint:    "funding-events.list",
+		OperationID: "listFundingEvents",
+		Method:      "GET",
+		Path:        "/v1/funding_events",
+		PathParams:  []string{},
+		Flags: []surface.Flag{
+			{
+				Name:        "created-from",
+				In:          surface.InQuery,
+				Key:         "created_from",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Filter to funding events created on or after this date.",
+				Format:      "date",
+			},
+			{
+				Name:        "created-to",
+				In:          surface.InQuery,
+				Key:         "created_to",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Filter to funding events created on or before this date.",
+				Format:      "date",
+			},
+			{
+				Name:        "direction",
+				In:          surface.InQuery,
+				Key:         "direction",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Enum:        []string{"deposit", "withdrawal"},
+				Description: "Filter by transfer direction relative to the linked bank account.",
+			},
+			{
+				Name:        "event-type",
+				In:          surface.InQuery,
+				Key:         "event_type",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Enum:        []string{"charge_deposit", "charge_reversal", "payout_return", "payout_withdrawal"},
+				Description: "Filter by funding event type.",
+			},
+			{
+				Name:        "page-number",
+				In:          surface.InQuery,
+				Key:         "page_number",
+				Kind:        surface.KindInteger,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Results page number.",
+				Format:      "int32",
+				Default:     "1",
+			},
+			{
+				Name:        "page-size",
+				In:          surface.InQuery,
+				Key:         "page_size",
+				Kind:        surface.KindInteger,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Results page size.",
+				Format:      "int32",
+				Default:     "100",
+			},
+			{
+				Name:        "search-text",
+				In:          surface.InQuery,
+				Key:         "search_text",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Free-text search across funding event fields.",
+			},
+			{
+				Name:        "sort-by",
+				In:          surface.InQuery,
+				Key:         "sort_by",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Enum:        []string{"transfer_date", "id", "amount"},
+				Description: "Field used to sort the results.",
+				Default:     "id",
+			},
+			{
+				Name:        "sort-order",
+				In:          surface.InQuery,
+				Key:         "sort_order",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Enum:        []string{"asc", "desc"},
+				Description: "Order in which to sort the results.",
+				Default:     "asc",
+			},
+			{
+				Name:        "status",
+				In:          surface.InQuery,
+				Key:         "status",
+				Kind:        surface.KindString,
+				Array:       true,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Enum:        []string{"created", "scheduled", "failed", "cancelled", "on_hold", "pending", "paid", "reversed", "validating"},
+				Description: "Filter by funding event status.",
+			},
+			{
+				Name:        "status-reason",
+				In:          surface.InQuery,
+				Key:         "status_reason",
+				Kind:        surface.KindString,
+				Array:       true,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Enum:        []string{"insufficient_funds", "closed_bank_account", "invalid_bank_account", "invalid_routing", "disputed", "payment_stopped", "owner_deceased", "frozen_bank_account", "risk_review", "fraudulent", "duplicate_entry", "invalid_paykey", "payment_blocked", "amount_too_large", "too_many_attempts", "internal_system_error", "user_request", "ok", "other_network_return", "payout_refused", "cancel_request", "failed_verification", "require_review", "blocked_by_system", "watchtower_review", "validating", "auto_hold"},
+				Description: "Filter by the reason for the most recent status change.",
+			},
+			{
+				Name:        "status-source",
+				In:          surface.InQuery,
+				Key:         "status_source",
+				Kind:        surface.KindString,
+				Array:       true,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Enum:        []string{"watchtower", "bank_decline", "customer_dispute", "user_action", "system"},
+				Description: "Filter by the source of the most recent status change.",
+			},
+			{
+				Name:        "trace-id",
+				In:          surface.InQuery,
+				Key:         "trace_id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Filter by a network-level trace identifier assigned during processing.",
+			},
+			{
+				Name:        "trace-number",
+				In:          surface.InQuery,
+				Key:         "trace_number",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Filter by a network trace number assigned during processing.",
+			},
+			{
+				Name:        "correlation-id",
+				In:          surface.InHeader,
+				Key:         "Correlation-Id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleSimple,
+				Description: "Optional client-generated identifier for tracing a series of related requests.",
+			},
+			{
+				Name:        "request-id",
+				In:          surface.InHeader,
+				Key:         "Request-Id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleSimple,
+				Description: "Optional client-generated identifier for tracing one request.",
+			},
+		},
+		HasBody:              false,
+		BodyRequired:         false,
+		AcceptsAccountHeader: true,
+		ReadOnly:             true,
+	})
+}
+
 func newFundingEventsListCmd(flags *rootFlags) *cobra.Command {
-	var flagPageNumber int
-	var flagPageSize int
-	var flagSortBy string
-	var flagSortOrder string
-	var flagCreatedFrom string
-	var flagCreatedTo string
-	var flagDirection string
-	var flagEventType string
-	var flagTraceNumber string
-	var flagSearchText string
-	var flagStatus string
-	var flagTraceId string
-	var flagStatusReason string
-	var flagStatusSource string
-	var flagAll bool
-
+	s := surface.Surface{
+		Endpoint:    "funding-events.list",
+		OperationID: "listFundingEvents",
+		Method:      "GET",
+		Path:        "/v1/funding_events",
+		PathParams:  []string{},
+		Flags: []surface.Flag{
+			{
+				Name:        "created-from",
+				In:          surface.InQuery,
+				Key:         "created_from",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Filter to funding events created on or after this date.",
+				Format:      "date",
+			},
+			{
+				Name:        "created-to",
+				In:          surface.InQuery,
+				Key:         "created_to",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Filter to funding events created on or before this date.",
+				Format:      "date",
+			},
+			{
+				Name:        "direction",
+				In:          surface.InQuery,
+				Key:         "direction",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Enum:        []string{"deposit", "withdrawal"},
+				Description: "Filter by transfer direction relative to the linked bank account.",
+			},
+			{
+				Name:        "event-type",
+				In:          surface.InQuery,
+				Key:         "event_type",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Enum:        []string{"charge_deposit", "charge_reversal", "payout_return", "payout_withdrawal"},
+				Description: "Filter by funding event type.",
+			},
+			{
+				Name:        "page-number",
+				In:          surface.InQuery,
+				Key:         "page_number",
+				Kind:        surface.KindInteger,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Results page number.",
+				Format:      "int32",
+				Default:     "1",
+			},
+			{
+				Name:        "page-size",
+				In:          surface.InQuery,
+				Key:         "page_size",
+				Kind:        surface.KindInteger,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Results page size.",
+				Format:      "int32",
+				Default:     "100",
+			},
+			{
+				Name:        "search-text",
+				In:          surface.InQuery,
+				Key:         "search_text",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Free-text search across funding event fields.",
+			},
+			{
+				Name:        "sort-by",
+				In:          surface.InQuery,
+				Key:         "sort_by",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Enum:        []string{"transfer_date", "id", "amount"},
+				Description: "Field used to sort the results.",
+				Default:     "id",
+			},
+			{
+				Name:        "sort-order",
+				In:          surface.InQuery,
+				Key:         "sort_order",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Enum:        []string{"asc", "desc"},
+				Description: "Order in which to sort the results.",
+				Default:     "asc",
+			},
+			{
+				Name:        "status",
+				In:          surface.InQuery,
+				Key:         "status",
+				Kind:        surface.KindString,
+				Array:       true,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Enum:        []string{"created", "scheduled", "failed", "cancelled", "on_hold", "pending", "paid", "reversed", "validating"},
+				Description: "Filter by funding event status.",
+			},
+			{
+				Name:        "status-reason",
+				In:          surface.InQuery,
+				Key:         "status_reason",
+				Kind:        surface.KindString,
+				Array:       true,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Enum:        []string{"insufficient_funds", "closed_bank_account", "invalid_bank_account", "invalid_routing", "disputed", "payment_stopped", "owner_deceased", "frozen_bank_account", "risk_review", "fraudulent", "duplicate_entry", "invalid_paykey", "payment_blocked", "amount_too_large", "too_many_attempts", "internal_system_error", "user_request", "ok", "other_network_return", "payout_refused", "cancel_request", "failed_verification", "require_review", "blocked_by_system", "watchtower_review", "validating", "auto_hold"},
+				Description: "Filter by the reason for the most recent status change.",
+			},
+			{
+				Name:        "status-source",
+				In:          surface.InQuery,
+				Key:         "status_source",
+				Kind:        surface.KindString,
+				Array:       true,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Enum:        []string{"watchtower", "bank_decline", "customer_dispute", "user_action", "system"},
+				Description: "Filter by the source of the most recent status change.",
+			},
+			{
+				Name:        "trace-id",
+				In:          surface.InQuery,
+				Key:         "trace_id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Filter by a network-level trace identifier assigned during processing.",
+			},
+			{
+				Name:        "trace-number",
+				In:          surface.InQuery,
+				Key:         "trace_number",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Filter by a network trace number assigned during processing.",
+			},
+			{
+				Name:        "correlation-id",
+				In:          surface.InHeader,
+				Key:         "Correlation-Id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleSimple,
+				Description: "Optional client-generated identifier for tracing a series of related requests.",
+			},
+			{
+				Name:        "request-id",
+				In:          surface.InHeader,
+				Key:         "Request-Id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleSimple,
+				Description: "Optional client-generated identifier for tracing one request.",
+			},
+		},
+		HasBody:              false,
+		BodyRequired:         false,
+		AcceptsAccountHeader: true,
+		ReadOnly:             true,
+	}
 	cmd := &cobra.Command{
-		Use:         "list",
-		Short:       "Retrieves a list of funding events for your account. This endpoint supports advanced sorting and filtering options.",
-		Example:     "  straddle funding-events list",
-		Annotations: map[string]string{"straddle:endpoint": "funding-events.list", "straddle:operation-id": "listFundingEvents", "straddle:method": "GET", "straddle:path": "/v1/funding_events", "mcp:read-only": "true"},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if cmd.Flags().Changed("sort-by") {
-				allowedSortBy := []string{"transfer_date", "id", "amount"}
-				validSortBy := false
-				for _, v := range allowedSortBy {
-					if flagSortBy == v {
-						validSortBy = true
-						break
-					}
-				}
-				if !validSortBy {
-					fmt.Fprintf(os.Stderr, "warning: --%s %q not in allowed set %v\n", "sort-by", flagSortBy, allowedSortBy)
-				}
-			}
-			if cmd.Flags().Changed("sort-order") {
-				allowedSortOrder := []string{"asc", "desc"}
-				validSortOrder := false
-				for _, v := range allowedSortOrder {
-					if flagSortOrder == v {
-						validSortOrder = true
-						break
-					}
-				}
-				if !validSortOrder {
-					fmt.Fprintf(os.Stderr, "warning: --%s %q not in allowed set %v\n", "sort-order", flagSortOrder, allowedSortOrder)
-				}
-			}
-			if cmd.Flags().Changed("direction") {
-				allowedDirection := []string{"deposit", "withdrawal"}
-				validDirection := false
-				for _, v := range allowedDirection {
-					if flagDirection == v {
-						validDirection = true
-						break
-					}
-				}
-				if !validDirection {
-					fmt.Fprintf(os.Stderr, "warning: --%s %q not in allowed set %v\n", "direction", flagDirection, allowedDirection)
-				}
-			}
-			if cmd.Flags().Changed("event-type") {
-				allowedEventType := []string{"charge_deposit", "charge_reversal", "payout_return", "payout_withdrawal"}
-				validEventType := false
-				for _, v := range allowedEventType {
-					if flagEventType == v {
-						validEventType = true
-						break
-					}
-				}
-				if !validEventType {
-					fmt.Fprintf(os.Stderr, "warning: --%s %q not in allowed set %v\n", "event-type", flagEventType, allowedEventType)
-				}
-			}
-			c, err := flags.newClient()
-			if err != nil {
-				return err
-			}
-
-			path := "/v1/funding_events"
-			data, prov, err := resolvePaginatedRead(cmd.Context(), c, flags, "funding-events", path, map[string]string{
-				"page_number":   fmt.Sprintf("%v", flagPageNumber),
-				"page_size":     fmt.Sprintf("%v", flagPageSize),
-				"sort_by":       fmt.Sprintf("%v", flagSortBy),
-				"sort_order":    fmt.Sprintf("%v", flagSortOrder),
-				"created_from":  fmt.Sprintf("%v", flagCreatedFrom),
-				"created_to":    fmt.Sprintf("%v", flagCreatedTo),
-				"direction":     fmt.Sprintf("%v", flagDirection),
-				"event_type":    fmt.Sprintf("%v", flagEventType),
-				"trace_number":  fmt.Sprintf("%v", flagTraceNumber),
-				"search_text":   fmt.Sprintf("%v", flagSearchText),
-				"status":        fmt.Sprintf("%v", flagStatus),
-				"trace_id":      fmt.Sprintf("%v", flagTraceId),
-				"status_reason": fmt.Sprintf("%v", flagStatusReason),
-				"status_source": fmt.Sprintf("%v", flagStatusSource),
-			}, nil, flagAll, "page_number", "", "")
-			if err != nil {
-				return classifyAPIError(err, flags)
-			}
-			// Print provenance to stderr for human-facing output only.
-			// Machine-format flags (--json, --csv, --compact, --quiet, --plain,
-			// --select) and piped stdout suppress this line; the JSON envelope
-			// already carries meta.source for those consumers.
-			// SYNC: keep this gate aligned with command_promoted.go.tmpl.
-			if wantsHumanTable(cmd.OutOrStdout(), flags) {
-				var countItems []json.RawMessage
-				if json.Unmarshal(data, &countItems) != nil {
-					// Single object, not an array
-					countItems = []json.RawMessage{data}
-				}
-				printProvenance(cmd, len(countItems), prov)
-			}
-			// For JSON output, wrap with provenance envelope before passing through flags.
-			// --select wins over --compact when both are set; --compact only runs when
-			// no explicit fields were requested. Explicit format flags (--csv, --quiet,
-			// --plain) opt out of the auto-JSON path so piped consumers that asked for
-			// a non-JSON format reach the standard pipeline below.
-			if flags.asJSON || (!isTerminal(cmd.OutOrStdout()) && !flags.csv && !flags.quiet && !flags.plain) {
-				filtered := data
-				if flags.selectFields != "" {
-					filtered = filterFields(filtered, flags.selectFields)
-				} else if flags.compact {
-					filtered = compactFields(filtered)
-				}
-				wrapped, wrapErr := wrapWithProvenance(filtered, prov)
-				if wrapErr != nil {
-					return wrapErr
-				}
-				return printOutput(cmd.OutOrStdout(), wrapped, true)
-			}
-			// For all other output modes (table, csv, plain, quiet), use the standard pipeline
-			if wantsHumanTable(cmd.OutOrStdout(), flags) {
-				var items []map[string]any
-				if json.Unmarshal(data, &items) == nil && len(items) > 0 {
-					if err := printAutoTable(cmd.OutOrStdout(), items); err != nil {
-						return err
-					}
-					if len(items) >= 25 {
-						fmt.Fprintf(os.Stderr, "\nShowing %d results. To narrow: add --limit, --json --select, or filter flags.\n", len(items))
-					}
-					return nil
-				}
-			}
-			return printOutputWithFlags(cmd.OutOrStdout(), data, flags)
+		Use:     "list",
+		Short:   "List funding events",
+		Example: "  straddle funding-events list",
+		Annotations: map[string]string{
+			"straddle:endpoint":     "funding-events.list",
+			"straddle:operation-id": "listFundingEvents",
+			"straddle:method":       "GET",
+			"straddle:path":         "/v1/funding_events",
+			"mcp:read-only":         "true",
 		},
 	}
-	cmd.Flags().IntVar(&flagPageNumber, "page-number", 1, "Results page number. Starts at page 1.")
-	cmd.Flags().IntVar(&flagPageSize, "page-size", 100, "Results page size. Max value: 1000")
-	cmd.Flags().StringVar(&flagSortBy, "sort-by", "id", "Sort by (one of: transfer_date, id, amount)")
-	cmd.Flags().StringVar(&flagSortOrder, "sort-order", "asc", "Sort order (one of: asc, desc)")
-	cmd.Flags().StringVar(&flagCreatedFrom, "created-from", "", "The start date of the range to filter by using the `YYYY-MM-DD` format.")
-	cmd.Flags().StringVar(&flagCreatedTo, "created-to", "", "The end date of the range to filter by using the `YYYY-MM-DD` format.")
-	cmd.Flags().StringVar(&flagDirection, "direction", "", "Direction (one of: deposit, withdrawal)")
-	cmd.Flags().StringVar(&flagEventType, "event-type", "", "Event type (one of: charge_deposit, charge_reversal, payout_return, payout_withdrawal)")
-	cmd.Flags().StringVar(&flagTraceNumber, "trace-number", "", "Trace number.")
-	cmd.Flags().StringVar(&flagSearchText, "search-text", "", "Search text.")
-	cmd.Flags().StringVar(&flagStatus, "status", "", "Funding Event status.")
-	cmd.Flags().StringVar(&flagTraceId, "trace-id", "", "Trace Id.")
-	cmd.Flags().StringVar(&flagStatusReason, "status-reason", "", "Reason for latest payment status change.")
-	cmd.Flags().StringVar(&flagStatusSource, "status-source", "", "Source of latest payment status change.")
-	cmd.Flags().BoolVar(&flagAll, "all", false, "Fetch all pages")
-
+	bind := bindSurface(cmd, flags, s)
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		req, err := bind(args)
+		if err != nil {
+			return err
+		}
+		return executeSurface(cmd, flags, s, req)
+	}
+	applyOverlay("funding-events.list", cmd)
 	return cmd
 }
