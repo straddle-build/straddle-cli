@@ -4,11 +4,10 @@
 // Straddle-Account-Id header, based on the operation and the platform's
 // integration type. It is the policy brain for the CLI command path.
 //
-// The "which operations accept the header" set comes straight from the OpenAPI
-// spec (47 operational ops declare the param; 23 account-management ops do
-// not — those carry the account in the body `account_id` or path
-// `{account_id}` instead). The integration-type overlay (marketplace vs SaaS
-// for customer-owned resources) is the business rule the spec cannot encode.
+// Generated commands supply header capability from their registered contract
+// surface. Operations without a registered surface fall back to the legacy
+// resource-level capability through FallbackAcceptsHeader. The
+// integration-type overlay is business policy the contract cannot encode.
 // See https://docs.straddle.com/guides/embed/api-headers.
 package straddleacct
 
@@ -36,10 +35,9 @@ const (
 // Header is the HTTP header that scopes a platform call to an embedded account.
 const Header = "Straddle-Account-Id"
 
-// headerCapableResources are the resources whose operations the spec declares
-// as accepting Straddle-Account-Id. Everything else carries the account in the
-// path/body and must never receive the header.
-var headerCapableResources = map[string]bool{
+// fallbackHeaderCapableResources preserves the resource-level behavior for
+// operations without a registered contract surface.
+var fallbackHeaderCapableResources = map[string]bool{
 	"charges":                true,
 	"payouts":                true,
 	"customers":              true,
@@ -85,14 +83,21 @@ func ResourceFromPath(ppPath string) string {
 	return ""
 }
 
+// FallbackAcceptsHeader reports the legacy resource-level capability for an
+// operation without a registered contract surface.
+func FallbackAcceptsHeader(ppPath string) bool {
+	return fallbackHeaderCapableResources[ResourceFromPath(ppPath)]
+}
+
 // Classify returns the header policy for an operation under an integration
-// type. An unset/unknown integration type behaves like the raw flag: send the
-// header only when explicitly supplied, never require or reject it.
-func Classify(ppPath, ppMethod, integrationType string) Decision {
-	resource := ResourceFromPath(ppPath)
-	if !headerCapableResources[resource] {
+// type. acceptsHeader is the operation capability declared by the contract.
+// An unset/unknown integration type sends the header only when explicitly
+// supplied and never requires it.
+func Classify(ppPath, ppMethod, integrationType string, acceptsHeader bool) Decision {
+	if !acceptsHeader {
 		return Forbid
 	}
+	resource := ResourceFromPath(ppPath)
 	isPost := strings.EqualFold(ppMethod, "POST")
 	switch integrationType {
 	case TypeAccount:

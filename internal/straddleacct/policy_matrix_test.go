@@ -133,8 +133,6 @@ var expectedPolicyMatrix = map[string][4]Decision{
 	"POST /v1/payouts/{id}/authorization":                            {Forbid, Require, Require, Allow},
 }
 
-var knownDivergences = map[string]string{}
-
 func TestPolicyMatrix(t *testing.T) {
 	contractOperations := loadPolicyMatrixContract(t)
 	if got := len(expectedPolicyMatrix); got != 70 {
@@ -150,7 +148,6 @@ func TestPolicyMatrix(t *testing.T) {
 	}
 	sort.Strings(keys)
 
-	observedDivergences := make(map[string][]string)
 	for _, key := range keys {
 		operation := contractOperations[key]
 		expected, ok := expectedPolicyMatrix[key]
@@ -161,34 +158,22 @@ func TestPolicyMatrix(t *testing.T) {
 
 		for _, integrationType := range policyIntegrationTypes {
 			t.Run(key+"/"+integrationType.Name, func(t *testing.T) {
-				got := Classify(operation.Path, operation.Method, integrationType.Value)
+				got := Classify(operation.Path, operation.Method, integrationType.Value, operation.AcceptsAccountHeader)
 				if want := expected[integrationType.Index]; got != want {
-					t.Errorf("Classify(%q, %q, %q) = %v, want %v", operation.Path, operation.Method, integrationType.Value, got, want)
+					t.Errorf(
+						"Classify(%q, %q, %q, %t) = %v, want %v",
+						operation.Path,
+						operation.Method,
+						integrationType.Value,
+						operation.AcceptsAccountHeader,
+						got,
+						want,
+					)
+				}
+				if !operation.AcceptsAccountHeader && got != Forbid {
+					t.Errorf("contract omits %s but %s policy returns %v, want %v", Header, integrationType.Name, got, Forbid)
 				}
 			})
-		}
-
-		if !operation.AcceptsAccountHeader {
-			for _, integrationType := range policyIntegrationTypes {
-				if got := Classify(operation.Path, operation.Method, integrationType.Value); got != Forbid {
-					observedDivergences[key] = append(observedDivergences[key], fmt.Sprintf("contract omits %s but %s policy returns %v", Header, integrationType.Name, got))
-				}
-			}
-			continue
-		}
-
-		saasDecision := Classify(operation.Path, operation.Method, TypeSaaS)
-		if saasDecision != Require && saasDecision != Allow {
-			observedDivergences[key] = append(observedDivergences[key], fmt.Sprintf("contract declares %s but saas policy returns %v", Header, saasDecision))
-		}
-
-		marketplaceDecision := Classify(operation.Path, operation.Method, TypeMarketplace)
-		marketplaceCustomerOwned := customerOwnedResources[ResourceFromPath(operation.Path)]
-		if marketplaceCustomerOwned && marketplaceDecision != Forbid {
-			observedDivergences[key] = append(observedDivergences[key], fmt.Sprintf("marketplace customer-owned policy returns %v, want %v", marketplaceDecision, Forbid))
-		}
-		if !marketplaceCustomerOwned && marketplaceDecision != Require && marketplaceDecision != Allow {
-			observedDivergences[key] = append(observedDivergences[key], fmt.Sprintf("contract declares %s but marketplace policy returns %v", Header, marketplaceDecision))
 		}
 	}
 
@@ -198,7 +183,6 @@ func TestPolicyMatrix(t *testing.T) {
 		}
 	}
 
-	assertKnownDivergences(t, observedDivergences)
 }
 
 func loadPolicyMatrixContract(t *testing.T) map[string]contractPolicyOperation {
@@ -277,22 +261,4 @@ func policyMatrixDeclaresAccountHeader(parameters []policyMatrixParameter, compo
 		}
 	}
 	return false, nil
-}
-
-func assertKnownDivergences(t *testing.T, observed map[string][]string) {
-	t.Helper()
-
-	for key, reasons := range observed {
-		if _, ok := knownDivergences[key]; !ok {
-			t.Errorf("unexpected contract divergence %q: %s", key, strings.Join(reasons, "; "))
-		}
-	}
-	for key, reason := range knownDivergences {
-		if reason == "" || strings.Contains(reason, "\n") {
-			t.Errorf("known divergence %q must have a one-line reason", key)
-		}
-		if _, ok := observed[key]; !ok {
-			t.Errorf("known contract divergence %q is no longer observed: %s", key, reason)
-		}
-	}
 }

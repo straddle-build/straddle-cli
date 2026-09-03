@@ -22,7 +22,7 @@ func UnsupportedReasons(op Operation) []string {
 		reasons = append(reasons, "path must start with /")
 	}
 	switch op.Method {
-	case "GET", "HEAD", "DELETE", "POST", "PUT", "PATCH":
+	case "GET", "DELETE", "POST", "PUT", "PATCH":
 	default:
 		reasons = append(reasons, "unsupported HTTP method "+op.Method)
 	}

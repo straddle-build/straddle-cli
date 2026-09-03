@@ -182,8 +182,8 @@ func (d surfaceDeriver) parameterFlag(parameter rawParameter) (surface.Flag, []s
 	items, itemReasons := d.resolveSchema(node.Items, parameter.In+" parameter "+parameter.Name+" items", map[string]bool{})
 	reasons = append(reasons, itemReasons...)
 	itemType, itemOK := nodeType(items)
-	kind, scalar := scalarKind(itemType)
-	if !itemOK || !scalar {
+	kind, repeatable := repeatableKind(itemType)
+	if !itemOK || !repeatable {
 		return flag, append(reasons, fmt.Sprintf("query array parameter %q has unsupported item schema", parameter.Name))
 	}
 	flag.Kind = kind
@@ -191,6 +191,16 @@ func (d surfaceDeriver) parameterFlag(parameter rawParameter) (surface.Flag, []s
 	flag.Format = items.Format
 	flag.Enum = renderEnum(items.Enum)
 	return flag, reasons
+}
+
+// The binder registers repeatable flags only for string and integer elements;
+// other element kinds fall back to a JSON flag or an unsupported reason.
+func repeatableKind(itemType string) (surface.Kind, bool) {
+	kind, scalar := scalarKind(itemType)
+	if !scalar || (kind != surface.KindString && kind != surface.KindInteger) {
+		return "", false
+	}
+	return kind, true
 }
 
 func requestBodySchema(body *rawRequestBody) (json.RawMessage, bool) {
@@ -364,8 +374,8 @@ func (d surfaceDeriver) flattenNode(node schemaNode, nameParts, pointerParts []s
 		}
 		items, reasons := d.resolveSchema(node.Items, pointer, stack)
 		itemType, ok := nodeType(items)
-		kind, scalar := scalarKind(itemType)
-		if len(reasons) == 0 && ok && scalar {
+		kind, repeatable := repeatableKind(itemType)
+		if len(reasons) == 0 && ok && repeatable {
 			flag := bodyFlag(node, nameParts, pointer, required, kind, true)
 			flag.Format = items.Format
 			flag.Enum = renderEnum(items.Enum)
@@ -507,16 +517,6 @@ func pathParameters(path string) []string {
 		offset = end + 1
 	}
 	return parameters
-}
-
-func schemaRef(raw json.RawMessage) string {
-	var ref struct {
-		Value string `json:"$ref"`
-	}
-	if json.Unmarshal(raw, &ref) != nil {
-		return ""
-	}
-	return ref.Value
 }
 
 func schemaReferences(raw json.RawMessage) []string {

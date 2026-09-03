@@ -194,30 +194,29 @@ func inventoryGeneratedEndpointFiles(dir string) ([]generatedEndpointFile, error
 		return nil, fmt.Errorf("stat %s: %w", dir, err)
 	}
 
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", dir, err)
+	}
 	var files []generatedEndpointFile
-	err := filepath.WalkDir(dir, func(path string, entry os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
 		}
-		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
+		path := filepath.Join(dir, name)
 		content, err := os.ReadFile(path) // #nosec G304 -- inventory is limited to the explicit repository's CLI source directory.
 		if err != nil {
-			return fmt.Errorf("reading %s: %w", path, err)
+			return nil, fmt.Errorf("reading %s: %w", path, err)
 		}
 		if !hasGeneratedSurfaceRegistration(content) {
-			return nil
+			continue
 		}
 		key, err := registeredSurfaceKey(path, content)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		files = append(files, generatedEndpointFile{Path: path, Key: key})
-		return nil
-	})
-	if err != nil {
-		return nil, err
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
 	return files, nil

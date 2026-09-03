@@ -19,48 +19,66 @@ func TestResourceFromPath(t *testing.T) {
 	}
 }
 
+func TestFallbackAcceptsHeader(t *testing.T) {
+	cases := map[string]bool{
+		"/v1/charges":                           true,
+		"/v1/payouts":                           true,
+		"/v1/customers":                         true,
+		"/v1/paykeys":                           true,
+		"/v1/bridge/initialize":                 true,
+		"/v1/funding_events":                    true,
+		"/v1/funding_event_payments/{id}":       true,
+		"/v1/payments":                          true,
+		"/v1/reports/total_customers_by_status": true,
+		"/v1/accounts":                          false,
+		"/v1/representatives":                   false,
+		"":                                      false,
+	}
+	for path, want := range cases {
+		if got := FallbackAcceptsHeader(path); got != want {
+			t.Errorf("FallbackAcceptsHeader(%q) = %t, want %t", path, got, want)
+		}
+	}
+}
+
 func TestClassify(t *testing.T) {
 	cases := []struct {
 		path, method, itype string
+		acceptsHeader       bool
 		want                Decision
 	}{
-		// account: never sends, even on capable ops
-		{"/v1/charges", "POST", TypeAccount, Forbid},
-		{"/v1/customers", "GET", TypeAccount, Forbid},
-
-		// saas: scoped creates require; reads/others send (Allow); non-capable forbid
-		{"/v1/charges", "POST", TypeSaaS, Require},
-		{"/v1/payouts", "POST", TypeSaaS, Require},
-		{"/v1/customers", "POST", TypeSaaS, Require},
-		{"/v1/bridge/initialize", "POST", TypeSaaS, Require},
-		{"/v1/charges/{id}", "GET", TypeSaaS, Allow},
-		{"/v1/customers", "GET", TypeSaaS, Allow},
-		{"/v1/funding_events", "GET", TypeSaaS, Allow},
-		{"/v1/reports/total_customers_by_status", "POST", TypeSaaS, Allow},
-		{"/v1/accounts", "POST", TypeSaaS, Forbid},
-		{"/v1/representatives", "POST", TypeSaaS, Forbid},
-
-		// marketplace: money-movement creates require; customer-owned forbid; rest allow
-		{"/v1/charges", "POST", TypeMarketplace, Require},
-		{"/v1/payouts", "POST", TypeMarketplace, Require},
-		{"/v1/customers", "POST", TypeMarketplace, Forbid},
-		{"/v1/customers", "GET", TypeMarketplace, Forbid},
-		{"/v1/paykeys", "GET", TypeMarketplace, Forbid},
-		{"/v1/bridge/initialize", "POST", TypeMarketplace, Forbid},
-		{"/v1/reports/total_customers_by_status", "POST", TypeMarketplace, Forbid},
-		{"/v1/funding_events", "GET", TypeMarketplace, Allow},
-		{"/v1/payments", "GET", TypeMarketplace, Allow},
-		{"/v1/charges/{id}/hold", "PUT", TypeMarketplace, Allow},
-		{"/v1/accounts", "POST", TypeMarketplace, Forbid},
-
-		// unset integration type: behave like the raw flag (Allow on capable, Forbid on non-capable)
-		{"/v1/charges", "POST", "", Allow},
-		{"/v1/accounts", "POST", "", Forbid},
+		{"/v1/charges", "POST", TypeAccount, true, Forbid},
+		{"/v1/customers", "GET", TypeAccount, true, Forbid},
+		{"/v1/charges", "POST", TypeSaaS, true, Require},
+		{"/v1/payouts", "POST", TypeSaaS, true, Require},
+		{"/v1/customers", "POST", TypeSaaS, true, Require},
+		{"/v1/bridge/initialize", "POST", TypeSaaS, true, Require},
+		{"/v1/charges/{id}", "GET", TypeSaaS, true, Allow},
+		{"/v1/customers", "GET", TypeSaaS, true, Allow},
+		{"/v1/funding_events", "GET", TypeSaaS, true, Allow},
+		{"/v1/reports/total_customers_by_status", "POST", TypeSaaS, true, Allow},
+		{"/v1/accounts", "POST", TypeSaaS, false, Forbid},
+		{"/v1/representatives", "POST", TypeSaaS, false, Forbid},
+		{"/v1/charges", "POST", TypeMarketplace, true, Require},
+		{"/v1/payouts", "POST", TypeMarketplace, true, Require},
+		{"/v1/customers", "POST", TypeMarketplace, true, Forbid},
+		{"/v1/customers", "GET", TypeMarketplace, true, Forbid},
+		{"/v1/paykeys", "GET", TypeMarketplace, true, Forbid},
+		{"/v1/bridge/initialize", "POST", TypeMarketplace, true, Forbid},
+		{"/v1/reports/total_customers_by_status", "POST", TypeMarketplace, true, Forbid},
+		{"/v1/funding_events", "GET", TypeMarketplace, true, Allow},
+		{"/v1/payments", "GET", TypeMarketplace, true, Allow},
+		{"/v1/charges/{id}/hold", "PUT", TypeMarketplace, true, Allow},
+		{"/v1/accounts", "POST", TypeMarketplace, false, Forbid},
+		{"/v1/charges", "POST", "", true, Allow},
+		{"/v1/accounts", "POST", "", false, Forbid},
+		{"/v1/charges", "POST", TypeSaaS, false, Forbid},
+		{"/v1/new_contract_resource", "GET", TypeSaaS, true, Allow},
 	}
 	for _, tc := range cases {
-		got := Classify(tc.path, tc.method, tc.itype)
+		got := Classify(tc.path, tc.method, tc.itype, tc.acceptsHeader)
 		if got != tc.want {
-			t.Errorf("Classify(%q,%q,%q) = %v, want %v", tc.path, tc.method, tc.itype, got, tc.want)
+			t.Errorf("Classify(%q,%q,%q,%t) = %v, want %v", tc.path, tc.method, tc.itype, tc.acceptsHeader, got, tc.want)
 		}
 	}
 }
