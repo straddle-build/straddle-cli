@@ -44,7 +44,7 @@ The `api` command has two runtime surfaces:
 - `straddle api` and `straddle api <interface>` browse hidden API interfaces.
 - `straddle api <method> <path>` calls a raw API path for `GET`, `POST`, `PUT`, `PATCH`, and `DELETE`, using the same client, auth, account scoping, dry-run, verify, redaction, and output rules as the friendly commands.
 
-The API sync workflow regenerates every endpoint command file wholesale. Each generated file self-registers through `internal/cli/generated_registry.go`, so it can attach under an existing command family or a hidden parent without a root-command edit. Per-command customizations live in `internal/cli/overlays.go`, keyed by endpoint.
+The API sync workflow regenerates every supported contract-derived endpoint command file wholesale. Each generated file self-registers through `internal/cli/generated_registry.go`. Non-derivable command behavior lives in `internal/cli/overlays_*.go`, keyed by endpoint, while `internal/cli/command_tree.go` controls tree placement. The internal bridge Speedchex, bridge TAN, and reports commands remain hand-authored.
 
 ## Important runtime rules
 
