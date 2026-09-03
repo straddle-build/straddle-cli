@@ -1,0 +1,63 @@
+=== success ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 173
+stdout:
+<<<
+{
+  "action": "post",
+  "data": {
+    "dry_run": true
+  },
+  "dry_run": true,
+  "path": "/v1/bridge/initialize",
+  "resource": "bridge",
+  "status": 0,
+  "success": false
+}
+>>>
+stderr_bytes: 176
+stderr:
+<<<
+POST http://golden.test/v1/bridge/initialize
+  Body:
+{
+    "customer_id": "550e8400-e29b-41d4-a716-446655440000"
+  }
+  Authorization: ****_key
+
+(dry run - no request sent)
+>>>
+
+=== http-422 ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 173
+stdout:
+<<<
+{
+  "action": "post",
+  "data": {
+    "dry_run": true
+  },
+  "dry_run": true,
+  "path": "/v1/bridge/initialize",
+  "resource": "bridge",
+  "status": 0,
+  "success": false
+}
+>>>
+stderr_bytes: 176
+stderr:
+<<<
+POST http://golden.test/v1/bridge/initialize
+  Body:
+{
+    "customer_id": "550e8400-e29b-41d4-a716-446655440000"
+  }
+  Authorization: ****_key
+
+(dry run - no request sent)
+>>>

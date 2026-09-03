@@ -1,0 +1,43 @@
+=== success ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 415
+stdout:
+<<<
+{
+  "data": {
+    "created_at": "2026-01-15T12:00:00Z",
+    "customer_id": "550e8400-e29b-41d4-a716-446655440000",
+    "external_id": "550e8400-e29b-41d4-a716-446655440000",
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "status": "pending"
+  },
+  "meta": {
+    "api_request_id": "550e8400-e29b-41d4-a716-446655440000",
+    "api_request_timestamp": "2026-01-15T12:00:00Z"
+  },
+  "response_type": "object"
+}
+
+>>>
+stderr_bytes: 0
+stderr:
+<<<
+
+>>>
+
+=== http-422 ===
+exit_code: 5
+error_class: api
+error: "GET /v1/paykeys/550e8400-e29b-41d4-a716-446655440000/reveal returned HTTP 422: {\"error\":{\"message\":\"bad\"}}"
+stdout_bytes: 0
+stdout:
+<<<
+
+>>>
+stderr_bytes: 114
+stderr:
+<<<
+Error: GET /v1/paykeys/550e8400-e29b-41d4-a716-446655440000/reveal returned HTTP 422: {"error":{"message":"bad"}}
+>>>

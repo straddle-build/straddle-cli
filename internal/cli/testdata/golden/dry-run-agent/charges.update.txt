@@ -1,0 +1,67 @@
+=== success ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 200
+stdout:
+<<<
+{
+  "action": "put",
+  "data": {
+    "dry_run": true
+  },
+  "dry_run": true,
+  "path": "/v1/charges/550e8400-e29b-41d4-a716-446655440000",
+  "resource": "charges",
+  "status": 0,
+  "success": false
+}
+>>>
+stderr_bytes: 241
+stderr:
+<<<
+PUT http://golden.test/v1/charges/550e8400-e29b-41d4-a716-446655440000
+  Body:
+{
+    "amount": 1250,
+    "description": "Updated golden charge",
+    "payment_date": "2026-01-16"
+  }
+  Authorization: ****_key
+
+(dry run - no request sent)
+>>>
+
+=== http-422 ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 200
+stdout:
+<<<
+{
+  "action": "put",
+  "data": {
+    "dry_run": true
+  },
+  "dry_run": true,
+  "path": "/v1/charges/550e8400-e29b-41d4-a716-446655440000",
+  "resource": "charges",
+  "status": 0,
+  "success": false
+}
+>>>
+stderr_bytes: 241
+stderr:
+<<<
+PUT http://golden.test/v1/charges/550e8400-e29b-41d4-a716-446655440000
+  Body:
+{
+    "amount": 1250,
+    "description": "Updated golden charge",
+    "payment_date": "2026-01-16"
+  }
+  Authorization: ****_key
+
+(dry run - no request sent)
+>>>

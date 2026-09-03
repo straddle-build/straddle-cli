@@ -1,0 +1,85 @@
+=== success ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 180
+stdout:
+<<<
+{
+  "action": "post",
+  "data": {
+    "dry_run": true
+  },
+  "dry_run": true,
+  "path": "/v1/representatives",
+  "resource": "representatives",
+  "status": 0,
+  "success": false
+}
+>>>
+stderr_bytes: 462
+stderr:
+<<<
+POST http://golden.test/v1/representatives
+  Body:
+{
+    "account_id": "550e8400-e29b-41d4-a716-446655440000",
+    "dob": "1990-01-15",
+    "email": "representative@example.com",
+    "first_name": "Golden",
+    "last_name": "Representative",
+    "mobile_number": "+15555550100",
+    "relationship": {
+      "control": true,
+      "owner": false,
+      "primary": true
+    },
+    "ssn_last4": "1234"
+  }
+  Authorization: ****_key
+
+(dry run - no request sent)
+>>>
+
+=== http-422 ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 180
+stdout:
+<<<
+{
+  "action": "post",
+  "data": {
+    "dry_run": true
+  },
+  "dry_run": true,
+  "path": "/v1/representatives",
+  "resource": "representatives",
+  "status": 0,
+  "success": false
+}
+>>>
+stderr_bytes: 462
+stderr:
+<<<
+POST http://golden.test/v1/representatives
+  Body:
+{
+    "account_id": "550e8400-e29b-41d4-a716-446655440000",
+    "dob": "1990-01-15",
+    "email": "representative@example.com",
+    "first_name": "Golden",
+    "last_name": "Representative",
+    "mobile_number": "+15555550100",
+    "relationship": {
+      "control": true,
+      "owner": false,
+      "primary": true
+    },
+    "ssn_last4": "1234"
+  }
+  Authorization: ****_key
+
+(dry run - no request sent)
+>>>

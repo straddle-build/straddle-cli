@@ -29,7 +29,7 @@ func TestCurrentSpecOperationsAreCoveredByCheckedInAnnotations(t *testing.T) {
 		t.Fatalf("current spec coverage failed: missing=%d extra=%d duplicate=%d invalid=%d operation_id_mismatch=%d", len(result.Missing), len(result.Extra), len(result.DuplicateAnnotations), len(result.InvalidAnnotations), len(result.OperationIDMismatches))
 	}
 	if !unsupportedInventoryAccepted(len(result.UnsupportedOperations), allowReviewDrift) {
-		t.Fatalf("unsupported operations = %d, want two multipart upload operations", len(result.UnsupportedOperations))
+		t.Fatalf("unsupported operations = %d, want two unsupported contract operations", len(result.UnsupportedOperations))
 	}
 }
 
@@ -122,6 +122,129 @@ func TestCheckCoverageUsesOperationIDsAndIgnoresInternalCommands(t *testing.T) {
 	}
 }
 
+func TestCheckSpecAgainstRepoTreatsAnnotatedUnsupportedOperationAsExtra(t *testing.T) {
+	t.Parallel()
+
+	repo := t.TempDir()
+	cliDir := filepath.Join(repo, "internal", "cli")
+	if err := os.MkdirAll(cliDir, 0o755); err != nil {
+		t.Fatalf("create cli directory: %v", err)
+	}
+	annotation := `package cli
+
+var commandAnnotation = map[string]string{
+	"straddle:endpoint": "widgets.create",
+	"straddle:operation-id": "createWidget",
+	"straddle:method": "POST",
+	"straddle:path": "/v1/widgets",
+}
+`
+	if err := os.WriteFile(filepath.Join(cliDir, "widgets.go"), []byte(annotation), 0o600); err != nil {
+		t.Fatalf("write annotation: %v", err)
+	}
+	specPath := writeSpec(t, `{
+		"openapi": "3.1.0",
+		"paths": {
+			"/v1/widgets": {
+				"post": {
+					"operationId": "createWidget",
+					"tags": ["widgets"],
+					"requestBody": {
+						"content": {
+							"application/json": {
+								"schema": {"$ref": "#/components/schemas/CreateWidget"}
+							}
+						}
+					}
+				}
+			}
+		},
+		"components": {
+			"schemas": {
+				"CreateWidget": {
+					"type": "object",
+					"properties": {
+						"mystery": {}
+					}
+				}
+			}
+		}
+	}`)
+
+	result, err := apisync.CheckSpecAgainstRepo(specPath, repo)
+	if err != nil {
+		t.Fatalf("CheckSpecAgainstRepo: %v", err)
+	}
+	if result.OK {
+		t.Fatalf("OK = true, want false: %#v", result)
+	}
+	if len(result.UnsupportedOperations) != 1 {
+		t.Fatalf("UnsupportedOperations = %#v, want one", result.UnsupportedOperations)
+	}
+	unsupported := result.UnsupportedOperations[0]
+	if unsupported.Operation.Key != "POST /v1/widgets" || !hasReasonContaining(unsupported.Reasons, "/mystery") {
+		t.Fatalf("unsupported operation = %#v, want referenced schema reason", unsupported)
+	}
+	if len(result.Extra) != 1 || result.Extra[0].OperationID != "createWidget" {
+		t.Fatalf("Extra = %#v, want stale createWidget annotation", result.Extra)
+	}
+	if len(result.Missing) != 0 {
+		t.Fatalf("Missing = %#v, want unsupported operation excluded from coverage", result.Missing)
+	}
+}
+
+func TestCheckSpecAgainstRepoReportsStaleGeneratedSurface(t *testing.T) {
+	t.Parallel()
+
+	repo := t.TempDir()
+	specPath := writeSpec(t, `{
+		"openapi": "3.1.0",
+		"paths": {
+			"/v1/widgets": {
+				"get": {
+					"operationId": "listWidgets",
+					"tags": ["widgets"],
+					"parameters": [
+						{"name": "status", "in": "query", "schema": {"type": "string", "default": "active"}},
+						{"name": "Straddle-Account-Id", "in": "header", "schema": {"type": "string"}}
+					]
+				}
+			}
+		}
+	}`)
+	generated, err := apisync.GenerateAll(specPath, repo, false)
+	if err != nil {
+		t.Fatalf("GenerateAll: %v", err)
+	}
+	if len(generated.Generated) != 1 {
+		t.Fatalf("Generated = %#v, want one file", generated.Generated)
+	}
+	path := generated.Generated[0]
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read generated file: %v", err)
+	}
+	stale := strings.ReplaceAll(string(content), `Default: "active"`, `Default: "inactive"`)
+	stale = strings.ReplaceAll(stale, "AcceptsAccountHeader: true", "AcceptsAccountHeader: false")
+	if stale == string(content) || !strings.Contains(stale, `Default: "inactive"`) || !strings.Contains(stale, "AcceptsAccountHeader: false") {
+		t.Fatalf("generated fixture did not contain expected surface values:\n%s", content)
+	}
+	if err := os.WriteFile(path, []byte(stale), 0o644); err != nil {
+		t.Fatalf("write stale generated file: %v", err)
+	}
+
+	result, err := apisync.CheckSpecAgainstRepo(specPath, repo)
+	if err != nil {
+		t.Fatalf("CheckSpecAgainstRepo: %v", err)
+	}
+	if result.OK || !result.HasBlockingIssues() {
+		t.Fatalf("result = %#v, want blocking stale generated file", result)
+	}
+	if want := []string{path}; !reflect.DeepEqual(result.StaleGenerated, want) {
+		t.Fatalf("StaleGenerated = %#v, want %#v", result.StaleGenerated, want)
+	}
+}
+
 func TestAPISyncWorkflowAlwaysProposesNewPublishedContracts(t *testing.T) {
 	t.Parallel()
 
@@ -141,10 +264,11 @@ func TestAPISyncWorkflowAlwaysProposesNewPublishedContracts(t *testing.T) {
 	if steps["Update pinned contract"].If != "steps.contract.outputs.status == 'new'" {
 		t.Fatalf("update condition = %q", steps["Update pinned contract"].If)
 	}
-	generateCondition := steps["Generate supported endpoint additions"].If
-	if generateCondition != "steps.contract.outputs.status == 'new' && steps.drift.outputs.supported_additions != '0'" {
+	generateCondition := steps["Regenerate endpoint commands"].If
+	if generateCondition != "steps.contract.outputs.status == 'new'" {
 		t.Fatalf("generation condition = %q", generateCondition)
 	}
+
 	openPR := steps["Open contract synchronization pull request"]
 	if openPR.Uses != "peter-evans/create-pull-request@v8" {
 		t.Fatalf("PR action = %q", openPR.Uses)
@@ -243,18 +367,17 @@ func TestAPISyncWorkflowVerifiesReviewableDrift(t *testing.T) {
 	temp := t.TempDir()
 	goLog := filepath.Join(temp, "go.log")
 	runWorkflowScript(t, script, map[string]string{
-		"COVERAGE_JSON":            filepath.Join(temp, "coverage.json"),
 		"MOCK_GO_LOG":              goLog,
 		"STRADDLE_API_SYNC_REVIEW": "",
 	}, map[string]string{
 		"go": `printf 'review=%s args=%s\n' "${STRADDLE_API_SYNC_REVIEW:-}" "$*" >> "${MOCK_GO_LOG}"`,
 	})
 	wantGoCalls := []string{
-		"review= args=run ./cmd/gen-endpoint verify-lock --lock contract.lock.json --spec spec.yaml",
-		"review= args=run ./cmd/gen-endpoint check --spec spec.yaml --repo . --review-drift --agent",
+		"review= args=run ./cmd/gen-endpoint check --spec spec.yaml --repo . --agent",
 		"review=true args=test ./...",
 		"review= args=vet ./...",
 	}
+
 	if got := readLines(t, goLog); !reflect.DeepEqual(got, wantGoCalls) {
 		t.Fatalf("go calls = %#v, want %#v", got, wantGoCalls)
 	}
@@ -273,7 +396,7 @@ func TestMergedContractChangeTriggersExistingDistributionWorkflow(t *testing.T) 
 	}
 	tagJob := tagWorkflow.Jobs["tag"]
 	steps := stepsByName(tagJob)
-	if steps["Create patch release tag"].If != "steps.version.outputs.already_tagged != 'true'" {
+	if steps["Create patch release tag"].If != "steps.release_changes.outputs.has_cli_changes == 'true' && steps.version.outputs.already_tagged != 'true'" {
 		t.Fatalf("tag creation condition = %q", steps["Create patch release tag"].If)
 	}
 	temp := t.TempDir()
@@ -432,7 +555,7 @@ func readLinesIfExists(t *testing.T, path string) []string {
 	return readLines(t, path)
 }
 
-func TestClassifyDriftReportsUnsupportedNonJSONRequestBodyAddition(t *testing.T) {
+func TestDriftSpecsReportsUnsupportedNonJSONRequestBodyAddition(t *testing.T) {
 	t.Parallel()
 
 	baseSpec := writeSpec(t, `{
@@ -473,16 +596,10 @@ func TestClassifyDriftReportsUnsupportedNonJSONRequestBodyAddition(t *testing.T)
 		}
 	}`)
 
-	baseOps, err := apisync.LoadSpec(baseSpec)
+	result, err := apisync.DriftSpecs(baseSpec, headSpec)
 	if err != nil {
-		t.Fatalf("LoadSpec(base): %v", err)
+		t.Fatalf("DriftSpecs: %v", err)
 	}
-	headOps, err := apisync.LoadSpec(headSpec)
-	if err != nil {
-		t.Fatalf("LoadSpec(head): %v", err)
-	}
-
-	result := apisync.ClassifyDrift(baseOps, headOps)
 	if result.NoDrift {
 		t.Fatalf("NoDrift = true, want unsupported addition to be reported")
 	}
@@ -501,7 +618,7 @@ func TestClassifyDriftReportsUnsupportedNonJSONRequestBodyAddition(t *testing.T)
 	}
 }
 
-func TestClassifyDriftReportsRequestBodyRefAsUnsupported(t *testing.T) {
+func TestDriftSpecsReportsRequestBodyRefAsUnsupported(t *testing.T) {
 	t.Parallel()
 
 	baseSpec := writeSpec(t, `{
@@ -539,16 +656,10 @@ func TestClassifyDriftReportsRequestBodyRefAsUnsupported(t *testing.T) {
 		}
 	}`)
 
-	baseOps, err := apisync.LoadSpec(baseSpec)
+	result, err := apisync.DriftSpecs(baseSpec, headSpec)
 	if err != nil {
-		t.Fatalf("LoadSpec(base): %v", err)
+		t.Fatalf("DriftSpecs: %v", err)
 	}
-	headOps, err := apisync.LoadSpec(headSpec)
-	if err != nil {
-		t.Fatalf("LoadSpec(head): %v", err)
-	}
-
-	result := apisync.ClassifyDrift(baseOps, headOps)
 	if len(result.SupportedAdditions) != 0 {
 		t.Fatalf("SupportedAdditions = %#v, want request-body ref routed to unsupported", result.SupportedAdditions)
 	}
@@ -561,39 +672,37 @@ func TestClassifyDriftReportsRequestBodyRefAsUnsupported(t *testing.T) {
 	}
 }
 
-func TestUnsupportedReasonsRejectsJSONRequestBodyOnReadOperation(t *testing.T) {
+func TestUnsupportedReasonsRejectsJSONRequestBodyOnGet(t *testing.T) {
 	t.Parallel()
 
-	for _, tc := range []struct {
-		method string
-		path   string
-		reason string
-	}{
-		{
-			method: "GET",
-			path:   "/v1/search",
-			reason: "request body is not supported for GET operations",
-		},
-		{
-			method: "DELETE",
-			path:   "/v1/widgets",
-			reason: "request body is not supported for DELETE operations",
-		},
-	} {
-		t.Run(tc.method, func(t *testing.T) {
-			op := apisync.Operation{
-				OperationID:           "ReadOperationWithBody",
-				Method:                tc.method,
-				Path:                  tc.path,
-				RequestBodyRequired:   true,
-				RequestBodyMediaTypes: []string{"application/json"},
-			}
+	op := apisync.Operation{
+		OperationID:           "ReadOperationWithBody",
+		Method:                "GET",
+		Path:                  "/v1/search",
+		RequestBodyRequired:   true,
+		RequestBodyMediaTypes: []string{"application/json"},
+	}
 
-			reasons := apisync.UnsupportedReasons(op)
-			if len(reasons) != 1 || reasons[0] != tc.reason {
-				t.Fatalf("UnsupportedReasons(%s with JSON body) = %#v, want [%q]", tc.method, reasons, tc.reason)
-			}
-		})
+	reasons := apisync.UnsupportedReasons(op)
+	const want = "request body is not supported for GET operations"
+	if len(reasons) != 1 || reasons[0] != want {
+		t.Fatalf("UnsupportedReasons(GET with JSON body) = %#v, want [%q]", reasons, want)
+	}
+}
+
+func TestUnsupportedReasonsAllowsJSONRequestBodyOnDelete(t *testing.T) {
+	t.Parallel()
+
+	op := apisync.Operation{
+		OperationID:           "DeleteOperationWithBody",
+		Method:                "DELETE",
+		Path:                  "/v1/widgets",
+		RequestBodyRequired:   true,
+		RequestBodyMediaTypes: []string{"application/json"},
+	}
+
+	if reasons := apisync.UnsupportedReasons(op); len(reasons) != 0 {
+		t.Fatalf("UnsupportedReasons(DELETE with JSON body) = %#v, want none", reasons)
 	}
 }
 
@@ -655,7 +764,7 @@ func TestUnsupportedReasonsRejectsReservedGeneratedFlagNames(t *testing.T) {
 	}
 }
 
-func TestClassifyDriftRoutesGeneratedParameterCollisionsToUnsupported(t *testing.T) {
+func TestDriftSpecsRoutesGeneratedParameterCollisionsToUnsupported(t *testing.T) {
 	t.Parallel()
 
 	baseSpec := writeSpec(t, `{
@@ -694,16 +803,10 @@ func TestClassifyDriftRoutesGeneratedParameterCollisionsToUnsupported(t *testing
 		}
 	}`)
 
-	baseOps, err := apisync.LoadSpec(baseSpec)
+	result, err := apisync.DriftSpecs(baseSpec, headSpec)
 	if err != nil {
-		t.Fatalf("LoadSpec(base): %v", err)
+		t.Fatalf("DriftSpecs: %v", err)
 	}
-	headOps, err := apisync.LoadSpec(headSpec)
-	if err != nil {
-		t.Fatalf("LoadSpec(head): %v", err)
-	}
-
-	result := apisync.ClassifyDrift(baseOps, headOps)
 	if len(result.SupportedAdditions) != 0 {
 		t.Fatalf("SupportedAdditions = %#v, want collision routed to unsupported", result.SupportedAdditions)
 	}
@@ -748,7 +851,7 @@ func TestParseSpecAppliesPathLevelParameters(t *testing.T) {
 	}
 }
 
-func TestClassifyDriftReportsPathLevelParameterChange(t *testing.T) {
+func TestDriftIgnoresPathParameterDescriptionOutsideSurface(t *testing.T) {
 	t.Parallel()
 
 	baseSpec := writeSpec(t, `{
@@ -782,116 +885,15 @@ func TestClassifyDriftReportsPathLevelParameterChange(t *testing.T) {
 		}
 	}`)
 
-	baseOps, err := apisync.LoadSpec(baseSpec)
+	result, err := apisync.DriftSpecs(baseSpec, headSpec)
 	if err != nil {
-		t.Fatalf("LoadSpec(base): %v", err)
+		t.Fatalf("DriftSpecs: %v", err)
 	}
-	headOps, err := apisync.LoadSpec(headSpec)
-	if err != nil {
-		t.Fatalf("LoadSpec(head): %v", err)
+	if !result.NoDrift {
+		t.Fatalf("drift = %#v, want path parameter description ignored", result)
 	}
-
-	result := apisync.ClassifyDrift(baseOps, headOps)
-	if result.NoDrift {
-		t.Fatal("NoDrift = true, want path-level parameter change to be reported")
-	}
-	if len(result.Changes) != 1 {
-		t.Fatalf("Changes = %d, want 1", len(result.Changes))
-	}
-	if result.Changes[0].Key != "GET /v1/widgets/{id}" {
-		t.Fatalf("change key = %q, want GET /v1/widgets/{id}", result.Changes[0].Key)
-	}
-}
-
-func TestGenerateEndpointFileUsesEmptyObjectForNoBodyMutation(t *testing.T) {
-	t.Parallel()
-
-	file, err := apisync.GenerateEndpointFile(apisync.Operation{
-		OperationID: "ResubmitWidget",
-		Endpoint:    "widgets.resubmit",
-		Method:      "POST",
-		Path:        "/v1/widgets/{id}/resubmit",
-		PathParameters: []apisync.Parameter{
-			{Name: "id", In: "path"},
-		},
-	}, t.TempDir())
-	if err != nil {
-		t.Fatalf("GenerateEndpointFile: %v", err)
-	}
-	got := file.Content
-	for _, want := range []string{
-		"body := map[string]any{}",
-		"c.PostWithParamsAndHeaders(path, params, body, headers)",
-		`return printGeneratedMutationOutput(cmd, flags, "POST", "widgets.resubmit", path, statusCode, data)`,
-	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("generated content missing %q:\n%s", want, got)
-		}
-	}
-	if strings.Contains(got, "var body map[string]any") {
-		t.Fatalf("generated content should not declare a typed nil body for no-body mutations:\n%s", got)
-	}
-}
-
-func TestGenerateEndpointFileUsesDeleteClassifier(t *testing.T) {
-	t.Parallel()
-
-	file, err := apisync.GenerateEndpointFile(apisync.Operation{
-		OperationID: "DeleteWidget",
-		Endpoint:    "widgets.delete",
-		Method:      "DELETE",
-		Path:        "/v1/widgets/{id}",
-		PathParameters: []apisync.Parameter{
-			{Name: "id", In: "path"},
-		},
-	}, t.TempDir())
-	if err != nil {
-		t.Fatalf("GenerateEndpointFile: %v", err)
-	}
-	got := file.Content
-	if !strings.Contains(got, "return classifyDeleteError(err, flags)") {
-		t.Fatalf("generated content missing delete classifier:\n%s", got)
-	}
-	if !strings.Contains(got, `return printGeneratedMutationOutput(cmd, flags, "DELETE", "widgets.delete", path, statusCode, data)`) {
-		t.Fatalf("generated DELETE content missing mutation output contract:\n%s", got)
-	}
-	if strings.Contains(got, "return classifyAPIError(err, flags)") {
-		t.Fatalf("generated DELETE content should not use generic API classifier:\n%s", got)
-	}
-}
-
-func TestGenerateEndpointFileEmitsHeaderFlags(t *testing.T) {
-	t.Parallel()
-
-	file, err := apisync.GenerateEndpointFile(apisync.Operation{
-		OperationID: "GetWidget",
-		Endpoint:    "widgets.get",
-		Method:      "GET",
-		Path:        "/v1/widgets/{id}",
-		PathParameters: []apisync.Parameter{
-			{Name: "id", In: "path"},
-		},
-		HeaderParameters: []apisync.Parameter{
-			{Name: "Straddle-Account-Id", In: "header"},
-			{Name: "Request-Id", In: "header", Description: "Trace one request."},
-		},
-	}, t.TempDir())
-	if err != nil {
-		t.Fatalf("GenerateEndpointFile: %v", err)
-	}
-	got := file.Content
-	for _, want := range []string{
-		"var flagRequestIdHeader string",
-		`headers["Request-Id"] = flagRequestIdHeader`,
-		`c.GetWithHeaders(path, params, headers)`,
-		`cmd.Flags().StringVar(&flagRequestIdHeader, "request-id", "", "Trace one request.")`,
-	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("generated content missing %q:\n%s", want, got)
-		}
-	}
-	if strings.Contains(got, "Straddle-Account-Id") {
-		t.Fatalf("generated content should not expose Straddle-Account-Id as a header flag:\n%s", got)
+	if len(result.Changes) != 0 {
+		t.Fatalf("Changes = %d, want 0", len(result.Changes))
 	}
 }
 

@@ -14,10 +14,6 @@ func newRepresentativesCmd(flags *rootFlags) *cobra.Command {
 		RunE:   parentNoSubcommandRunE(flags),
 	}
 
-	cmd.AddCommand(newRepresentativesCreateCmd(flags))
-	cmd.AddCommand(newRepresentativesGetCmd(flags))
-	cmd.AddCommand(newRepresentativesListCmd(flags))
-	cmd.AddCommand(newRepresentativesUpdateCmd(flags))
 	cmd.AddCommand(newRepresentativesUnmaskCmd(flags))
 	return cmd
 }

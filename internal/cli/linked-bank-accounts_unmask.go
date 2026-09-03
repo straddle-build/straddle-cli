@@ -13,6 +13,5 @@ func newLinkedBankAccountsUnmaskCmd(flags *rootFlags) *cobra.Command {
 		RunE:  parentNoSubcommandRunE(flags),
 	}
 
-	cmd.AddCommand(newLinkedBankAccountsUnmaskGetLinkedBankAccountUnmaskedCmd(flags))
 	return cmd
 }

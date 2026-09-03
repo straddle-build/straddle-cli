@@ -2,8 +2,6 @@
 package apisync
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -40,7 +38,6 @@ type Operation struct {
 	RequestBodyMediaTypes []string    `json:"request_body_media_types,omitempty"`
 	RequestBodyRef        string      `json:"request_body_ref,omitempty"`
 	ReadOnly              bool        `json:"read_only"`
-	Fingerprint           string      `json:"fingerprint"`
 }
 
 type Parameter struct {
@@ -57,8 +54,20 @@ type rawDocument struct {
 	OpenAPI    string                                `json:"openapi"`
 	Paths      map[string]map[string]json.RawMessage `json:"paths"`
 	Components struct {
-		Parameters map[string]rawParameter `json:"parameters"`
+		Parameters map[string]rawParameter    `json:"parameters"`
+		Schemas    map[string]json.RawMessage `json:"schemas"`
 	} `json:"components"`
+}
+
+type parsedDocument struct {
+	raw           rawDocument
+	operations    []Operation
+	rawOperations map[string]parsedOperation
+}
+
+type parsedOperation struct {
+	operation  rawOperation
+	parameters []rawParameter
 }
 
 type rawOperation struct {
@@ -71,22 +80,24 @@ type rawOperation struct {
 }
 
 type rawParameter struct {
-	Ref         string `json:"$ref"`
-	Name        string `json:"name"`
-	In          string `json:"in"`
-	Required    bool   `json:"required"`
-	Description string `json:"description"`
-	Style       string `json:"style"`
-	Explode     bool   `json:"explode"`
-	Schema      struct {
-		Type string `json:"type"`
-	} `json:"schema"`
+	Ref         string          `json:"$ref"`
+	Name        string          `json:"name"`
+	In          string          `json:"in"`
+	Required    bool            `json:"required"`
+	Description string          `json:"description"`
+	Style       string          `json:"style"`
+	Explode     *bool           `json:"explode"`
+	Schema      json.RawMessage `json:"schema"`
 }
 
 type rawRequestBody struct {
-	Ref      string                     `json:"$ref"`
-	Required bool                       `json:"required"`
-	Content  map[string]json.RawMessage `json:"content"`
+	Ref      string                  `json:"$ref"`
+	Required bool                    `json:"required"`
+	Content  map[string]rawMediaType `json:"content"`
+}
+
+type rawMediaType struct {
+	Schema json.RawMessage `json:"schema"`
 }
 
 func LoadSpec(path string) ([]Operation, error) {
@@ -121,24 +132,43 @@ func LoadSpecVersion(path string) (string, error) {
 }
 
 func ParseSpec(data []byte) ([]Operation, error) {
+	doc, err := parseDocument(data)
+	if err != nil {
+		return nil, err
+	}
+	return append([]Operation(nil), doc.operations...), nil
+}
+
+func loadParsedDocument(path string) (*parsedDocument, error) {
+	data, err := os.ReadFile(path) // #nosec G304: spec paths are explicit local CLI/workflow inputs.
+	if err != nil {
+		return nil, fmt.Errorf("reading spec %s: %w", path, err)
+	}
+	return parseDocument(data)
+}
+
+func parseDocument(data []byte) (*parsedDocument, error) {
 	jsonData, err := yaml.YAMLToJSON(data)
 	if err != nil {
 		return nil, fmt.Errorf("parsing OpenAPI document: %w", err)
 	}
-	var doc rawDocument
-	if err := json.Unmarshal(jsonData, &doc); err != nil {
+	var rawDoc rawDocument
+	if err := json.Unmarshal(jsonData, &rawDoc); err != nil {
 		return nil, fmt.Errorf("parsing OpenAPI document: %w", err)
 	}
-	if strings.TrimSpace(doc.OpenAPI) == "" {
+	if strings.TrimSpace(rawDoc.OpenAPI) == "" {
 		return nil, fmt.Errorf("missing openapi version")
 	}
-	if len(doc.Paths) == 0 {
+	if len(rawDoc.Paths) == 0 {
 		return nil, fmt.Errorf("missing paths")
 	}
 
-	ops := make([]Operation, 0)
-	for path, item := range doc.Paths {
-		pathParams, err := parseRawParameters(item["parameters"], path, doc.Components.Parameters)
+	doc := &parsedDocument{
+		raw:           rawDoc,
+		rawOperations: make(map[string]parsedOperation),
+	}
+	for path, item := range rawDoc.Paths {
+		pathParams, err := parseRawParameters(item["parameters"], path, rawDoc.Components.Parameters)
 		if err != nil {
 			return nil, err
 		}
@@ -161,14 +191,23 @@ func ParseSpec(data []byte) ([]Operation, error) {
 				Description: ro.Description,
 				Tags:        append([]string(nil), ro.Tags...),
 				ReadOnly:    method == "GET" || method == "HEAD",
-				Fingerprint: fingerprintOperation(method, path, raw, item["parameters"]),
 			}
-			operationParams, err := resolveRawParameters(ro.Parameters, OperationKey(method, path), doc.Components.Parameters)
+			operationParams, err := resolveRawParameters(ro.Parameters, op.Key, rawDoc.Components.Parameters)
 			if err != nil {
 				return nil, err
 			}
-			for _, p := range append(pathParams, operationParams...) {
-				param := Parameter{Name: p.Name, In: p.In, Required: p.Required, Description: p.Description, SchemaType: p.Schema.Type, Style: p.Style, Explode: p.Explode}
+			parameters := mergeRawParameters(pathParams, operationParams)
+			for _, p := range parameters {
+				explode := p.Explode != nil && *p.Explode
+				param := Parameter{
+					Name:        p.Name,
+					In:          p.In,
+					Required:    p.Required,
+					Description: p.Description,
+					SchemaType:  rawSchemaType(p.Schema),
+					Style:       p.Style,
+					Explode:     explode,
+				}
 				switch p.In {
 				case "path":
 					op.PathParameters = append(op.PathParameters, param)
@@ -177,7 +216,6 @@ func ParseSpec(data []byte) ([]Operation, error) {
 				case "header":
 					op.HeaderParameters = append(op.HeaderParameters, param)
 				default:
-					// Preserve unsupported parameter locations through support classification.
 					op.QueryParameters = append(op.QueryParameters, param)
 				}
 			}
@@ -189,11 +227,41 @@ func ParseSpec(data []byte) ([]Operation, error) {
 				}
 				sort.Strings(op.RequestBodyMediaTypes)
 			}
-			ops = append(ops, op)
+			doc.operations = append(doc.operations, op)
+			doc.rawOperations[op.Key] = parsedOperation{
+				operation:  ro,
+				parameters: parameters,
+			}
 		}
 	}
-	SortOperations(ops)
-	return ops, nil
+	SortOperations(doc.operations)
+	return doc, nil
+}
+
+func rawSchemaType(raw json.RawMessage) string {
+	var schema struct {
+		Type json.RawMessage `json:"type"`
+	}
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		return ""
+	}
+	var single string
+	if err := json.Unmarshal(schema.Type, &single); err == nil {
+		return single
+	}
+	var multiple []string
+	if err := json.Unmarshal(schema.Type, &multiple); err != nil {
+		return ""
+	}
+	for _, schemaType := range multiple {
+		if schemaType != "null" {
+			if single != "" {
+				return ""
+			}
+			single = schemaType
+		}
+	}
+	return single
 }
 
 func parseRawParameters(raw json.RawMessage, context string, components map[string]rawParameter) ([]rawParameter, error) {
@@ -227,6 +295,24 @@ func resolveRawParameters(params []rawParameter, context string, components map[
 	return resolved, nil
 }
 
+func mergeRawParameters(pathParameters, operationParameters []rawParameter) []rawParameter {
+	merged := append([]rawParameter(nil), pathParameters...)
+	indexes := make(map[string]int, len(merged))
+	for i, parameter := range merged {
+		indexes[parameter.In+"\x00"+parameter.Name] = i
+	}
+	for _, parameter := range operationParameters {
+		key := parameter.In + "\x00" + parameter.Name
+		if index, ok := indexes[key]; ok {
+			merged[index] = parameter
+			continue
+		}
+		indexes[key] = len(merged)
+		merged = append(merged, parameter)
+	}
+	return merged
+}
+
 func OperationKey(method, path string) string {
 	return strings.ToUpper(method) + " " + path
 }
@@ -241,27 +327,6 @@ func SortOperations(ops []Operation) {
 		}
 		return ops[i].OperationID < ops[j].OperationID
 	})
-}
-
-func fingerprintOperation(method, path string, raw, pathParameters json.RawMessage) string {
-	var v any
-	if err := json.Unmarshal(raw, &v); err != nil {
-		v = string(raw)
-	}
-	var params any
-	if len(pathParameters) > 0 {
-		if err := json.Unmarshal(pathParameters, &params); err != nil {
-			params = string(pathParameters)
-		}
-	}
-	canonical, _ := json.Marshal(map[string]any{
-		"method":          strings.ToUpper(method),
-		"path":            path,
-		"path_parameters": params,
-		"op":              v,
-	})
-	sum := sha256.Sum256(canonical)
-	return hex.EncodeToString(sum[:])
 }
 
 func deriveEndpoint(operationID string, tags []string) string {

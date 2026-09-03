@@ -3,9 +3,12 @@
 package cli
 
 import (
+	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/straddle-build/straddle-cli/internal/surface"
 )
 
 type generatedEndpointRegistration struct {
@@ -13,13 +16,31 @@ type generatedEndpointRegistration struct {
 	newCommand func(*rootFlags) *cobra.Command
 }
 
-var generatedEndpointRegistrations []generatedEndpointRegistration
+var (
+	generatedEndpointRegistrations []generatedEndpointRegistration
+	commandSurfaces                []surface.Surface
+)
 
 func registerGeneratedEndpoint(endpoint string, newCommand func(*rootFlags) *cobra.Command) {
 	generatedEndpointRegistrations = append(generatedEndpointRegistrations, generatedEndpointRegistration{
 		endpoint:   endpoint,
 		newCommand: newCommand,
 	})
+}
+
+func registerSurface(s surface.Surface) {
+	commandSurfaces = append(commandSurfaces, s)
+}
+
+func registeredSurfaces() []surface.Surface {
+	surfaces := append([]surface.Surface(nil), commandSurfaces...)
+	sort.SliceStable(surfaces, func(i, j int) bool {
+		if surfaces[i].Path == surfaces[j].Path {
+			return surfaces[i].Method < surfaces[j].Method
+		}
+		return surfaces[i].Path < surfaces[j].Path
+	})
+	return surfaces
 }
 
 func installGeneratedEndpoints(root *cobra.Command, flags *rootFlags) {
@@ -32,8 +53,23 @@ func installGeneratedEndpoint(root *cobra.Command, flags *rootFlags, registratio
 	if root == nil || registration.newCommand == nil {
 		return
 	}
-	segments := endpointSegments(registration.endpoint)
 	cmd := registration.newCommand(flags)
+	if use, ok := endpointUses[registration.endpoint]; ok {
+		cmd.Use = use
+	}
+	if parentPath, ok := endpointParents[registration.endpoint]; ok {
+		parent := root
+		for _, segment := range strings.Fields(parentPath) {
+			parent = findChildCommand(parent, segment)
+			if parent == nil {
+				panic(fmt.Sprintf("generated endpoint %q has missing parent command %q", registration.endpoint, parentPath))
+			}
+		}
+		parent.AddCommand(cmd)
+		return
+	}
+
+	segments := endpointSegments(registration.endpoint)
 	if len(segments) == 0 {
 		root.AddCommand(cmd)
 		return

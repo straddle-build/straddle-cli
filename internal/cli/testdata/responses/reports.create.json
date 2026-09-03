@@ -1,0 +1,17 @@
+{
+  "data": [
+    {
+      "status": "verified",
+      "total": 2
+    },
+    {
+      "status": "review",
+      "total": 1
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "page_size": 2,
+    "total_count": 2
+  }
+}

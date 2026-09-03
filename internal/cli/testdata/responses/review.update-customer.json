@@ -1,0 +1,14 @@
+{
+  "data": {
+    "external_id": "550e8400-e29b-41d4-a716-446655440000",
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "Ron Swanson",
+    "status": "pending",
+    "type": "individual"
+  },
+  "meta": {
+    "api_request_id": "550e8400-e29b-41d4-a716-446655440000",
+    "api_request_timestamp": "2026-01-15T12:00:00Z"
+  },
+  "response_type": "object"
+}

@@ -13,6 +13,5 @@ func newPaykeysUnmaskedCmd(flags *rootFlags) *cobra.Command {
 		RunE:  parentNoSubcommandRunE(flags),
 	}
 
-	cmd.AddCommand(newPaykeysUnmaskedGetPaykeyCmd(flags))
 	return cmd
 }

@@ -6,10 +6,11 @@
 // shared client applies cfg.Headers to every request, so injecting the
 // header through newClient reaches every endpoint command without editing each
 // per-command file. resolveStraddleAccount runs in the root PersistentPreRunE:
-// it decides, from the command's straddle:path/straddle:method annotations and
-// the configured integration type, whether the header is required, forbidden, or
-// optional, then resolves the value from --account (per-call override) or the
-// sticky current account. See https://docs.straddle.com/guides/embed/api-headers
+// it finds the command's registered contract surface, applies integration-type
+// policy to that surface's account-header capability, then resolves the value
+// from --account or the sticky current account. Commands without a registered
+// surface retain the resource-level fallback used by internal and raw API
+// commands. See https://docs.straddle.com/guides/embed/api-headers
 // and internal/straddleacct.
 package cli
 
@@ -36,11 +37,12 @@ func resolveStraddleAccount(cmd *cobra.Command, f *rootFlags, args []string) err
 	if err != nil {
 		return err
 	}
-	path, method := straddleAccountPolicyTarget(cmd, args)
+	path, method, acceptsHeader := straddleAccountPolicyTarget(cmd, args)
 	decision := straddleacct.Classify(
 		path,
 		method,
 		ctx.IntegrationType,
+		acceptsHeader,
 	)
 	value, _, rerr := straddleacct.Resolve(
 		decision,
@@ -55,20 +57,26 @@ func resolveStraddleAccount(cmd *cobra.Command, f *rootFlags, args []string) err
 	return nil
 }
 
-func straddleAccountPolicyTarget(cmd *cobra.Command, args []string) (string, string) {
+func straddleAccountPolicyTarget(cmd *cobra.Command, args []string) (string, string, bool) {
 	path := cmd.Annotations["straddle:path"]
 	method := cmd.Annotations["straddle:method"]
 	if path != "" || method != "" {
-		return path, method
+		for _, registered := range registeredSurfaces() {
+			if registered.Path == path && registered.Method == method {
+				return path, method, registered.AcceptsAccountHeader
+			}
+		}
+		return path, method, straddleacct.FallbackAcceptsHeader(path)
 	}
 	if cmd.Name() != "api" || len(args) != 2 {
-		return path, method
+		return path, method, false
 	}
 	rawMethod, ok := normalizeRawAPIMethod(args[0])
 	if !ok || !strings.HasPrefix(args[1], "/") {
-		return path, method
+		return path, method, false
 	}
-	return rawAPIPathForPolicy(args[1]), rawMethod
+	path = rawAPIPathForPolicy(args[1])
+	return path, rawMethod, straddleacct.FallbackAcceptsHeader(path)
 }
 
 func rawAPIPathForPolicy(path string) string {

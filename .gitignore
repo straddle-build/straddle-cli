@@ -1,6 +1,7 @@
 # Build outputs (`make build` -> bin/straddle; stray root builds)
 /straddle
 /bin/
+/gen-endpoint
 
 # Build / release artifacts
 /build/

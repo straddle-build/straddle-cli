@@ -2,17 +2,12 @@
 
 package cli
 
-import (
-	"github.com/spf13/cobra"
-)
+import "github.com/spf13/cobra"
 
 func newPaykeysRevealCmd(flags *rootFlags) *cobra.Command {
-	cmd := &cobra.Command{
+	return &cobra.Command{
 		Use:   "reveal",
 		Short: "Manage reveal",
 		RunE:  parentNoSubcommandRunE(flags),
 	}
-
-	cmd.AddCommand(newPaykeysRevealGetCmd(flags))
-	return cmd
 }

@@ -21,8 +21,8 @@ func TestPrintGeneratedMutationOutputSurfacesVerifyNoop(t *testing.T) {
 	}
 
 	env := decodeGeneratedMutationEnvelope(t, stdout.String())
-	if env["action"] != "create" {
-		t.Fatalf("action = %v, want create", env["action"])
+	if env["action"] != "post" {
+		t.Fatalf("action = %v, want post", env["action"])
 	}
 	if env["resource"] != "widgets" {
 		t.Fatalf("resource = %v, want widgets", env["resource"])

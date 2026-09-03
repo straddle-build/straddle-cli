@@ -13,6 +13,5 @@ func newAccountsSimulateCmd(flags *rootFlags) *cobra.Command {
 		RunE:  parentNoSubcommandRunE(flags),
 	}
 
-	cmd.AddCommand(newAccountsSimulateCreateCmd(flags))
 	return cmd
 }

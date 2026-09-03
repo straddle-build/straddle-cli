@@ -3,140 +3,319 @@
 package cli
 
 import (
-	"encoding/json"
-	"fmt"
-	"os"
-
 	"github.com/spf13/cobra"
+	"github.com/straddle-build/straddle-cli/internal/surface"
 )
 
+func init() {
+	registerGeneratedEndpoint("paykeys.list", newPaykeysListCmd)
+	registerSurface(surface.Surface{
+		Endpoint:    "paykeys.list",
+		OperationID: "listPaykeys",
+		Method:      "GET",
+		Path:        "/v1/paykeys",
+		PathParams:  []string{},
+		Flags: []surface.Flag{
+			{
+				Name:        "created-from",
+				In:          surface.InQuery,
+				Key:         "created_from",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Start date for filtering by creation date.",
+				Format:      "date-time",
+			},
+			{
+				Name:        "created-to",
+				In:          surface.InQuery,
+				Key:         "created_to",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "End date for filtering by creation date.",
+				Format:      "date-time",
+			},
+			{
+				Name:        "customer-id",
+				In:          surface.InQuery,
+				Key:         "customer_id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Filter paykeys by related customer ID.",
+				Format:      "uuid",
+			},
+			{
+				Name:        "page-number",
+				In:          surface.InQuery,
+				Key:         "page_number",
+				Kind:        surface.KindInteger,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Page number for paginated results.",
+				Format:      "int32",
+				Default:     "1",
+			},
+			{
+				Name:        "page-size",
+				In:          surface.InQuery,
+				Key:         "page_size",
+				Kind:        surface.KindInteger,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Number of results per page.",
+				Format:      "int32",
+				Default:     "100",
+			},
+			{
+				Name:        "search-text",
+				In:          surface.InQuery,
+				Key:         "search_text",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "General search term to filter paykeys.",
+			},
+			{
+				Name:        "sort-by",
+				In:          surface.InQuery,
+				Key:         "sort_by",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Enum:        []string{"institution_name", "expires_at", "created_at"},
+				Description: "Field used to sort the results.",
+			},
+			{
+				Name:        "sort-order",
+				In:          surface.InQuery,
+				Key:         "sort_order",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Enum:        []string{"asc", "desc"},
+				Description: "Order in which to sort the results.",
+				Default:     "asc",
+			},
+			{
+				Name:        "source",
+				In:          surface.InQuery,
+				Key:         "source",
+				Kind:        surface.KindString,
+				Array:       true,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Enum:        []string{"bank_account", "straddle", "mx", "plaid", "tan", "quiltt"},
+				Description: "Filter paykeys by their source.",
+			},
+			{
+				Name:        "status",
+				In:          surface.InQuery,
+				Key:         "status",
+				Kind:        surface.KindString,
+				Array:       true,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Enum:        []string{"pending", "active", "inactive", "rejected", "review", "blocked"},
+				Description: "Filter paykeys by their current status.",
+			},
+			{
+				Name:        "unblock-eligible",
+				In:          surface.InQuery,
+				Key:         "unblock_eligible",
+				Kind:        surface.KindBoolean,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Filters paykeys by unblock eligibility.",
+			},
+			{
+				Name:        "correlation-id",
+				In:          surface.InHeader,
+				Key:         "Correlation-Id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleSimple,
+				Description: "Optional client-generated identifier for tracing a series of related requests.",
+			},
+			{
+				Name:        "request-id",
+				In:          surface.InHeader,
+				Key:         "Request-Id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleSimple,
+				Description: "Optional client-generated identifier for tracing one request.",
+			},
+		},
+		HasBody:              false,
+		BodyRequired:         false,
+		AcceptsAccountHeader: true,
+		ReadOnly:             true,
+	})
+}
+
 func newPaykeysListCmd(flags *rootFlags) *cobra.Command {
-	var flagCustomerId string
-	var flagPageNumber int
-	var flagPageSize int
-	var flagStatus string
-	var flagSortBy string
-	var flagSortOrder string
-	var flagSource string
-	var flagUnblockEligible bool
-	var flagSearchText string
-	var flagCreatedFrom string
-	var flagCreatedTo string
-	var flagAll bool
-
+	s := surface.Surface{
+		Endpoint:    "paykeys.list",
+		OperationID: "listPaykeys",
+		Method:      "GET",
+		Path:        "/v1/paykeys",
+		PathParams:  []string{},
+		Flags: []surface.Flag{
+			{
+				Name:        "created-from",
+				In:          surface.InQuery,
+				Key:         "created_from",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Start date for filtering by creation date.",
+				Format:      "date-time",
+			},
+			{
+				Name:        "created-to",
+				In:          surface.InQuery,
+				Key:         "created_to",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "End date for filtering by creation date.",
+				Format:      "date-time",
+			},
+			{
+				Name:        "customer-id",
+				In:          surface.InQuery,
+				Key:         "customer_id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Filter paykeys by related customer ID.",
+				Format:      "uuid",
+			},
+			{
+				Name:        "page-number",
+				In:          surface.InQuery,
+				Key:         "page_number",
+				Kind:        surface.KindInteger,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Page number for paginated results.",
+				Format:      "int32",
+				Default:     "1",
+			},
+			{
+				Name:        "page-size",
+				In:          surface.InQuery,
+				Key:         "page_size",
+				Kind:        surface.KindInteger,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Number of results per page.",
+				Format:      "int32",
+				Default:     "100",
+			},
+			{
+				Name:        "search-text",
+				In:          surface.InQuery,
+				Key:         "search_text",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "General search term to filter paykeys.",
+			},
+			{
+				Name:        "sort-by",
+				In:          surface.InQuery,
+				Key:         "sort_by",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Enum:        []string{"institution_name", "expires_at", "created_at"},
+				Description: "Field used to sort the results.",
+			},
+			{
+				Name:        "sort-order",
+				In:          surface.InQuery,
+				Key:         "sort_order",
+				Kind:        surface.KindString,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Enum:        []string{"asc", "desc"},
+				Description: "Order in which to sort the results.",
+				Default:     "asc",
+			},
+			{
+				Name:        "source",
+				In:          surface.InQuery,
+				Key:         "source",
+				Kind:        surface.KindString,
+				Array:       true,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Enum:        []string{"bank_account", "straddle", "mx", "plaid", "tan", "quiltt"},
+				Description: "Filter paykeys by their source.",
+			},
+			{
+				Name:        "status",
+				In:          surface.InQuery,
+				Key:         "status",
+				Kind:        surface.KindString,
+				Array:       true,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Enum:        []string{"pending", "active", "inactive", "rejected", "review", "blocked"},
+				Description: "Filter paykeys by their current status.",
+			},
+			{
+				Name:        "unblock-eligible",
+				In:          surface.InQuery,
+				Key:         "unblock_eligible",
+				Kind:        surface.KindBoolean,
+				Style:       surface.StyleForm,
+				Explode:     true,
+				Description: "Filters paykeys by unblock eligibility.",
+			},
+			{
+				Name:        "correlation-id",
+				In:          surface.InHeader,
+				Key:         "Correlation-Id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleSimple,
+				Description: "Optional client-generated identifier for tracing a series of related requests.",
+			},
+			{
+				Name:        "request-id",
+				In:          surface.InHeader,
+				Key:         "Request-Id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleSimple,
+				Description: "Optional client-generated identifier for tracing one request.",
+			},
+		},
+		HasBody:              false,
+		BodyRequired:         false,
+		AcceptsAccountHeader: true,
+		ReadOnly:             true,
+	}
 	cmd := &cobra.Command{
-		Use:         "list",
-		Short:       "Returns a list of paykeys associated with a Straddle account. This endpoint supports advanced sorting and filtering...",
-		Example:     "  straddle paykeys list",
-		Annotations: map[string]string{"straddle:endpoint": "paykeys.list", "straddle:operation-id": "listPaykeys", "straddle:method": "GET", "straddle:path": "/v1/paykeys", "mcp:read-only": "true"},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if cmd.Flags().Changed("sort-by") {
-				allowedSortBy := []string{"institution_name", "expires_at", "created_at"}
-				validSortBy := false
-				for _, v := range allowedSortBy {
-					if flagSortBy == v {
-						validSortBy = true
-						break
-					}
-				}
-				if !validSortBy {
-					fmt.Fprintf(os.Stderr, "warning: --%s %q not in allowed set %v\n", "sort-by", flagSortBy, allowedSortBy)
-				}
-			}
-			if cmd.Flags().Changed("sort-order") {
-				allowedSortOrder := []string{"asc", "desc"}
-				validSortOrder := false
-				for _, v := range allowedSortOrder {
-					if flagSortOrder == v {
-						validSortOrder = true
-						break
-					}
-				}
-				if !validSortOrder {
-					fmt.Fprintf(os.Stderr, "warning: --%s %q not in allowed set %v\n", "sort-order", flagSortOrder, allowedSortOrder)
-				}
-			}
-			c, err := flags.newClient()
-			if err != nil {
-				return err
-			}
-
-			path := "/v1/paykeys"
-			data, prov, err := resolvePaginatedRead(cmd.Context(), c, flags, "paykeys", path, map[string]string{
-				"customer_id":      fmt.Sprintf("%v", flagCustomerId),
-				"page_number":      fmt.Sprintf("%v", flagPageNumber),
-				"page_size":        fmt.Sprintf("%v", flagPageSize),
-				"status":           fmt.Sprintf("%v", flagStatus),
-				"sort_by":          fmt.Sprintf("%v", flagSortBy),
-				"sort_order":       fmt.Sprintf("%v", flagSortOrder),
-				"source":           fmt.Sprintf("%v", flagSource),
-				"unblock_eligible": fmt.Sprintf("%v", flagUnblockEligible),
-				"search_text":      fmt.Sprintf("%v", flagSearchText),
-				"created_from":     fmt.Sprintf("%v", flagCreatedFrom),
-				"created_to":       fmt.Sprintf("%v", flagCreatedTo),
-			}, nil, flagAll, "page_number", "", "")
-			if err != nil {
-				return classifyAPIError(err, flags)
-			}
-			// Print provenance to stderr for human-facing output only.
-			// Machine-format flags (--json, --csv, --compact, --quiet, --plain,
-			// --select) and piped stdout suppress this line; the JSON envelope
-			// already carries meta.source for those consumers.
-			// SYNC: keep this gate aligned with command_promoted.go.tmpl.
-			if wantsHumanTable(cmd.OutOrStdout(), flags) {
-				var countItems []json.RawMessage
-				if json.Unmarshal(data, &countItems) != nil {
-					// Single object, not an array
-					countItems = []json.RawMessage{data}
-				}
-				printProvenance(cmd, len(countItems), prov)
-			}
-			// For JSON output, wrap with provenance envelope before passing through flags.
-			// --select wins over --compact when both are set; --compact only runs when
-			// no explicit fields were requested. Explicit format flags (--csv, --quiet,
-			// --plain) opt out of the auto-JSON path so piped consumers that asked for
-			// a non-JSON format reach the standard pipeline below.
-			if flags.asJSON || (!isTerminal(cmd.OutOrStdout()) && !flags.csv && !flags.quiet && !flags.plain) {
-				filtered := data
-				if flags.selectFields != "" {
-					filtered = filterFields(filtered, flags.selectFields)
-				} else if flags.compact {
-					filtered = compactFields(filtered)
-				}
-				wrapped, wrapErr := wrapWithProvenance(filtered, prov)
-				if wrapErr != nil {
-					return wrapErr
-				}
-				return printOutput(cmd.OutOrStdout(), wrapped, true)
-			}
-			// For all other output modes (table, csv, plain, quiet), use the standard pipeline
-			if wantsHumanTable(cmd.OutOrStdout(), flags) {
-				var items []map[string]any
-				if json.Unmarshal(data, &items) == nil && len(items) > 0 {
-					if err := printAutoTable(cmd.OutOrStdout(), items); err != nil {
-						return err
-					}
-					if len(items) >= 25 {
-						fmt.Fprintf(os.Stderr, "\nShowing %d results. To narrow: add --limit, --json --select, or filter flags.\n", len(items))
-					}
-					return nil
-				}
-			}
-			return printOutputWithFlags(cmd.OutOrStdout(), data, flags)
+		Use:     "list",
+		Short:   "List paykeys",
+		Example: "  straddle paykeys list",
+		Annotations: map[string]string{
+			"straddle:endpoint":     "paykeys.list",
+			"straddle:operation-id": "listPaykeys",
+			"straddle:method":       "GET",
+			"straddle:path":         "/v1/paykeys",
+			"mcp:read-only":         "true",
 		},
 	}
-	cmd.Flags().StringVar(&flagCustomerId, "customer-id", "", "Filter paykeys by related customer ID.")
-	cmd.Flags().IntVar(&flagPageNumber, "page-number", 1, "Page number for paginated results. Starts at 1.")
-	cmd.Flags().IntVar(&flagPageSize, "page-size", 100, "Number of results per page. Maximum: 1000.")
-	cmd.Flags().StringVar(&flagStatus, "status", "", "Filter paykeys by their current status.")
-	cmd.Flags().StringVar(&flagSortBy, "sort-by", "", "Sort by (one of: institution_name, expires_at, created_at)")
-	cmd.Flags().StringVar(&flagSortOrder, "sort-order", "asc", "Sort order (one of: asc, desc)")
-	cmd.Flags().StringVar(&flagSource, "source", "", "Filter paykeys by their source.")
-	cmd.Flags().BoolVar(&flagUnblockEligible, "unblock-eligible", false, "Filter paykeys by unblock eligibility. When true, returns only blocked paykeys eligible for client-initiated...")
-	cmd.Flags().StringVar(&flagSearchText, "search-text", "", "General search term to filter paykeys.")
-	cmd.Flags().StringVar(&flagCreatedFrom, "created-from", "", "Start date for filtering by creation date.")
-	cmd.Flags().StringVar(&flagCreatedTo, "created-to", "", "End date for filtering by creation date.")
-	cmd.Flags().BoolVar(&flagAll, "all", false, "Fetch all pages")
-
+	bind := bindSurface(cmd, flags, s)
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		req, err := bind(args)
+		if err != nil {
+			return err
+		}
+		return executeSurface(cmd, flags, s, req)
+	}
+	applyOverlay("paykeys.list", cmd)
 	return cmd
 }

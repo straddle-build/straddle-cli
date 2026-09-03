@@ -131,7 +131,7 @@ jobs:
         if: steps.contract.outputs.status == 'current'
         run: echo "${{ steps.release.outputs.registry_ref }} is already synchronized or pending review with identical bytes." >> "${GITHUB_STEP_SUMMARY}"
 
-      - name: Classify contract changes for review
+      - name: Classify field-level contract changes
         if: steps.contract.outputs.status == 'new'
         id: drift
         shell: bash
@@ -140,22 +140,20 @@ jobs:
         run: |
           set -euo pipefail
 
-          drift_json="${RUNNER_TEMP}/api-drift.json"
+          drift_json="${RUNNER_TEMP}/drift.json"
           go run ./cmd/gen-endpoint drift --base spec.yaml --head "${PUBLISHED}" --repo . --agent > "${drift_json}"
           jq -e 'type == "object"' "${drift_json}" >/dev/null
 
           echo "drift_json=${drift_json}" >> "${GITHUB_OUTPUT}"
-          echo "supported_additions=$(jq '(.supported_additions // []) | length' "${drift_json}")" >> "${GITHUB_OUTPUT}"
-          echo "changes=$(jq '(.changes // []) | length' "${drift_json}")" >> "${GITHUB_OUTPUT}"
-          echo "removals=$(jq '(.removals // []) | length' "${drift_json}")" >> "${GITHUB_OUTPUT}"
-          echo "unsupported_operations=$(jq '(.unsupported_operations // []) | length' "${drift_json}")" >> "${GITHUB_OUTPUT}"
-
-      - name: Generate supported endpoint additions
-        if: steps.contract.outputs.status == 'new' && steps.drift.outputs.supported_additions != '0'
-        env:
-          PUBLISHED: ${{ steps.contract.outputs.published }}
-          DRIFT_JSON: ${{ steps.drift.outputs.drift_json }}
-        run: go run ./cmd/gen-endpoint generate --spec "${PUBLISHED}" --repo . --drift "${DRIFT_JSON}" --supported-additions --agent
+          {
+            echo "field_changes<<EOF"
+            jq -r '[
+              .changes[] as $change
+              | $change.fields[]
+              | "- \($change.head.method) \($change.head.path): \(.flag) (\(.kind)) \(.detail)"
+            ] | .[:50][]' "${drift_json}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
 
       - name: Update pinned contract
         if: steps.contract.outputs.status == 'new'
@@ -173,15 +171,34 @@ jobs:
             '{schema_version:1,contract_version:$version,registry_ref:("@straddle/straddle-api@" + $version),published_sha256:$digest}' \
             > contract.lock.json
 
-      - name: Verify synchronized CLI
+      - name: Regenerate endpoint commands
         if: steps.contract.outputs.status == 'new'
-        env:
-          COVERAGE_JSON: ${{ runner.temp }}/api-sync-coverage.json
+        id: generate
+        shell: bash
         run: |
           set -euo pipefail
 
-          go run ./cmd/gen-endpoint verify-lock --lock contract.lock.json --spec spec.yaml
-          go run ./cmd/gen-endpoint check --spec spec.yaml --repo . --review-drift --agent > "${COVERAGE_JSON}"
+          generate_json="${RUNNER_TEMP}/generate.json"
+          go run ./cmd/gen-endpoint generate --spec spec.yaml --repo . --agent > "${generate_json}"
+          jq -e 'type == "object"' "${generate_json}" >/dev/null
+
+          echo "generate_json=${generate_json}" >> "${GITHUB_OUTPUT}"
+          echo "generated=$(jq '.generated | length' "${generate_json}")" >> "${GITHUB_OUTPUT}"
+          echo "deleted=$(jq '.deleted | length' "${generate_json}")" >> "${GITHUB_OUTPUT}"
+          echo "unchanged=$(jq '.unchanged | length' "${generate_json}")" >> "${GITHUB_OUTPUT}"
+          echo "unsupported=$(jq '.unsupported | length' "${generate_json}")" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify synchronized CLI
+        if: steps.contract.outputs.status == 'new'
+        run: |
+          set -euo pipefail
+
+          go run ./cmd/gen-endpoint check --spec spec.yaml --repo . --agent
+          unformatted="$(gofmt -l internal/cli)"
+          if [ -n "${unformatted}" ]; then
+            printf 'Generated endpoint files are not formatted:\n%s\n' "${unformatted}" >&2
+            exit 1
+          fi
           STRADDLE_API_SYNC_REVIEW=true go test ./...
           go vet ./...
 
@@ -213,15 +230,19 @@ jobs:
           commit-message: "chore: sync API contract ${{ steps.release.outputs.version }}"
           title: "chore: sync API contract ${{ steps.release.outputs.version }}"
           body: |
-            Synchronizes the CLI with `${{ steps.release.outputs.registry_ref }}`.
-
             Review summary:
-            - Supported additions generated: ${{ steps.drift.outputs.supported_additions }}
-            - Existing operations changed: ${{ steps.drift.outputs.changes }}
-            - Operations removed: ${{ steps.drift.outputs.removals }}
-            - Unsupported new operations: ${{ steps.drift.outputs.unsupported_operations }}
+            - Contract: `${{ steps.release.outputs.registry_ref }}`
+            - Generated: ${{ steps.generate.outputs.generated }}
+            - Deleted: ${{ steps.generate.outputs.deleted }}
+            - Unchanged: ${{ steps.generate.outputs.unchanged }}
+            - Unsupported: ${{ steps.generate.outputs.unsupported }}
 
-            This pull request requires normal human review. Merging it triggers the next CLI patch release.
+            Field-level changes (first 50):
+            ${{ steps.drift.outputs.field_changes }}
+
+            Full drift details are in the [`api-sync-${{ github.run_id }}` artifact](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+
+            This pull request requires normal human review. Merging it creates a patch release only when the merge changes a file other than `spec.yaml` and `contract.lock.json`.
 
       - name: Report dry-run result
         if: steps.contract.outputs.status == 'new' && env.DRY_RUN == 'true'
@@ -235,8 +256,8 @@ jobs:
           if-no-files-found: ignore
           path: |
             ${{ runner.temp }}/published.openapi.yaml
-            ${{ runner.temp }}/api-drift.json
-            ${{ runner.temp }}/api-sync-coverage.json
+            ${{ runner.temp }}/drift.json
+            ${{ runner.temp }}/generate.json
             ${{ runner.temp }}/api-sync.patch
 
       - name: Summarize synchronization
@@ -246,7 +267,7 @@ jobs:
           echo >> "${GITHUB_STEP_SUMMARY}"
           echo "- Contract: ${{ steps.release.outputs.registry_ref || 'unresolved' }}" >> "${GITHUB_STEP_SUMMARY}"
           echo "- Status: ${{ steps.contract.outputs.status || 'failed' }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "- Supported additions: ${{ steps.drift.outputs.supported_additions || 'n/a' }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "- Changed operations: ${{ steps.drift.outputs.changes || 'n/a' }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "- Removed operations: ${{ steps.drift.outputs.removals || 'n/a' }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "- Unsupported additions: ${{ steps.drift.outputs.unsupported_operations || 'n/a' }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Generated: ${{ steps.generate.outputs.generated || 'n/a' }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Deleted: ${{ steps.generate.outputs.deleted || 'n/a' }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Unchanged: ${{ steps.generate.outputs.unchanged || 'n/a' }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Unsupported: ${{ steps.generate.outputs.unsupported || 'n/a' }}" >> "${GITHUB_STEP_SUMMARY}"

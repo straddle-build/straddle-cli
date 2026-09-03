@@ -3,202 +3,152 @@
 package cli
 
 import (
-	"encoding/json"
-	"fmt"
-	"io"
-	"os"
-
 	"github.com/spf13/cobra"
+	"github.com/straddle-build/straddle-cli/internal/surface"
 )
 
+func init() {
+	registerGeneratedEndpoint("organizations.create", newOrganizationsCreateCmd)
+	registerSurface(surface.Surface{
+		Endpoint:    "organizations.create",
+		OperationID: "createOrganization",
+		Method:      "POST",
+		Path:        "/v1/organizations",
+		PathParams:  []string{},
+		Flags: []surface.Flag{
+			{
+				Name:        "correlation-id",
+				In:          surface.InHeader,
+				Key:         "Correlation-Id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleSimple,
+				Description: "Optional client-generated identifier for tracing a series of related requests.",
+			},
+			{
+				Name:        "idempotency-key",
+				In:          surface.InHeader,
+				Key:         "Idempotency-Key",
+				Kind:        surface.KindString,
+				Style:       surface.StyleSimple,
+				Description: "Optional client-generated key for an idempotent request.",
+			},
+			{
+				Name:        "request-id",
+				In:          surface.InHeader,
+				Key:         "Request-Id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleSimple,
+				Description: "Optional client-generated identifier for tracing one request.",
+			},
+			{
+				Name:        "external-id",
+				In:          surface.InBody,
+				Key:         "/external_id",
+				Kind:        surface.KindString,
+				Description: "Your unique ID for the organization.",
+			},
+			{
+				Name:        "metadata",
+				In:          surface.InBody,
+				Key:         "/metadata",
+				Kind:        surface.KindJSON,
+				Description: "Up to 20 user-defined key-value pairs.",
+			},
+			{
+				Name:        "name",
+				In:          surface.InBody,
+				Key:         "/name",
+				Kind:        surface.KindString,
+				Required:    true,
+				Description: "Organization name.",
+			},
+		},
+		HasBody:              true,
+		BodyRequired:         true,
+		AcceptsAccountHeader: false,
+		ReadOnly:             false,
+	})
+}
+
 func newOrganizationsCreateCmd(flags *rootFlags) *cobra.Command {
-	var bodyExternalId string
-	var bodyMetadata string
-	var bodyName string
-	var stdinBody bool
-
+	s := surface.Surface{
+		Endpoint:    "organizations.create",
+		OperationID: "createOrganization",
+		Method:      "POST",
+		Path:        "/v1/organizations",
+		PathParams:  []string{},
+		Flags: []surface.Flag{
+			{
+				Name:        "correlation-id",
+				In:          surface.InHeader,
+				Key:         "Correlation-Id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleSimple,
+				Description: "Optional client-generated identifier for tracing a series of related requests.",
+			},
+			{
+				Name:        "idempotency-key",
+				In:          surface.InHeader,
+				Key:         "Idempotency-Key",
+				Kind:        surface.KindString,
+				Style:       surface.StyleSimple,
+				Description: "Optional client-generated key for an idempotent request.",
+			},
+			{
+				Name:        "request-id",
+				In:          surface.InHeader,
+				Key:         "Request-Id",
+				Kind:        surface.KindString,
+				Style:       surface.StyleSimple,
+				Description: "Optional client-generated identifier for tracing one request.",
+			},
+			{
+				Name:        "external-id",
+				In:          surface.InBody,
+				Key:         "/external_id",
+				Kind:        surface.KindString,
+				Description: "Your unique ID for the organization.",
+			},
+			{
+				Name:        "metadata",
+				In:          surface.InBody,
+				Key:         "/metadata",
+				Kind:        surface.KindJSON,
+				Description: "Up to 20 user-defined key-value pairs.",
+			},
+			{
+				Name:        "name",
+				In:          surface.InBody,
+				Key:         "/name",
+				Kind:        surface.KindString,
+				Required:    true,
+				Description: "Organization name.",
+			},
+		},
+		HasBody:              true,
+		BodyRequired:         true,
+		AcceptsAccountHeader: false,
+		ReadOnly:             false,
+	}
 	cmd := &cobra.Command{
-		Use:         "create",
-		Short:       "Creates a new organization related to your Straddle integration. Organizations can be used to group related accounts...",
-		Example:     "  straddle organizations create --name example-resource",
-		Annotations: map[string]string{"straddle:endpoint": "organizations.create", "straddle:operation-id": "createOrganization", "straddle:method": "POST", "straddle:path": "/v1/organizations"},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if !stdinBody {
-				if !cmd.Flags().Changed("name") && !flags.dryRun {
-					return fmt.Errorf("required flag \"%s\" not set", "name")
-				}
-			}
-			c, err := flags.newClient()
-			if err != nil {
-				return err
-			}
-
-			path := "/v1/organizations"
-			params := map[string]string{}
-			var body map[string]any
-			if stdinBody {
-				stdinData, err := io.ReadAll(os.Stdin)
-				if err != nil {
-					return fmt.Errorf("reading stdin: %w", err)
-				}
-				var jsonBody map[string]any
-				if err := json.Unmarshal(stdinData, &jsonBody); err != nil {
-					return fmt.Errorf("parsing stdin JSON: %w", err)
-				}
-				body = jsonBody
-			} else {
-				body = map[string]any{}
-				if bodyExternalId != "" {
-					body["external_id"] = bodyExternalId
-				}
-				if bodyMetadata != "" {
-					var parsedMetadata any
-					if err := json.Unmarshal([]byte(bodyMetadata), &parsedMetadata); err != nil {
-						return fmt.Errorf("parsing --metadata JSON: %w", err)
-					}
-					body["metadata"] = parsedMetadata
-				}
-				if bodyName != "" {
-					body["name"] = bodyName
-				}
-			}
-			data, statusCode, err := c.PostWithParams(path, params, body)
-			if err != nil {
-				return classifyAPIError(err, flags)
-			}
-			// Inspect the mutate response body for a partial-failure-shaped
-			// field (e.g. Google Ads `partialFailureError`). Several Google
-			// APIs return 200 OK with a partial-failure field when some
-			// operations in the batch failed; ignoring it silently swallows
-			// real failures. Detection runs before output-mode selection so
-			// the exit code is consistent regardless of how stdout is
-			// rendered. --dry-run short-circuits because no real request
-			// was sent.
-			var partialFailure *partialFailureReport
-			if !flags.dryRun && statusCode >= 200 && statusCode < 300 {
-				partialFailure = detectPartialFailure(data)
-				if partialFailure != nil {
-					fmt.Fprintf(os.Stderr, "warning: partial failure detected in %s response: %s\n", "organizations", partialFailure.Message)
-					if len(partialFailure.ResourceNames) > 0 {
-						fmt.Fprintf(os.Stderr, "         succeeded: %d operation(s)\n", len(partialFailure.ResourceNames))
-					}
-				}
-			}
-			if wantsHumanTable(cmd.OutOrStdout(), flags) {
-				// Check if response contains an array (directly or wrapped in "data")
-				var items []map[string]any
-				if json.Unmarshal(data, &items) == nil && len(items) > 0 {
-					if err := printAutoTable(cmd.OutOrStdout(), items); err != nil {
-						fmt.Fprintf(os.Stderr, "warning: table rendering failed, falling back to JSON: %v\n", err)
-					} else {
-						if partialFailure != nil && !flags.allowPartialFailure {
-							return partialFailureErr(fmt.Errorf("partial failure in %s response: %s", "organizations", partialFailure.Message))
-						}
-						return nil
-					}
-				} else {
-					var wrapped struct {
-						Data []map[string]any `json:"data"`
-					}
-					if json.Unmarshal(data, &wrapped) == nil && len(wrapped.Data) > 0 {
-						if err := printAutoTable(cmd.OutOrStdout(), wrapped.Data); err != nil {
-							fmt.Fprintf(os.Stderr, "warning: table rendering failed, falling back to JSON: %v\n", err)
-						} else {
-							if partialFailure != nil && !flags.allowPartialFailure {
-								return partialFailureErr(fmt.Errorf("partial failure in %s response: %s", "organizations", partialFailure.Message))
-							}
-							return nil
-						}
-					}
-				}
-			}
-			if flags.asJSON || (!isTerminal(cmd.OutOrStdout()) && !flags.csv && !flags.quiet && !flags.plain) {
-				if flags.quiet {
-					if partialFailure != nil && !flags.allowPartialFailure {
-						return partialFailureErr(fmt.Errorf("partial failure in %s response: %s", "organizations", partialFailure.Message))
-					}
-					return nil
-				}
-				envelope := map[string]any{
-					"action":   "post",
-					"resource": "organizations",
-					"path":     path,
-					"status":   statusCode,
-					"success":  statusCode >= 200 && statusCode < 300 && (partialFailure == nil || flags.allowPartialFailure),
-				}
-				if partialFailure != nil {
-					envelope["partial_failure"] = partialFailure
-				}
-				if flags.dryRun {
-					envelope["dry_run"] = true
-					envelope["status"] = 0
-					envelope["success"] = false
-				}
-				// Verify-mode synthetic envelope detection runs against RAW data
-				// (before --compact/--select filtering) so the sentinel field is
-				// guaranteed to be visible even if the operator passes a filter
-				// flag that would otherwise strip it. Surfaces a top-level
-				// verify_noop signal + flips success to false. Mirrors the dry_run
-				// shape above.
-				if len(data) > 0 {
-					var rawParsed any
-					if err := json.Unmarshal(data, &rawParsed); err == nil {
-						if m, ok := rawParsed.(map[string]any); ok {
-							if v, ok := m["__straddle_verify_synthetic__"].(bool); ok && v {
-								envelope["verify_noop"] = true
-								envelope["success"] = false
-							}
-						}
-					}
-				}
-				// Apply --compact and --select to the API response before wrapping.
-				// --select wins when both are set: explicit field choice trumps the
-				// generic high-gravity allow-list. Otherwise --compact still applies
-				// when --agent is on but the user did not name fields.
-				filtered := data
-				if flags.selectFields != "" {
-					filtered = filterFields(filtered, flags.selectFields)
-				} else if flags.compact {
-					filtered = compactFields(filtered)
-				}
-				if len(filtered) > 0 {
-					var parsed any
-					if err := json.Unmarshal(filtered, &parsed); err == nil {
-						envelope["data"] = parsed
-					}
-				}
-				envelopeJSON, err := json.Marshal(envelope)
-				if err != nil {
-					return err
-				}
-				if perr := printOutput(cmd.OutOrStdout(), json.RawMessage(envelopeJSON), true); perr != nil {
-					return perr
-				}
-				if partialFailure != nil && !flags.allowPartialFailure {
-					return partialFailureErr(fmt.Errorf("partial failure in %s response: %s", "organizations", partialFailure.Message))
-				}
-				return nil
-			}
-			// Fall-through for mutate paths that did not hit the table or
-			// asJSON branches: --quiet, --csv, --plain, and default terminal
-			// raw output. printOutputWithFlags renders the body, then the
-			// typed partial-failure exit fires unless --allow-partial-failure
-			// downgrades it. Without this guard a partial failure would exit
-			// 0 for these output modes — the exact silent-swallow regression
-			// the surrounding patch is preventing for asJSON / piped output.
-			if perr := printOutputWithFlags(cmd.OutOrStdout(), data, flags); perr != nil {
-				return perr
-			}
-			if partialFailure != nil && !flags.allowPartialFailure {
-				return partialFailureErr(fmt.Errorf("partial failure in %s response: %s", "organizations", partialFailure.Message))
-			}
-			return nil
+		Use:     "create",
+		Short:   "Create an organization",
+		Example: "  straddle organizations create",
+		Annotations: map[string]string{
+			"straddle:endpoint":     "organizations.create",
+			"straddle:operation-id": "createOrganization",
+			"straddle:method":       "POST",
+			"straddle:path":         "/v1/organizations",
 		},
 	}
-	cmd.Flags().StringVar(&bodyExternalId, "external-id", "", "Unique identifier for the organization in your database, used for cross-referencing between Straddle and your systems.")
-	cmd.Flags().StringVar(&bodyMetadata, "metadata", "", "Up to 20 additional user-defined key-value pairs. Useful for storing additional information about the organization...")
-	cmd.Flags().StringVar(&bodyName, "name", "", "The name of the organization.")
-	cmd.Flags().BoolVar(&stdinBody, "stdin", false, "Read request body as JSON from stdin")
-
+	bind := bindSurface(cmd, flags, s)
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		req, err := bind(args)
+		if err != nil {
+			return err
+		}
+		return executeSurface(cmd, flags, s, req)
+	}
+	applyOverlay("organizations.create", cmd)
 	return cmd
 }

@@ -1,0 +1,52 @@
+Use charges to collect money from a customer for the sale of goods or services.
+
+Usage:
+  straddle charges create [flags]
+
+Examples:
+  straddle charges create --consent-type internet
+
+Flags:
+      --amount int                        The amount of the charge in cents.
+      --config-auto-hold                  Defines whether to automatically place this charge on hold after being created.
+      --config-auto-hold-message string   The reason the charge is being automatically held on creation.
+      --config-balance-check string       Defines whether to check the customer's balance before processing the charge. (default "enabled")
+      --config-sandbox-outcome string     Payment will simulate processing if not Standard.
+      --consent-type internet             The channel or mechanism through which the payment was authorized. Use internet for payments made online or...
+      --correlation-id string             Optional client-generated identifier for tracing a series of related requests.
+      --currency string                   The currency of the charge. Only USD is supported. (default "USD")
+      --description string                An arbitrary description for the charge.
+      --device-ip-address 0.0.0.0         The IP address of the device used when the customer authorized the charge or payout. Use 0.0.0.0 to represent an...
+      --external-id string                Unique identifier for the charge in your database. This value must be unique across all charges.
+  -h, --help                              help for create
+      --idempotency-key string            Optional client-generated key for an idempotent request.
+      --metadata string                   Up to 20 additional user-defined key-value pairs. Useful for storing additional information about the charge in a...
+      --paykey paykey                     Value of the paykey used for the charge.
+      --payment-date string               The desired date on which the payment should be occur. For charges, this means the date you want the customer to be...
+      --request-id string                 Optional client-generated identifier for tracing one request.
+      --stdin                             Read request body as JSON from stdin
+
+Global Flags:
+      --account string          Embedded account id sent as the Straddle-Account-Id header (Embed platform scoping)
+      --agent                   Set all agent-friendly defaults (--json --compact --no-input --no-color --yes)
+      --allow-partial-failure   Downgrade response-body partial-failure (e.g. partialFailureError) to a warning instead of a non-zero exit
+      --compact                 Return only key fields (id, name, status, timestamps) for minimal token usage
+      --config string           Config file path
+      --csv                     Output as CSV (table and array responses)
+      --data-source string      Data source for read commands: auto (live with local fallback), live (API only), local (synced data only) (default "auto")
+      --deliver string          Route output to a sink: stdout (default), file:<path>, webhook:<url>
+      --dry-run                 Show request without sending
+      --human-friendly          Enable colored output and rich formatting
+      --idempotent              Treat already-existing create results as a successful no-op
+      --ignore-missing          Treat missing delete targets as a successful no-op
+      --json                    Output as JSON
+      --no-cache                Bypass response cache
+      --no-color                Disable colored output
+      --no-input                Disable all interactive prompts (for CI/agents)
+      --plain                   Output as plain tab-separated text
+      --profile string          Apply values from a saved profile (see 'straddle profile list')
+      --quiet                   Bare output, one value per line
+      --rate-limit float        Max requests per second (0 to disable)
+      --select string           Comma-separated fields to include in output (e.g. --select id,name,status)
+      --timeout duration        Request timeout (default 30s)
+      --yes                     Skip confirmation prompts (for agents and scripts)

@@ -1,0 +1,113 @@
+=== success ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 234
+stdout:
+<<<
+{
+  "action": "post",
+  "data": {
+    "dry_run": true
+  },
+  "dry_run": true,
+  "path": "/v1/accounts/550e8400-e29b-41d4-a716-446655440000/capability_requests",
+  "resource": "capability-requests",
+  "status": 0,
+  "success": false
+}
+>>>
+stderr_bytes: 682
+stderr:
+<<<
+POST http://golden.test/v1/accounts/550e8400-e29b-41d4-a716-446655440000/capability_requests
+  Body:
+{
+    "businesses": {
+      "enable": true
+    },
+    "charges": {
+      "daily_amount": 10000,
+      "enable": true,
+      "max_amount": 5000,
+      "monthly_amount": 100000,
+      "monthly_count": 100
+    },
+    "individuals": {
+      "enable": true
+    },
+    "internet": {
+      "enable": true
+    },
+    "payouts": {
+      "daily_amount": 10000,
+      "enable": true,
+      "max_amount": 5000,
+      "monthly_amount": 100000,
+      "monthly_count": 100
+    },
+    "signed_agreement": {
+      "enable": true
+    }
+  }
+  Authorization: ****_key
+
+(dry run - no request sent)
+>>>
+
+=== http-422 ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 234
+stdout:
+<<<
+{
+  "action": "post",
+  "data": {
+    "dry_run": true
+  },
+  "dry_run": true,
+  "path": "/v1/accounts/550e8400-e29b-41d4-a716-446655440000/capability_requests",
+  "resource": "capability-requests",
+  "status": 0,
+  "success": false
+}
+>>>
+stderr_bytes: 682
+stderr:
+<<<
+POST http://golden.test/v1/accounts/550e8400-e29b-41d4-a716-446655440000/capability_requests
+  Body:
+{
+    "businesses": {
+      "enable": true
+    },
+    "charges": {
+      "daily_amount": 10000,
+      "enable": true,
+      "max_amount": 5000,
+      "monthly_amount": 100000,
+      "monthly_count": 100
+    },
+    "individuals": {
+      "enable": true
+    },
+    "internet": {
+      "enable": true
+    },
+    "payouts": {
+      "daily_amount": 10000,
+      "enable": true,
+      "max_amount": 5000,
+      "monthly_amount": 100000,
+      "monthly_count": 100
+    },
+    "signed_agreement": {
+      "enable": true
+    }
+  }
+  Authorization: ****_key
+
+(dry run - no request sent)
+>>>

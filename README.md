@@ -204,7 +204,7 @@ Charges represent attempts to debit money from a customer's bank account using a
 - **`straddle charges create`** - Use charges to collect money from a customer for the sale of goods or services.
 - **`straddle charges get`** - Retrieves the details of an existing charge. Supply the unique charge `id`, and Straddle will return the corresponding charge information.
 - **`straddle charges update`** - Change the values of parameters associated with a charge prior to processing. The status of the charge must be `created`, `scheduled`, or `on_hold`.
-- **`straddle charges refund <id> --stdin`** - Refund a paid charge by creating a linked payout from the JSON request body.
+- **`straddle charges refund <id>`** - Refund a paid charge by creating a linked payout. Supply request fields with flags such as `--amount`, `--external-id`, and `--payment-date`, or pass a JSON request body with `--stdin`.
 
 ### customers
 

@@ -49,6 +49,9 @@ func colorEnabled() bool {
 }
 
 func isTerminal(w io.Writer) bool {
+	if isTerminalOverride != nil {
+		return *isTerminalOverride
+	}
 	if f, ok := w.(*os.File); ok {
 		fi, err := f.Stat()
 		if err != nil {
@@ -537,16 +540,19 @@ func replacePathParam(path, name, value string) string {
 	return strings.ReplaceAll(path, "{"+name+"}", url.PathEscape(value))
 }
 
-// paginatedGet fetches pages and concatenates array results. The headers
-// argument carries per-endpoint required headers (e.g. cal-api-version) that
-// must be sent on every page request, including the first; pass nil when the
-// endpoint has no per-endpoint header overrides.
-func paginatedGet(c interface {
+func paginatedGetWithValues(c interface {
 	GetWithHeaders(path string, params map[string]string, headers map[string]string) (json.RawMessage, error)
-}, path string, params map[string]string, headers map[string]string, fetchAll bool, cursorParam, nextCursorPath, hasMoreField string) (json.RawMessage, error) {
-	// Keep string filters lossless: literal "0" and "false" can be valid values.
-	// Only known typed defaults are omitted, and the cursor stays explicit so a
-	// zero-valued first cursor is not dropped.
+	GetWithValues(path string, query url.Values, headers map[string]string) (json.RawMessage, error)
+}, path string, params url.Values, headers map[string]string, fetchAll bool, cursorParam, nextCursorPath, hasMoreField string) (json.RawMessage, error) {
+	return paginateValues(params, fetchAll, cursorParam, nextCursorPath, hasMoreField, func(query url.Values) (json.RawMessage, error) {
+		if queryHasRepeatedValues(query) {
+			return c.GetWithValues(path, query, headers)
+		}
+		return c.GetWithHeaders(path, firstQueryValues(query), headers)
+	})
+}
+
+func paginateValues(params url.Values, fetchAll bool, cursorParam, nextCursorPath, hasMoreField string, fetch func(url.Values) (json.RawMessage, error)) (json.RawMessage, error) {
 	paginatedTypedDefaultValues := map[string]string{
 		"page_number":       "0",
 		"page_size":         "0",
@@ -556,21 +562,23 @@ func paginatedGet(c interface {
 		"include_metadata":  "false",
 		"unblock_eligible":  "false",
 	}
-	clean := map[string]string{}
-	for k, v := range params {
-		if v == "" {
-			continue
-		}
-		if k != cursorParam {
-			if defaultValue, ok := paginatedTypedDefaultValues[k]; ok && v == defaultValue {
+	clean := make(url.Values, len(params))
+	for key, values := range params {
+		for _, value := range values {
+			if value == "" {
 				continue
 			}
+			if key != cursorParam {
+				if defaultValue, ok := paginatedTypedDefaultValues[key]; ok && value == defaultValue {
+					continue
+				}
+			}
+			clean.Add(key, value)
 		}
-		clean[k] = v
 	}
 
 	if !fetchAll {
-		data, err := c.GetWithHeaders(path, clean, headers)
+		data, err := fetch(clean)
 		if err != nil {
 			return nil, err
 		}
@@ -578,7 +586,6 @@ func paginatedGet(c interface {
 		return data, nil
 	}
 
-	// Fetch all pages
 	allItems := make([]json.RawMessage, 0)
 	page := 0
 	for {
@@ -589,35 +596,31 @@ func paginatedGet(c interface {
 			fmt.Fprintf(os.Stderr, `{"event":"page_fetch","page":%d}`+"\n", page)
 		}
 
-		data, err := c.GetWithHeaders(path, clean, headers)
+		data, err := fetch(clean)
 		if err != nil {
 			return nil, err
 		}
 
-		// Try to extract items array
 		var items []json.RawMessage
 		if json.Unmarshal(data, &items) == nil {
 			allItems = append(allItems, items...)
 		} else {
-			// Response is an object - look for array inside
 			var obj map[string]json.RawMessage
 			if json.Unmarshal(data, &obj) == nil {
 				if nested, ok := extractPaginatedItems(obj); ok {
 					allItems = append(allItems, nested...)
 				}
 
-				// Check for next cursor
 				if nextCursorPath != "" {
 					if tokenRaw, ok := rawAtPath(obj, nextCursorPath); ok {
 						var token string
 						if json.Unmarshal(tokenRaw, &token) == nil && token != "" {
-							clean[cursorParam] = token
+							clean.Set(cursorParam, token)
 							continue
 						}
 					}
 				}
 
-				// Check has_more
 				if hasMoreField != "" {
 					if moreRaw, ok := rawAtPath(obj, hasMoreField); ok {
 						var more bool
@@ -627,11 +630,9 @@ func paginatedGet(c interface {
 					}
 				}
 			}
-			// No more pages
 			break
 		}
 
-		// For direct arrays, can't paginate without cursor
 		break
 	}
 

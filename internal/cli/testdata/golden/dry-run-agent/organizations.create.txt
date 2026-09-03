@@ -1,0 +1,63 @@
+=== success ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 176
+stdout:
+<<<
+{
+  "action": "post",
+  "data": {
+    "dry_run": true
+  },
+  "dry_run": true,
+  "path": "/v1/organizations",
+  "resource": "organizations",
+  "status": 0,
+  "success": false
+}
+>>>
+stderr_bytes: 148
+stderr:
+<<<
+POST http://golden.test/v1/organizations
+  Body:
+{
+    "name": "Golden Organization"
+  }
+  Authorization: ****_key
+
+(dry run - no request sent)
+>>>
+
+=== http-422 ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 176
+stdout:
+<<<
+{
+  "action": "post",
+  "data": {
+    "dry_run": true
+  },
+  "dry_run": true,
+  "path": "/v1/organizations",
+  "resource": "organizations",
+  "status": 0,
+  "success": false
+}
+>>>
+stderr_bytes: 148
+stderr:
+<<<
+POST http://golden.test/v1/organizations
+  Body:
+{
+    "name": "Golden Organization"
+  }
+  Authorization: ****_key
+
+(dry run - no request sent)
+>>>

@@ -13,6 +13,5 @@ func newChargesUnmaskCmd(flags *rootFlags) *cobra.Command {
 		RunE:  parentNoSubcommandRunE(flags),
 	}
 
-	cmd.AddCommand(newChargesUnmaskChargesV1GetCmd(flags))
 	return cmd
 }

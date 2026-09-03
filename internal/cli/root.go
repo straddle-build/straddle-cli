@@ -300,9 +300,6 @@ See README.md or the bundled SKILL.md for recipes.`,
 	rootCmd.AddCommand(newAnalyticsCmd(flags))
 	rootCmd.AddCommand(newWorkflowCmd(flags))
 	rootCmd.AddCommand(newAPICmd(flags))
-	rootCmd.AddCommand(newAccountSettingsPromotedCmd(flags))
-	rootCmd.AddCommand(newFundingEventPaymentsPromotedCmd(flags))
-	rootCmd.AddCommand(newPaymentsPromotedCmd(flags))
 	rootCmd.AddCommand(newReportsPromotedCmd(flags))
 	// Novel features (hand-authored; see straddle_*.go).
 	rootCmd.AddCommand(newReconcileCmd(flags))

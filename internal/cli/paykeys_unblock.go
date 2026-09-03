@@ -13,6 +13,5 @@ func newPaykeysUnblockCmd(flags *rootFlags) *cobra.Command {
 		RunE:  parentNoSubcommandRunE(flags),
 	}
 
-	cmd.AddCommand(newPaykeysUnblockUpdateCmd(flags))
 	return cmd
 }

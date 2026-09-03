@@ -1,0 +1,146 @@
+// Copyright 2026 hello-keith. Licensed under Apache-2.0. See LICENSE.
+package cli
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
+	"testing"
+
+	"github.com/straddle-build/straddle-cli/internal/straddleacct"
+)
+
+type accountHeaderRequestRecorder struct {
+	mu       sync.Mutex
+	requests []http.Header
+}
+
+func (r *accountHeaderRequestRecorder) record(header http.Header) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.requests = append(r.requests, header.Clone())
+}
+
+func (r *accountHeaderRequestRecorder) reset() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.requests = nil
+}
+
+func (r *accountHeaderRequestRecorder) take() []http.Header {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	requests := append([]http.Header(nil), r.requests...)
+	r.requests = nil
+	return requests
+}
+
+func TestAccountHeaderMatrix(t *testing.T) {
+	surfaces := registeredSurfaces()
+	if len(surfaces) == 0 {
+		t.Fatal("registeredSurfaces() is empty")
+	}
+	arguments := contractArgumentTable(surfaces)
+	commands := annotatedContractCommands(t, RootCmd())
+	recorder := &accountHeaderRequestRecorder{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		recorder.record(request.Header)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer server.Close()
+	isolateSurfaceConfig(t, server.URL)
+
+	integrationTypes := [...]string{
+		straddleacct.TypeAccount,
+		straddleacct.TypeSaaS,
+		straddleacct.TypeMarketplace,
+	}
+	decisionCounts := map[straddleacct.Decision]int{}
+
+	for _, registered := range surfaces {
+		key := contractOperationKey{method: registered.Method, path: registered.Path}
+		argumentSet, ok := arguments[key]
+		if !ok {
+			t.Fatalf("%s has no contract argument set", key)
+		}
+		command, ok := commands[key]
+		if !ok {
+			t.Fatalf("%s has no annotated production command", key)
+		}
+		prefix := contractCommandPrefix(command)
+
+		for _, integrationType := range integrationTypes {
+			decision := straddleacct.Classify(registered.Path, registered.Method, integrationType, registered.AcceptsAccountHeader)
+			passed := t.Run(registered.Endpoint+"/"+integrationType, func(t *testing.T) {
+				if err := straddleacct.SaveContext(straddleacct.Context{IntegrationType: integrationType}); err != nil {
+					t.Fatalf("save platform context: %v", err)
+				}
+
+				withAccount := decision == straddleacct.Require || decision == straddleacct.Allow
+				args := accountHeaderMatrixArgs(prefix, argumentSet.required, withAccount)
+				recorder.reset()
+				_, stderr, err := runRootForAPITest(t, args, "")
+				if err != nil {
+					t.Fatalf("execute %s: %v\nstderr: %s", strings.Join(args, " "), err, stderr)
+				}
+				requests := recorder.take()
+				if len(requests) != 1 {
+					t.Fatalf("HTTP requests = %d, want 1", len(requests))
+				}
+				gotValues, headerPresent := requests[0][straddleacct.Header]
+				if withAccount && (!headerPresent || len(gotValues) != 1 || gotValues[0] != contractPathValue) {
+					t.Fatalf("%s values = %q, want [%q]", straddleacct.Header, gotValues, contractPathValue)
+				}
+				if !withAccount && headerPresent {
+					t.Fatalf("%s values = %q, want absent", straddleacct.Header, gotValues)
+				}
+
+				if decision != straddleacct.Forbid {
+					return
+				}
+				recorder.reset()
+				rejectedArgs := accountHeaderMatrixArgs(prefix, argumentSet.required, true)
+				_, _, err = runRootForAPITest(t, rejectedArgs, "")
+				if err == nil {
+					t.Fatal("forbidden --account returned nil error")
+				}
+				if !strings.Contains(err.Error(), "remove --account") {
+					t.Fatalf("forbidden --account error = %q, want policy guidance", err)
+				}
+				if got := ExitCode(err); got != 2 {
+					t.Fatalf("ExitCode(forbidden --account) = %d, want 2", got)
+				}
+				if requests := recorder.take(); len(requests) != 0 {
+					t.Fatalf("forbidden --account sent %d HTTP requests, want 0", len(requests))
+				}
+			})
+			if passed {
+				decisionCounts[decision]++
+			}
+		}
+	}
+
+	for _, decision := range []straddleacct.Decision{straddleacct.Forbid, straddleacct.Require, straddleacct.Allow} {
+		if decisionCounts[decision] == 0 {
+			t.Errorf("decision %d was not exercised", decision)
+		}
+	}
+	t.Logf(
+		"exercised %d surface/integration cells: forbid=%d require=%d allow=%d",
+		len(surfaces)*len(integrationTypes),
+		decisionCounts[straddleacct.Forbid],
+		decisionCounts[straddleacct.Require],
+		decisionCounts[straddleacct.Allow],
+	)
+}
+
+func accountHeaderMatrixArgs(prefix, required []string, withAccount bool) []string {
+	args := []string{"--json", "--data-source", "live", "--no-cache", "--yes", "--no-input"}
+	if withAccount {
+		args = append(args, "--account", contractPathValue)
+	}
+	args = append(args, prefix...)
+	return append(args, required...)
+}

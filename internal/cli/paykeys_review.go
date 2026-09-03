@@ -13,7 +13,5 @@ func newPaykeysReviewCmd(flags *rootFlags) *cobra.Command {
 		RunE:  parentNoSubcommandRunE(flags),
 	}
 
-	cmd.AddCommand(newPaykeysReviewGetCmd(flags))
-	cmd.AddCommand(newPaykeysReviewUpdateCmd(flags))
 	return cmd
 }

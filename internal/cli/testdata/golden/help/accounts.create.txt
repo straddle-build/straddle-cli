@@ -1,0 +1,63 @@
+Creates a new account associated with your Straddle platform integration. This endpoint allows you to set up an...
+
+Usage:
+  straddle accounts create [flags]
+
+Examples:
+  straddle accounts create --access-level standard
+
+Flags:
+      --access-level standard                            The access level granted to the account. This is determined by your platform configuration. Use standard unless...
+      --account-type business                            The type of account to be created. Currently, only business is supported.
+      --business-profile-address-city string             City, district, suburb, town, or village.
+      --business-profile-address-country string          The country of the address, in ISO 3166-1 alpha-2 format.
+      --business-profile-address-line1 string            Primary address line (e.g., street, PO Box).
+      --business-profile-address-line2 string            Secondary address line (e.g., apartment, suite, unit, or building).
+      --business-profile-address-postal-code string      Postal or ZIP code.
+      --business-profile-address-state string            Two-letter state code.
+      --business-profile-description string              A brief description of the business and its products or services.
+      --business-profile-industry-category string        The general category of the industry. Required if not providing MCC.
+      --business-profile-industry-mcc string             The Merchant Category Code (MCC) that best describes the business. Optional.
+      --business-profile-industry-sector string          The specific sector within the industry category. Required if not providing MCC.
+      --business-profile-legal-name string               The official registered name of the business.
+      --business-profile-name string                     The operating or trade name of the business.
+      --business-profile-phone string                    The primary contact phone number for the business.
+      --business-profile-support-channels-email string   The email address for customer support inquiries.
+      --business-profile-support-channels-phone string   The phone number for customer support.
+      --business-profile-support-channels-url string     The URL of the business's customer support page or contact form.
+      --business-profile-tax-id string                   The business's tax identification number (e.g., EIN in the US).
+      --business-profile-use-case string                 A description of how the business intends to use Straddle's services.
+      --business-profile-website string                  URL of the business's primary marketing website.
+      --correlation-id string                            Optional client-generated identifier for tracing a series of related requests.
+      --external-id string                               Unique identifier for the account in your database, used for cross-referencing between Straddle and your systems.
+  -h, --help                                             help for create
+      --idempotency-key string                           Optional client-generated key for an idempotent request.
+      --metadata string                                  Up to 20 additional user-defined key-value pairs. Useful for storing additional information about the account in a...
+      --organization-id string                           The unique identifier of the organization related to this account.
+      --request-id string                                Optional client-generated identifier for tracing one request.
+      --stdin                                            Read request body as JSON from stdin
+
+Global Flags:
+      --account string          Embedded account id sent as the Straddle-Account-Id header (Embed platform scoping)
+      --agent                   Set all agent-friendly defaults (--json --compact --no-input --no-color --yes)
+      --allow-partial-failure   Downgrade response-body partial-failure (e.g. partialFailureError) to a warning instead of a non-zero exit
+      --compact                 Return only key fields (id, name, status, timestamps) for minimal token usage
+      --config string           Config file path
+      --csv                     Output as CSV (table and array responses)
+      --data-source string      Data source for read commands: auto (live with local fallback), live (API only), local (synced data only) (default "auto")
+      --deliver string          Route output to a sink: stdout (default), file:<path>, webhook:<url>
+      --dry-run                 Show request without sending
+      --human-friendly          Enable colored output and rich formatting
+      --idempotent              Treat already-existing create results as a successful no-op
+      --ignore-missing          Treat missing delete targets as a successful no-op
+      --json                    Output as JSON
+      --no-cache                Bypass response cache
+      --no-color                Disable colored output
+      --no-input                Disable all interactive prompts (for CI/agents)
+      --plain                   Output as plain tab-separated text
+      --profile string          Apply values from a saved profile (see 'straddle profile list')
+      --quiet                   Bare output, one value per line
+      --rate-limit float        Max requests per second (0 to disable)
+      --select string           Comma-separated fields to include in output (e.g. --select id,name,status)
+      --timeout duration        Request timeout (default 30s)
+      --yes                     Skip confirmation prompts (for agents and scripts)

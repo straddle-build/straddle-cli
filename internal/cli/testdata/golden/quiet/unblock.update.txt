@@ -1,0 +1,29 @@
+=== success ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 0
+stdout:
+<<<
+
+>>>
+stderr_bytes: 0
+stderr:
+<<<
+
+>>>
+
+=== http-422 ===
+exit_code: 5
+error_class: api
+error: "PATCH /v1/paykeys/550e8400-e29b-41d4-a716-446655440000/unblock returned HTTP 422: {\"error\":{\"message\":\"bad\"}}"
+stdout_bytes: 0
+stdout:
+<<<
+
+>>>
+stderr_bytes: 117
+stderr:
+<<<
+Error: PATCH /v1/paykeys/550e8400-e29b-41d4-a716-446655440000/unblock returned HTTP 422: {"error":{"message":"bad"}}
+>>>

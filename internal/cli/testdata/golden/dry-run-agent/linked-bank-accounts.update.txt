@@ -1,0 +1,71 @@
+=== success ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 226
+stdout:
+<<<
+{
+  "action": "put",
+  "data": {
+    "dry_run": true
+  },
+  "dry_run": true,
+  "path": "/v1/linked_bank_accounts/550e8400-e29b-41d4-a716-446655440000",
+  "resource": "linked-bank-accounts",
+  "status": 0,
+  "success": false
+}
+>>>
+stderr_bytes: 301
+stderr:
+<<<
+PUT http://golden.test/v1/linked_bank_accounts/550e8400-e29b-41d4-a716-446655440000
+  Body:
+{
+    "bank_account": {
+      "account_holder": "Golden Account",
+      "account_number": "1234567890",
+      "routing_number": "110000000"
+    }
+  }
+  Authorization: ****_key
+
+(dry run - no request sent)
+>>>
+
+=== http-422 ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 226
+stdout:
+<<<
+{
+  "action": "put",
+  "data": {
+    "dry_run": true
+  },
+  "dry_run": true,
+  "path": "/v1/linked_bank_accounts/550e8400-e29b-41d4-a716-446655440000",
+  "resource": "linked-bank-accounts",
+  "status": 0,
+  "success": false
+}
+>>>
+stderr_bytes: 301
+stderr:
+<<<
+PUT http://golden.test/v1/linked_bank_accounts/550e8400-e29b-41d4-a716-446655440000
+  Body:
+{
+    "bank_account": {
+      "account_holder": "Golden Account",
+      "account_number": "1234567890",
+      "routing_number": "110000000"
+    }
+  }
+  Authorization: ****_key
+
+(dry run - no request sent)
+>>>

@@ -1,0 +1,45 @@
+=== success ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 357
+stdout:
+<<<
+{
+  "action": "post",
+  "data": {
+    "data": {
+      "bridge_token": "example"
+    },
+    "meta": {
+      "api_request_id": "550e8400-e29b-41d4-a716-446655440000",
+      "api_request_timestamp": "2026-01-15T12:00:00Z"
+    },
+    "response_type": "object"
+  },
+  "path": "/v1/bridge/initialize",
+  "resource": "bridge",
+  "status": 200,
+  "success": true
+}
+>>>
+stderr_bytes: 0
+stderr:
+<<<
+
+>>>
+
+=== http-422 ===
+exit_code: 5
+error_class: api
+error: "POST /v1/bridge/initialize returned HTTP 422: {\"error\":{\"message\":\"bad\"}}"
+stdout_bytes: 0
+stdout:
+<<<
+
+>>>
+stderr_bytes: 81
+stderr:
+<<<
+Error: POST /v1/bridge/initialize returned HTTP 422: {"error":{"message":"bad"}}
+>>>

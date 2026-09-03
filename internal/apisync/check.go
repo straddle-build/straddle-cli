@@ -13,6 +13,7 @@ type CheckResult struct {
 	InvalidAnnotations    []AnnotationIssue      `json:"invalid_annotations,omitempty"`
 	OperationIDMismatches []OperationIDMismatch  `json:"operation_id_mismatches,omitempty"`
 	UnsupportedOperations []UnsupportedOperation `json:"unsupported_operations,omitempty"`
+	StaleGenerated        []string               `json:"stale_generated,omitempty"`
 }
 
 type OperationIDMismatch struct {
@@ -27,7 +28,7 @@ type Duplicate struct {
 }
 
 func (result CheckResult) HasBlockingIssues() bool {
-	return len(result.Missing) > 0 || len(result.DuplicateAnnotations) > 0 || len(result.InvalidAnnotations) > 0
+	return len(result.Missing) > 0 || len(result.DuplicateAnnotations) > 0 || len(result.InvalidAnnotations) > 0 || len(result.StaleGenerated) > 0
 }
 
 func CheckSpecAgainstRepo(specPath, repo string) (CheckResult, error) {
@@ -35,28 +36,36 @@ func CheckSpecAgainstRepo(specPath, repo string) (CheckResult, error) {
 	if err != nil {
 		return CheckResult{}, err
 	}
+	_, unsupported, err := DeriveSurfaces(specPath)
+	if err != nil {
+		return CheckResult{}, err
+	}
 	inv, err := InventoryRepo(repo)
 	if err != nil {
 		return CheckResult{}, err
 	}
-	covered := make(map[string]bool, len(inv.Annotations))
-	for _, annotation := range inv.Annotations {
-		if !annotation.Internal {
-			covered[OperationKey(annotation.Method, annotation.Path)] = true
-		}
+
+	unsupportedByKey := make(map[string]bool, len(unsupported))
+	for _, operation := range unsupported {
+		unsupportedByKey[operation.Operation.Key] = true
 	}
-	supported := make([]Operation, 0, len(ops))
-	unsupported := make([]UnsupportedOperation, 0)
+	supported := make([]Operation, 0, len(ops)-len(unsupportedByKey))
 	for _, op := range ops {
-		if reasons := UnsupportedReasons(op); len(reasons) > 0 && !covered[op.Key] {
-			unsupported = append(unsupported, UnsupportedOperation{Operation: op, Reasons: reasons})
-			continue
+		if !unsupportedByKey[op.Key] {
+			supported = append(supported, op)
 		}
-		supported = append(supported, op)
 	}
 	result := CheckCoverage(supported, inv)
 	result.SpecOperations = len(ops)
 	result.UnsupportedOperations = unsupported
+	generated, err := GenerateAll(specPath, repo, true)
+	if err != nil {
+		return CheckResult{}, err
+	}
+	result.StaleGenerated = append(result.StaleGenerated, generated.Generated...)
+	result.StaleGenerated = append(result.StaleGenerated, generated.Deleted...)
+	sort.Strings(result.StaleGenerated)
+	result.OK = result.OK && len(result.StaleGenerated) == 0
 	return result, nil
 }
 

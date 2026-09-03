@@ -13,6 +13,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -124,6 +125,28 @@ func (c *Client) GetWithHeaders(path string, params map[string]string, headers m
 		c.writeCache(path, params, headers, result)
 	}
 	return result, err
+}
+
+func (c *Client) GetWithValues(path string, query url.Values, headers map[string]string) (json.RawMessage, error) {
+	cachePath := path
+	if encodedQuery := query.Encode(); encodedQuery != "" {
+		cachePath += "?" + encodedQuery
+	}
+
+	if !c.NoCache && !c.DryRun && c.cacheDir != "" {
+		if cached, ok := c.readCache(cachePath, nil, headers); ok {
+			return cached, nil
+		}
+	}
+	result, _, err := c.doInternalWithValues("GET", path, nil, query, nil, headers, false)
+	if err == nil && !c.NoCache && !c.DryRun && c.cacheDir != "" {
+		c.writeCache(cachePath, nil, headers, result)
+	}
+	return result, err
+}
+
+func (c *Client) DoWithValues(method, path string, query url.Values, body any, headers map[string]string) (json.RawMessage, int, error) {
+	return c.doInternalWithValues(method, path, nil, query, body, headers, false)
 }
 
 // GetNoCache issues a GET that bypasses the cache read for this call only,
@@ -387,11 +410,11 @@ func (c *Client) doRead(method, path string, params map[string]string, body any,
 	return c.doInternal(method, path, params, body, headerOverrides, true)
 }
 
-// doInternal is the shared implementation behind do() and doRead(). The
-// readOnlyIntent flag is set by doRead() callers (read-only POST/PUT/PATCH
-// operations like GraphQL queries) to skip the mutating-verb verify-mode
-// gate. Plain do() callers leave it false and get the usual short-circuit.
 func (c *Client) doInternal(method, path string, params map[string]string, body any, headerOverrides map[string]string, readOnlyIntent bool) (json.RawMessage, int, error) {
+	return c.doInternalWithValues(method, path, params, nil, body, headerOverrides, readOnlyIntent)
+}
+
+func (c *Client) doInternalWithValues(method, path string, params map[string]string, query url.Values, body any, headerOverrides map[string]string, readOnlyIntent bool) (json.RawMessage, int, error) {
 	// Verify-mode transport-layer gate. When the verifier (or any consumer
 	// that sets STRADDLE_VERIFY=1) drives a mutating verb without the
 	// STRADDLE_VERIFY_LIVE_HTTP=1 opt-in, return a synthetic envelope
@@ -445,6 +468,10 @@ func (c *Client) doInternal(method, path string, params map[string]string, body 
 
 	// Build the request for dry-run display or actual execution
 	if c.DryRun {
+		if encodedQuery := query.Encode(); encodedQuery != "" {
+			targetURL += "?" + encodedQuery
+			return c.dryRun(method, targetURL, path, nil, bodyBytes, headerOverrides, authHeader)
+		}
 		return c.dryRun(method, targetURL, path, params, bodyBytes, headerOverrides, authHeader)
 	}
 
@@ -467,7 +494,9 @@ func (c *Client) doInternal(method, path string, params map[string]string, body 
 			req.Header.Set("Content-Type", "application/json")
 		}
 
-		if params != nil {
+		if query != nil {
+			req.URL.RawQuery = query.Encode()
+		} else if params != nil {
 			q := req.URL.Query()
 			for k, v := range params {
 				if v != "" {

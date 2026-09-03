@@ -1,0 +1,87 @@
+=== success ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 166
+stdout:
+<<<
+{
+  "action": "post",
+  "data": {
+    "dry_run": true
+  },
+  "dry_run": true,
+  "path": "/v1/accounts",
+  "resource": "accounts",
+  "status": 0,
+  "success": false
+}
+>>>
+stderr_bytes: 479
+stderr:
+<<<
+POST http://golden.test/v1/accounts
+  Body:
+{
+    "access_level": "standard",
+    "account_type": "business",
+    "business_profile": {
+      "address": {
+        "city": "Denver",
+        "line1": "123 Main St",
+        "postal_code": "80202",
+        "state": "CO"
+      },
+      "name": "Golden Account",
+      "website": "https://example.com"
+    },
+    "organization_id": "550e8400-e29b-41d4-a716-446655440000"
+  }
+  Authorization: ****_key
+
+(dry run - no request sent)
+>>>
+
+=== http-422 ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 166
+stdout:
+<<<
+{
+  "action": "post",
+  "data": {
+    "dry_run": true
+  },
+  "dry_run": true,
+  "path": "/v1/accounts",
+  "resource": "accounts",
+  "status": 0,
+  "success": false
+}
+>>>
+stderr_bytes: 479
+stderr:
+<<<
+POST http://golden.test/v1/accounts
+  Body:
+{
+    "access_level": "standard",
+    "account_type": "business",
+    "business_profile": {
+      "address": {
+        "city": "Denver",
+        "line1": "123 Main St",
+        "postal_code": "80202",
+        "state": "CO"
+      },
+      "name": "Golden Account",
+      "website": "https://example.com"
+    },
+    "organization_id": "550e8400-e29b-41d4-a716-446655440000"
+  }
+  Authorization: ****_key
+
+(dry run - no request sent)
+>>>

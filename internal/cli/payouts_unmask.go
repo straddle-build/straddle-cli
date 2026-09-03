@@ -13,6 +13,5 @@ func newPayoutsUnmaskCmd(flags *rootFlags) *cobra.Command {
 		RunE:  parentNoSubcommandRunE(flags),
 	}
 
-	cmd.AddCommand(newPayoutsUnmaskPayoutsV1GetCmd(flags))
 	return cmd
 }

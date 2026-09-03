@@ -1,0 +1,29 @@
+=== success ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 0
+stdout:
+<<<
+
+>>>
+stderr_bytes: 0
+stderr:
+<<<
+
+>>>
+
+=== http-422 ===
+exit_code: 5
+error_class: api
+error: "POST /v1/accounts returned HTTP 422: {\"error\":{\"message\":\"bad\"}}"
+stdout_bytes: 0
+stdout:
+<<<
+
+>>>
+stderr_bytes: 72
+stderr:
+<<<
+Error: POST /v1/accounts returned HTTP 422: {"error":{"message":"bad"}}
+>>>

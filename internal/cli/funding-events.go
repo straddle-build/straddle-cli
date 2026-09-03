@@ -14,8 +14,5 @@ func newFundingEventsCmd(flags *rootFlags) *cobra.Command {
 		RunE:   parentNoSubcommandRunE(flags),
 	}
 
-	cmd.AddCommand(newFundingEventsCreateCmd(flags))
-	cmd.AddCommand(newFundingEventsGetCmd(flags))
-	cmd.AddCommand(newFundingEventsListCmd(flags))
 	return cmd
 }

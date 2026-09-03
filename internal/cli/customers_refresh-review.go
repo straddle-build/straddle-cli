@@ -13,6 +13,5 @@ func newCustomersRefreshReviewCmd(flags *rootFlags) *cobra.Command {
 		RunE:  parentNoSubcommandRunE(flags),
 	}
 
-	cmd.AddCommand(newCustomersRefreshReviewUpdateCmd(flags))
 	return cmd
 }
