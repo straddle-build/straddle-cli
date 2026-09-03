@@ -1,0 +1,85 @@
+=== success ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 202
+stdout:
+<<<
+{
+  "action": "put",
+  "data": {
+    "dry_run": true
+  },
+  "dry_run": true,
+  "path": "/v1/accounts/550e8400-e29b-41d4-a716-446655440000",
+  "resource": "accounts",
+  "status": 0,
+  "success": false
+}
+>>>
+stderr_bytes: 447
+stderr:
+<<<
+PUT http://golden.test/v1/accounts/550e8400-e29b-41d4-a716-446655440000
+  Body:
+{
+    "business_profile": {
+      "address": {
+        "address1": "123 Main St",
+        "city": "Denver",
+        "line1": "123 Main St",
+        "postal_code": "80202",
+        "state": "CO",
+        "zip": "80202"
+      },
+      "name": "Golden Account",
+      "website": "https://example.com"
+    }
+  }
+  Authorization: ****_key
+
+(dry run - no request sent)
+>>>
+
+=== http-422 ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 202
+stdout:
+<<<
+{
+  "action": "put",
+  "data": {
+    "dry_run": true
+  },
+  "dry_run": true,
+  "path": "/v1/accounts/550e8400-e29b-41d4-a716-446655440000",
+  "resource": "accounts",
+  "status": 0,
+  "success": false
+}
+>>>
+stderr_bytes: 447
+stderr:
+<<<
+PUT http://golden.test/v1/accounts/550e8400-e29b-41d4-a716-446655440000
+  Body:
+{
+    "business_profile": {
+      "address": {
+        "address1": "123 Main St",
+        "city": "Denver",
+        "line1": "123 Main St",
+        "postal_code": "80202",
+        "state": "CO",
+        "zip": "80202"
+      },
+      "name": "Golden Account",
+      "website": "https://example.com"
+    }
+  }
+  Authorization: ****_key
+
+(dry run - no request sent)
+>>>

@@ -432,7 +432,7 @@ func readLinesIfExists(t *testing.T, path string) []string {
 	return readLines(t, path)
 }
 
-func TestClassifyDriftReportsUnsupportedNonJSONRequestBodyAddition(t *testing.T) {
+func TestDriftSpecsReportsUnsupportedNonJSONRequestBodyAddition(t *testing.T) {
 	t.Parallel()
 
 	baseSpec := writeSpec(t, `{
@@ -473,16 +473,10 @@ func TestClassifyDriftReportsUnsupportedNonJSONRequestBodyAddition(t *testing.T)
 		}
 	}`)
 
-	baseOps, err := apisync.LoadSpec(baseSpec)
+	result, err := apisync.DriftSpecs(baseSpec, headSpec)
 	if err != nil {
-		t.Fatalf("LoadSpec(base): %v", err)
+		t.Fatalf("DriftSpecs: %v", err)
 	}
-	headOps, err := apisync.LoadSpec(headSpec)
-	if err != nil {
-		t.Fatalf("LoadSpec(head): %v", err)
-	}
-
-	result := apisync.ClassifyDrift(baseOps, headOps)
 	if result.NoDrift {
 		t.Fatalf("NoDrift = true, want unsupported addition to be reported")
 	}
@@ -501,7 +495,7 @@ func TestClassifyDriftReportsUnsupportedNonJSONRequestBodyAddition(t *testing.T)
 	}
 }
 
-func TestClassifyDriftReportsRequestBodyRefAsUnsupported(t *testing.T) {
+func TestDriftSpecsReportsRequestBodyRefAsUnsupported(t *testing.T) {
 	t.Parallel()
 
 	baseSpec := writeSpec(t, `{
@@ -539,16 +533,10 @@ func TestClassifyDriftReportsRequestBodyRefAsUnsupported(t *testing.T) {
 		}
 	}`)
 
-	baseOps, err := apisync.LoadSpec(baseSpec)
+	result, err := apisync.DriftSpecs(baseSpec, headSpec)
 	if err != nil {
-		t.Fatalf("LoadSpec(base): %v", err)
+		t.Fatalf("DriftSpecs: %v", err)
 	}
-	headOps, err := apisync.LoadSpec(headSpec)
-	if err != nil {
-		t.Fatalf("LoadSpec(head): %v", err)
-	}
-
-	result := apisync.ClassifyDrift(baseOps, headOps)
 	if len(result.SupportedAdditions) != 0 {
 		t.Fatalf("SupportedAdditions = %#v, want request-body ref routed to unsupported", result.SupportedAdditions)
 	}
@@ -561,39 +549,37 @@ func TestClassifyDriftReportsRequestBodyRefAsUnsupported(t *testing.T) {
 	}
 }
 
-func TestUnsupportedReasonsRejectsJSONRequestBodyOnReadOperation(t *testing.T) {
+func TestUnsupportedReasonsRejectsJSONRequestBodyOnGet(t *testing.T) {
 	t.Parallel()
 
-	for _, tc := range []struct {
-		method string
-		path   string
-		reason string
-	}{
-		{
-			method: "GET",
-			path:   "/v1/search",
-			reason: "request body is not supported for GET operations",
-		},
-		{
-			method: "DELETE",
-			path:   "/v1/widgets",
-			reason: "request body is not supported for DELETE operations",
-		},
-	} {
-		t.Run(tc.method, func(t *testing.T) {
-			op := apisync.Operation{
-				OperationID:           "ReadOperationWithBody",
-				Method:                tc.method,
-				Path:                  tc.path,
-				RequestBodyRequired:   true,
-				RequestBodyMediaTypes: []string{"application/json"},
-			}
+	op := apisync.Operation{
+		OperationID:           "ReadOperationWithBody",
+		Method:                "GET",
+		Path:                  "/v1/search",
+		RequestBodyRequired:   true,
+		RequestBodyMediaTypes: []string{"application/json"},
+	}
 
-			reasons := apisync.UnsupportedReasons(op)
-			if len(reasons) != 1 || reasons[0] != tc.reason {
-				t.Fatalf("UnsupportedReasons(%s with JSON body) = %#v, want [%q]", tc.method, reasons, tc.reason)
-			}
-		})
+	reasons := apisync.UnsupportedReasons(op)
+	const want = "request body is not supported for GET operations"
+	if len(reasons) != 1 || reasons[0] != want {
+		t.Fatalf("UnsupportedReasons(GET with JSON body) = %#v, want [%q]", reasons, want)
+	}
+}
+
+func TestUnsupportedReasonsAllowsJSONRequestBodyOnDelete(t *testing.T) {
+	t.Parallel()
+
+	op := apisync.Operation{
+		OperationID:           "DeleteOperationWithBody",
+		Method:                "DELETE",
+		Path:                  "/v1/widgets",
+		RequestBodyRequired:   true,
+		RequestBodyMediaTypes: []string{"application/json"},
+	}
+
+	if reasons := apisync.UnsupportedReasons(op); len(reasons) != 0 {
+		t.Fatalf("UnsupportedReasons(DELETE with JSON body) = %#v, want none", reasons)
 	}
 }
 
@@ -655,7 +641,7 @@ func TestUnsupportedReasonsRejectsReservedGeneratedFlagNames(t *testing.T) {
 	}
 }
 
-func TestClassifyDriftRoutesGeneratedParameterCollisionsToUnsupported(t *testing.T) {
+func TestDriftSpecsRoutesGeneratedParameterCollisionsToUnsupported(t *testing.T) {
 	t.Parallel()
 
 	baseSpec := writeSpec(t, `{
@@ -694,16 +680,10 @@ func TestClassifyDriftRoutesGeneratedParameterCollisionsToUnsupported(t *testing
 		}
 	}`)
 
-	baseOps, err := apisync.LoadSpec(baseSpec)
+	result, err := apisync.DriftSpecs(baseSpec, headSpec)
 	if err != nil {
-		t.Fatalf("LoadSpec(base): %v", err)
+		t.Fatalf("DriftSpecs: %v", err)
 	}
-	headOps, err := apisync.LoadSpec(headSpec)
-	if err != nil {
-		t.Fatalf("LoadSpec(head): %v", err)
-	}
-
-	result := apisync.ClassifyDrift(baseOps, headOps)
 	if len(result.SupportedAdditions) != 0 {
 		t.Fatalf("SupportedAdditions = %#v, want collision routed to unsupported", result.SupportedAdditions)
 	}
@@ -748,7 +728,7 @@ func TestParseSpecAppliesPathLevelParameters(t *testing.T) {
 	}
 }
 
-func TestClassifyDriftReportsPathLevelParameterChange(t *testing.T) {
+func TestDriftIgnoresPathParameterDescriptionOutsideSurface(t *testing.T) {
 	t.Parallel()
 
 	baseSpec := writeSpec(t, `{
@@ -782,24 +762,15 @@ func TestClassifyDriftReportsPathLevelParameterChange(t *testing.T) {
 		}
 	}`)
 
-	baseOps, err := apisync.LoadSpec(baseSpec)
+	result, err := apisync.DriftSpecs(baseSpec, headSpec)
 	if err != nil {
-		t.Fatalf("LoadSpec(base): %v", err)
+		t.Fatalf("DriftSpecs: %v", err)
 	}
-	headOps, err := apisync.LoadSpec(headSpec)
-	if err != nil {
-		t.Fatalf("LoadSpec(head): %v", err)
+	if !result.NoDrift {
+		t.Fatalf("drift = %#v, want path parameter description ignored", result)
 	}
-
-	result := apisync.ClassifyDrift(baseOps, headOps)
-	if result.NoDrift {
-		t.Fatal("NoDrift = true, want path-level parameter change to be reported")
-	}
-	if len(result.Changes) != 1 {
-		t.Fatalf("Changes = %d, want 1", len(result.Changes))
-	}
-	if result.Changes[0].Key != "GET /v1/widgets/{id}" {
-		t.Fatalf("change key = %q, want GET /v1/widgets/{id}", result.Changes[0].Key)
+	if len(result.Changes) != 0 {
+		t.Fatalf("Changes = %d, want 0", len(result.Changes))
 	}
 }
 

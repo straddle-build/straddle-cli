@@ -1,0 +1,44 @@
+Create tan
+
+Usage:
+  straddle bridge create-tan [flags]
+
+Examples:
+  straddle bridge create-tan --account-type checking
+
+Flags:
+      --account-type string               Account type
+      --config-processing-method string   Processing method
+      --config-sandbox-outcome string     Sandbox outcome
+      --customer-id string                Unique identifier of the related customer object.
+      --external-id string                Unique identifier for the paykey in your database, used for cross-referencing between Straddle and your systems.
+  -h, --help                              help for create-tan
+      --metadata string                   Up to 20 additional user-defined key-value pairs. Useful for storing additional information about the paykey in a...
+      --routing-number string             Bank routing number.
+      --stdin                             Read request body as JSON from stdin
+      --tan string                        Tokenized account number.
+
+Global Flags:
+      --account string          Embedded account id sent as the Straddle-Account-Id header (Embed platform scoping)
+      --agent                   Set all agent-friendly defaults (--json --compact --no-input --no-color --yes)
+      --allow-partial-failure   Downgrade response-body partial-failure (e.g. partialFailureError) to a warning instead of a non-zero exit
+      --compact                 Return only key fields (id, name, status, timestamps) for minimal token usage
+      --config string           Config file path
+      --csv                     Output as CSV (table and array responses)
+      --data-source string      Data source for read commands: auto (live with local fallback), live (API only), local (synced data only) (default "auto")
+      --deliver string          Route output to a sink: stdout (default), file:<path>, webhook:<url>
+      --dry-run                 Show request without sending
+      --human-friendly          Enable colored output and rich formatting
+      --idempotent              Treat already-existing create results as a successful no-op
+      --ignore-missing          Treat missing delete targets as a successful no-op
+      --json                    Output as JSON
+      --no-cache                Bypass response cache
+      --no-color                Disable colored output
+      --no-input                Disable all interactive prompts (for CI/agents)
+      --plain                   Output as plain tab-separated text
+      --profile string          Apply values from a saved profile (see 'straddle profile list')
+      --quiet                   Bare output, one value per line
+      --rate-limit float        Max requests per second (0 to disable)
+      --select string           Comma-separated fields to include in output (e.g. --select id,name,status)
+      --timeout duration        Request timeout (default 30s)
+      --yes                     Skip confirmation prompts (for agents and scripts)

@@ -1,0 +1,31 @@
+=== success ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 312
+stdout:
+<<<
+ID                                    ACCOUNT_ID                            STATUS  TYPE     CREATED_AT
+550e8400-e29b-41d4-a716-446655440000  550e8400-e29b-41d4-a716-446655440000  active  charges  2026-01-15
+550e8400-e29b-41d4-a716-446655440001  550e8400-e29b-41d4-a716-446655440001  active  charges  2026-01-15
+>>>
+stderr_bytes: 0
+stderr:
+<<<
+
+>>>
+
+=== http-422 ===
+exit_code: 5
+error_class: api
+error: "POST /v1/accounts/550e8400-e29b-41d4-a716-446655440000/capability_requests returned HTTP 422: {\"error\":{\"message\":\"bad\"}}"
+stdout_bytes: 0
+stdout:
+<<<
+
+>>>
+stderr_bytes: 129
+stderr:
+<<<
+Error: POST /v1/accounts/550e8400-e29b-41d4-a716-446655440000/capability_requests returned HTTP 422: {"error":{"message":"bad"}}
+>>>

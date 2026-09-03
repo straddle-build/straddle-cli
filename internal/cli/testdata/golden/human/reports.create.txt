@@ -1,0 +1,45 @@
+=== success ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 206
+stdout:
+<<<
+{
+  "data": [
+    {
+      "status": "verified",
+      "total": 2
+    },
+    {
+      "status": "review",
+      "total": 1
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "page_size": 2,
+    "total_count": 2
+  }
+}
+>>>
+stderr_bytes: 17
+stderr:
+<<<
+1 results (live)
+>>>
+
+=== http-422 ===
+exit_code: 5
+error_class: api
+error: "POST /v1/reports/total_customers_by_status returned HTTP 422: {\"error\":{\"message\":\"bad\"}}"
+stdout_bytes: 0
+stdout:
+<<<
+
+>>>
+stderr_bytes: 97
+stderr:
+<<<
+Error: POST /v1/reports/total_customers_by_status returned HTTP 422: {"error":{"message":"bad"}}
+>>>

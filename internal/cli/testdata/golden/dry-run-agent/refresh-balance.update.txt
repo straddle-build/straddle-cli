@@ -1,0 +1,59 @@
+=== success ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 224
+stdout:
+<<<
+{
+  "action": "put",
+  "data": {
+    "dry_run": true
+  },
+  "dry_run": true,
+  "path": "/v1/paykeys/550e8400-e29b-41d4-a716-446655440000/refresh_balance",
+  "resource": "refresh-balance",
+  "status": 0,
+  "success": false
+}
+>>>
+stderr_bytes: 157
+stderr:
+<<<
+PUT http://golden.test/v1/paykeys/550e8400-e29b-41d4-a716-446655440000/refresh_balance
+  Body:
+{}
+  Authorization: ****_key
+
+(dry run - no request sent)
+>>>
+
+=== http-422 ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 224
+stdout:
+<<<
+{
+  "action": "put",
+  "data": {
+    "dry_run": true
+  },
+  "dry_run": true,
+  "path": "/v1/paykeys/550e8400-e29b-41d4-a716-446655440000/refresh_balance",
+  "resource": "refresh-balance",
+  "status": 0,
+  "success": false
+}
+>>>
+stderr_bytes: 157
+stderr:
+<<<
+PUT http://golden.test/v1/paykeys/550e8400-e29b-41d4-a716-446655440000/refresh_balance
+  Body:
+{}
+  Authorization: ****_key
+
+(dry run - no request sent)
+>>>

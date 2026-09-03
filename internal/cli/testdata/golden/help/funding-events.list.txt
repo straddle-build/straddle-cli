@@ -1,0 +1,50 @@
+Retrieves a list of funding events for your account. This endpoint supports advanced sorting and filtering options.
+
+Usage:
+  straddle funding-events list [flags]
+
+Examples:
+  straddle funding-events list
+
+Flags:
+      --all                       Fetch all pages
+      --created-from YYYY-MM-DD   The start date of the range to filter by using the YYYY-MM-DD format.
+      --created-to YYYY-MM-DD     The end date of the range to filter by using the YYYY-MM-DD format.
+      --direction string          Direction (one of: deposit, withdrawal)
+      --event-type string         Event type (one of: charge_deposit, charge_reversal, payout_return, payout_withdrawal)
+  -h, --help                      help for list
+      --page-number int           Results page number. Starts at page 1. (default 1)
+      --page-size int             Results page size. Max value: 1000 (default 100)
+      --search-text string        Search text.
+      --sort-by string            Sort by (one of: transfer_date, id, amount) (default "id")
+      --sort-order string         Sort order (one of: asc, desc) (default "asc")
+      --status string             Funding Event status.
+      --status-reason string      Reason for latest payment status change.
+      --status-source string      Source of latest payment status change.
+      --trace-id string           Trace Id.
+      --trace-number string       Trace number.
+
+Global Flags:
+      --account string          Embedded account id sent as the Straddle-Account-Id header (Embed platform scoping)
+      --agent                   Set all agent-friendly defaults (--json --compact --no-input --no-color --yes)
+      --allow-partial-failure   Downgrade response-body partial-failure (e.g. partialFailureError) to a warning instead of a non-zero exit
+      --compact                 Return only key fields (id, name, status, timestamps) for minimal token usage
+      --config string           Config file path
+      --csv                     Output as CSV (table and array responses)
+      --data-source string      Data source for read commands: auto (live with local fallback), live (API only), local (synced data only) (default "auto")
+      --deliver string          Route output to a sink: stdout (default), file:<path>, webhook:<url>
+      --dry-run                 Show request without sending
+      --human-friendly          Enable colored output and rich formatting
+      --idempotent              Treat already-existing create results as a successful no-op
+      --ignore-missing          Treat missing delete targets as a successful no-op
+      --json                    Output as JSON
+      --no-cache                Bypass response cache
+      --no-color                Disable colored output
+      --no-input                Disable all interactive prompts (for CI/agents)
+      --plain                   Output as plain tab-separated text
+      --profile string          Apply values from a saved profile (see 'straddle profile list')
+      --quiet                   Bare output, one value per line
+      --rate-limit float        Max requests per second (0 to disable)
+      --select string           Comma-separated fields to include in output (e.g. --select id,name,status)
+      --timeout duration        Request timeout (default 30s)
+      --yes                     Skip confirmation prompts (for agents and scripts)

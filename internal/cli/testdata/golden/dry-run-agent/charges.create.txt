@@ -1,0 +1,87 @@
+=== success ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 164
+stdout:
+<<<
+{
+  "action": "post",
+  "data": {
+    "dry_run": true
+  },
+  "dry_run": true,
+  "path": "/v1/charges",
+  "resource": "charges",
+  "status": 0,
+  "success": false
+}
+>>>
+stderr_bytes: 454
+stderr:
+<<<
+POST http://golden.test/v1/charges
+  Body:
+{
+    "amount": 1250,
+    "config": {
+      "balance_check": "required"
+    },
+    "consent_type": "internet",
+    "currency": "USD",
+    "description": "Golden charge",
+    "device": {
+      "ip_address": "192.0.2.1"
+    },
+    "external_id": "golden-charge",
+    "paykey": "550e8400-e29b-41d4-a716-446655440000",
+    "payment_date": "2026-01-15"
+  }
+  Authorization: ****_key
+
+(dry run - no request sent)
+>>>
+
+=== http-422 ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 164
+stdout:
+<<<
+{
+  "action": "post",
+  "data": {
+    "dry_run": true
+  },
+  "dry_run": true,
+  "path": "/v1/charges",
+  "resource": "charges",
+  "status": 0,
+  "success": false
+}
+>>>
+stderr_bytes: 454
+stderr:
+<<<
+POST http://golden.test/v1/charges
+  Body:
+{
+    "amount": 1250,
+    "config": {
+      "balance_check": "required"
+    },
+    "consent_type": "internet",
+    "currency": "USD",
+    "description": "Golden charge",
+    "device": {
+      "ip_address": "192.0.2.1"
+    },
+    "external_id": "golden-charge",
+    "paykey": "550e8400-e29b-41d4-a716-446655440000",
+    "payment_date": "2026-01-15"
+  }
+  Authorization: ****_key
+
+(dry run - no request sent)
+>>>

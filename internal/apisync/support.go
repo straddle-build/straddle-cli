@@ -4,6 +4,8 @@ package apisync
 import (
 	"fmt"
 	"strings"
+
+	"github.com/straddle-build/straddle-cli/internal/surface"
 )
 
 type UnsupportedOperation struct {
@@ -20,7 +22,7 @@ func UnsupportedReasons(op Operation) []string {
 		reasons = append(reasons, "path must start with /")
 	}
 	switch op.Method {
-	case "GET", "DELETE", "POST", "PUT", "PATCH":
+	case "GET", "HEAD", "DELETE", "POST", "PUT", "PATCH":
 	default:
 		reasons = append(reasons, "unsupported HTTP method "+op.Method)
 	}
@@ -30,7 +32,7 @@ func UnsupportedReasons(op Operation) []string {
 		default:
 			reasons = append(reasons, "unsupported parameter location "+param.In+" for "+param.Name)
 		}
-		if param.SchemaType != "" && param.SchemaType != "string" && param.SchemaType != "integer" && param.SchemaType != "number" && param.SchemaType != "boolean" {
+		if param.SchemaType != "" && param.SchemaType != "string" && param.SchemaType != "integer" && param.SchemaType != "number" && param.SchemaType != "boolean" && param.SchemaType != "array" {
 			reasons = append(reasons, fmt.Sprintf("%s parameter %q uses unsupported schema type %s", param.In, param.Name, param.SchemaType))
 		}
 		if param.Style != "" {
@@ -47,8 +49,8 @@ func UnsupportedReasons(op Operation) []string {
 	if strings.TrimSpace(op.RequestBodyRef) != "" {
 		reasons = append(reasons, "request body $ref is not supported: "+op.RequestBodyRef)
 	}
-	if (op.Method == "GET" || op.Method == "DELETE") && (op.RequestBodyRequired || len(op.RequestBodyMediaTypes) > 0) {
-		reasons = append(reasons, "request body is not supported for "+op.Method+" operations")
+	if op.Method == "GET" && (op.RequestBodyRequired || len(op.RequestBodyMediaTypes) > 0) {
+		reasons = append(reasons, "request body is not supported for GET operations")
 	}
 	if op.RequestBodyRequired || len(op.RequestBodyMediaTypes) > 0 {
 		if len(op.RequestBodyMediaTypes) == 0 {
@@ -137,6 +139,33 @@ func generatedReservedFlagOwners() map[string]string {
 		"version":               "Cobra --version flag",
 		"yes":                   "inherited --yes flag",
 	}
+}
+
+func surfaceUnsupportedReasons(derived surface.Surface) []string {
+	flagOwners := generatedReservedFlagOwners()
+	if derived.HasBody {
+		flagOwners["stdin"] = "request body stdin flag"
+	}
+	var reasons []string
+	for _, flag := range derived.Flags {
+		if !isSupportedGeneratedParameterName(flag.Name) {
+			reasons = append(reasons, fmt.Sprintf("unsupported flag name %q: must start with a letter and contain only letters, numbers, hyphens, or underscores", flag.Name))
+		}
+		owner := surfaceFlagOwner(flag)
+		if previous, ok := flagOwners[flag.Name]; ok {
+			reasons = append(reasons, fmt.Sprintf("parameter flag name collision %q for %s and %s", flag.Name, previous, owner))
+		} else {
+			flagOwners[flag.Name] = owner
+		}
+	}
+	return reasons
+}
+
+func surfaceFlagOwner(flag surface.Flag) string {
+	if flag.In == surface.InBody {
+		return fmt.Sprintf("body property %q", flag.Key)
+	}
+	return fmt.Sprintf("%s parameter %q", flag.In, flag.Key)
 }
 
 func isSupportedGeneratedParameterName(name string) bool {

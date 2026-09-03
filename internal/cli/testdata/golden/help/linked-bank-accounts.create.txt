@@ -1,0 +1,44 @@
+Creates a new linked bank account associated with a Straddle account. This endpoint allows you to associate external...
+
+Usage:
+  straddle linked-bank-accounts create [flags]
+
+Examples:
+  straddle linked-bank-accounts create --account-id 550e8400-e29b-41d4-a716-446655440000
+
+Flags:
+      --account-id string                    The unique identifier of the Straddle account to associate this bank account with.
+      --bank-account-account-holder string   The name of the account holder as it appears on the bank account. Typically, this is the legal name of the business...
+      --bank-account-account-number string   The bank account number.
+      --bank-account-routing-number string   The routing number of the bank account.
+      --description string                   Optional description for the bank account.
+  -h, --help                                 help for create
+      --metadata string                      Up to 20 additional user-defined key-value pairs. Useful for storing additional information about the linked bank...
+      --platform-id string                   The unique identifier of the Straddle Platform to associate this bank account with.
+      --purposes string                      The purposes for the linked bank account.
+      --stdin                                Read request body as JSON from stdin
+
+Global Flags:
+      --account string          Embedded account id sent as the Straddle-Account-Id header (Embed platform scoping)
+      --agent                   Set all agent-friendly defaults (--json --compact --no-input --no-color --yes)
+      --allow-partial-failure   Downgrade response-body partial-failure (e.g. partialFailureError) to a warning instead of a non-zero exit
+      --compact                 Return only key fields (id, name, status, timestamps) for minimal token usage
+      --config string           Config file path
+      --csv                     Output as CSV (table and array responses)
+      --data-source string      Data source for read commands: auto (live with local fallback), live (API only), local (synced data only) (default "auto")
+      --deliver string          Route output to a sink: stdout (default), file:<path>, webhook:<url>
+      --dry-run                 Show request without sending
+      --human-friendly          Enable colored output and rich formatting
+      --idempotent              Treat already-existing create results as a successful no-op
+      --ignore-missing          Treat missing delete targets as a successful no-op
+      --json                    Output as JSON
+      --no-cache                Bypass response cache
+      --no-color                Disable colored output
+      --no-input                Disable all interactive prompts (for CI/agents)
+      --plain                   Output as plain tab-separated text
+      --profile string          Apply values from a saved profile (see 'straddle profile list')
+      --quiet                   Bare output, one value per line
+      --rate-limit float        Max requests per second (0 to disable)
+      --select string           Comma-separated fields to include in output (e.g. --select id,name,status)
+      --timeout duration        Request timeout (default 30s)
+      --yes                     Skip confirmation prompts (for agents and scripts)

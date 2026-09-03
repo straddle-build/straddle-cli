@@ -3,9 +3,11 @@
 package cli
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/straddle-build/straddle-cli/internal/surface"
 )
 
 type generatedEndpointRegistration struct {
@@ -13,13 +15,31 @@ type generatedEndpointRegistration struct {
 	newCommand func(*rootFlags) *cobra.Command
 }
 
-var generatedEndpointRegistrations []generatedEndpointRegistration
+var (
+	generatedEndpointRegistrations []generatedEndpointRegistration
+	commandSurfaces                []surface.Surface
+)
 
 func registerGeneratedEndpoint(endpoint string, newCommand func(*rootFlags) *cobra.Command) {
 	generatedEndpointRegistrations = append(generatedEndpointRegistrations, generatedEndpointRegistration{
 		endpoint:   endpoint,
 		newCommand: newCommand,
 	})
+}
+
+func registerSurface(s surface.Surface) {
+	commandSurfaces = append(commandSurfaces, s)
+}
+
+func registeredSurfaces() []surface.Surface {
+	surfaces := append([]surface.Surface(nil), commandSurfaces...)
+	sort.SliceStable(surfaces, func(i, j int) bool {
+		if surfaces[i].Path == surfaces[j].Path {
+			return surfaces[i].Method < surfaces[j].Method
+		}
+		return surfaces[i].Path < surfaces[j].Path
+	})
+	return surfaces
 }
 
 func installGeneratedEndpoints(root *cobra.Command, flags *rootFlags) {

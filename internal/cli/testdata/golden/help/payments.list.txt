@@ -1,0 +1,63 @@
+Shortcut for 'payments list'. Search for payments, including `charges` and `payouts`, using a variety of criteria. This endpoint supports advanced...
+
+Usage:
+  straddle payments [flags]
+
+Examples:
+  straddle payments
+
+Flags:
+      --all                               Fetch all pages
+      --customer-id customer_id           Search using the customer_id of a `charge` or `payout`.
+      --default-page-size int             Default page size
+      --default-sort string               Default sort (one of: created_at, payment_date, effective_at, id, amount) (default "id")
+      --default-sort-order string         Default sort order (one of: asc, desc) (default "asc")
+      --external-id external_id           Search using the external_id of a `charge` or `payout`.
+      --funding-id funding_id             Search using the funding_id of a `charge` or `payout`.
+  -h, --help                              help for payments
+      --include-metadata                  Include the metadata for payments in the returned data.
+      --max-amount amount                 Search using a maximum amount of a `charge` or `payout`.
+      --max-created-at created_at         Search using the latest created_at date of a `charge` or `payout`.
+      --max-effective-at effective_date   Search using the latest effective_date of a `charge` or `payout`.
+      --max-payment-date payment_date     Search using the latest payment_date of a `charge` or `payout`.
+      --min-amount amount of a            Search using the minimum amount of a charge` or `payout`.
+      --min-created-at created_at         Search using the earliest created_at date of a `charge` or `payout`.
+      --min-effective-at effective_date   Search using the earliest effective_date of a `charge` or `payout`.
+      --min-payment-date                  Search using the earliest  of a `charge` or `payout`.
+      --page-number int                   Results page number. Starts at page 1. (default 1)
+      --page-size int                     Results page size. Max value: 1000 (default 100)
+      --paykey paykey                     Search using the paykey of a `charge` or `payout`.
+      --paykey-id paykey_id               Search using the paykey_id of a `charge` or `payout`.
+      --payment-id id                     Search using the id of a `charge` or `payout`.
+      --payment-status charge             Search by the status of a charge or `payout`.
+      --payment-type charge               Search by the type of a charge or `payout`.
+      --search-text charge                Search using a text string associated with a charge or `payout`.
+      --sort-by string                    Sort by (one of: created_at, payment_date, effective_at, id, amount) (default "id")
+      --sort-order string                 Sort order (one of: asc, desc) (default "asc")
+      --status-reason string              Reason for latest payment status change.
+      --status-source string              Source of latest payment status change.
+
+Global Flags:
+      --account string          Embedded account id sent as the Straddle-Account-Id header (Embed platform scoping)
+      --agent                   Set all agent-friendly defaults (--json --compact --no-input --no-color --yes)
+      --allow-partial-failure   Downgrade response-body partial-failure (e.g. partialFailureError) to a warning instead of a non-zero exit
+      --compact                 Return only key fields (id, name, status, timestamps) for minimal token usage
+      --config string           Config file path
+      --csv                     Output as CSV (table and array responses)
+      --data-source string      Data source for read commands: auto (live with local fallback), live (API only), local (synced data only) (default "auto")
+      --deliver string          Route output to a sink: stdout (default), file:<path>, webhook:<url>
+      --dry-run                 Show request without sending
+      --human-friendly          Enable colored output and rich formatting
+      --idempotent              Treat already-existing create results as a successful no-op
+      --ignore-missing          Treat missing delete targets as a successful no-op
+      --json                    Output as JSON
+      --no-cache                Bypass response cache
+      --no-color                Disable colored output
+      --no-input                Disable all interactive prompts (for CI/agents)
+      --plain                   Output as plain tab-separated text
+      --profile string          Apply values from a saved profile (see 'straddle profile list')
+      --quiet                   Bare output, one value per line
+      --rate-limit float        Max requests per second (0 to disable)
+      --select string           Comma-separated fields to include in output (e.g. --select id,name,status)
+      --timeout duration        Request timeout (default 30s)
+      --yes                     Skip confirmation prompts (for agents and scripts)

@@ -1,0 +1,59 @@
+=== success ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 211
+stdout:
+<<<
+{
+  "action": "post",
+  "data": {
+    "dry_run": true
+  },
+  "dry_run": true,
+  "path": "/v1/payouts/550e8400-e29b-41d4-a716-446655440000/resubmit",
+  "resource": "resubmit",
+  "status": 0,
+  "success": false
+}
+>>>
+stderr_bytes: 151
+stderr:
+<<<
+POST http://golden.test/v1/payouts/550e8400-e29b-41d4-a716-446655440000/resubmit
+  Body:
+{}
+  Authorization: ****_key
+
+(dry run - no request sent)
+>>>
+
+=== http-422 ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 211
+stdout:
+<<<
+{
+  "action": "post",
+  "data": {
+    "dry_run": true
+  },
+  "dry_run": true,
+  "path": "/v1/payouts/550e8400-e29b-41d4-a716-446655440000/resubmit",
+  "resource": "resubmit",
+  "status": 0,
+  "success": false
+}
+>>>
+stderr_bytes: 151
+stderr:
+<<<
+POST http://golden.test/v1/payouts/550e8400-e29b-41d4-a716-446655440000/resubmit
+  Body:
+{}
+  Authorization: ****_key
+
+(dry run - no request sent)
+>>>

@@ -1,0 +1,87 @@
+=== success ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 204
+stdout:
+<<<
+{
+  "action": "put",
+  "data": {
+    "dry_run": true
+  },
+  "dry_run": true,
+  "path": "/v1/customers/550e8400-e29b-41d4-a716-446655440000",
+  "resource": "customers",
+  "status": 0,
+  "success": false
+}
+>>>
+stderr_bytes: 444
+stderr:
+<<<
+PUT http://golden.test/v1/customers/550e8400-e29b-41d4-a716-446655440000
+  Body:
+{
+    "address": {
+      "address1": "123 Main St",
+      "city": "Denver",
+      "state": "CO",
+      "zip": "80202"
+    },
+    "device": {
+      "ip_address": "192.0.2.1"
+    },
+    "email": "golden@example.com",
+    "name": "Golden Customer",
+    "phone": "+15555550100",
+    "status": "verified"
+  }
+  Authorization: ****_key
+
+(dry run - no request sent)
+>>>
+
+=== http-422 ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 204
+stdout:
+<<<
+{
+  "action": "put",
+  "data": {
+    "dry_run": true
+  },
+  "dry_run": true,
+  "path": "/v1/customers/550e8400-e29b-41d4-a716-446655440000",
+  "resource": "customers",
+  "status": 0,
+  "success": false
+}
+>>>
+stderr_bytes: 444
+stderr:
+<<<
+PUT http://golden.test/v1/customers/550e8400-e29b-41d4-a716-446655440000
+  Body:
+{
+    "address": {
+      "address1": "123 Main St",
+      "city": "Denver",
+      "state": "CO",
+      "zip": "80202"
+    },
+    "device": {
+      "ip_address": "192.0.2.1"
+    },
+    "email": "golden@example.com",
+    "name": "Golden Customer",
+    "phone": "+15555550100",
+    "status": "verified"
+  }
+  Authorization: ****_key
+
+(dry run - no request sent)
+>>>

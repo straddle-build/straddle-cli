@@ -1,0 +1,44 @@
+Returns a list of representatives associated with a specific account or organization. The representatives are...
+
+Usage:
+  straddle representatives list [flags]
+
+Examples:
+  straddle representatives list
+
+Flags:
+      --account-id string        The unique identifier of the account to list representatives for.
+      --all                      Fetch all pages
+  -h, --help                     help for list
+      --level string             Level (one of: account, platform)
+      --organization-id string   Organization id
+      --page-number int          Results page number. Starts at page 1. (default 1)
+      --page-size int            Page size. Max value: 1000 (default 100)
+      --platform-id string       Platform id
+      --sort-by string           Sort By. (default "id")
+      --sort-order string        Sort Order. (one of: asc, desc) (default "asc")
+
+Global Flags:
+      --account string          Embedded account id sent as the Straddle-Account-Id header (Embed platform scoping)
+      --agent                   Set all agent-friendly defaults (--json --compact --no-input --no-color --yes)
+      --allow-partial-failure   Downgrade response-body partial-failure (e.g. partialFailureError) to a warning instead of a non-zero exit
+      --compact                 Return only key fields (id, name, status, timestamps) for minimal token usage
+      --config string           Config file path
+      --csv                     Output as CSV (table and array responses)
+      --data-source string      Data source for read commands: auto (live with local fallback), live (API only), local (synced data only) (default "auto")
+      --deliver string          Route output to a sink: stdout (default), file:<path>, webhook:<url>
+      --dry-run                 Show request without sending
+      --human-friendly          Enable colored output and rich formatting
+      --idempotent              Treat already-existing create results as a successful no-op
+      --ignore-missing          Treat missing delete targets as a successful no-op
+      --json                    Output as JSON
+      --no-cache                Bypass response cache
+      --no-color                Disable colored output
+      --no-input                Disable all interactive prompts (for CI/agents)
+      --plain                   Output as plain tab-separated text
+      --profile string          Apply values from a saved profile (see 'straddle profile list')
+      --quiet                   Bare output, one value per line
+      --rate-limit float        Max requests per second (0 to disable)
+      --select string           Comma-separated fields to include in output (e.g. --select id,name,status)
+      --timeout duration        Request timeout (default 30s)
+      --yes                     Skip confirmation prompts (for agents and scripts)

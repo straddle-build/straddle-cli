@@ -1,0 +1,53 @@
+=== success ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 81
+stdout:
+<<<
+{
+  "meta": {
+    "source": "live"
+  },
+  "results": {
+    "dry_run": true
+  }
+}
+>>>
+stderr_bytes: 131
+stderr:
+<<<
+POST http://golden.test/v1/reports/total_customers_by_status
+  Body:
+{}
+  Authorization: ****_key
+
+(dry run - no request sent)
+>>>
+
+=== http-422 ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 81
+stdout:
+<<<
+{
+  "meta": {
+    "source": "live"
+  },
+  "results": {
+    "dry_run": true
+  }
+}
+>>>
+stderr_bytes: 131
+stderr:
+<<<
+POST http://golden.test/v1/reports/total_customers_by_status
+  Body:
+{}
+  Authorization: ****_key
+
+(dry run - no request sent)
+>>>

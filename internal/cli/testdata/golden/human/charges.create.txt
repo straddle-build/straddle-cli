@@ -1,0 +1,42 @@
+=== success ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 356
+stdout:
+<<<
+{
+  "data": {
+    "amount": 1250,
+    "currency": "USD",
+    "external_id": "550e8400-e29b-41d4-a716-446655440000",
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "status": "created"
+  },
+  "meta": {
+    "api_request_id": "550e8400-e29b-41d4-a716-446655440000",
+    "api_request_timestamp": "2026-01-15T12:00:00Z"
+  },
+  "response_type": "object"
+}
+>>>
+stderr_bytes: 0
+stderr:
+<<<
+
+>>>
+
+=== http-422 ===
+exit_code: 5
+error_class: api
+error: "POST /v1/charges returned HTTP 422: {\"error\":{\"message\":\"bad\"}}"
+stdout_bytes: 0
+stdout:
+<<<
+
+>>>
+stderr_bytes: 71
+stderr:
+<<<
+Error: POST /v1/charges returned HTTP 422: {"error":{"message":"bad"}}
+>>>

@@ -1,0 +1,55 @@
+=== success ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 81
+stdout:
+<<<
+{
+  "meta": {
+    "source": "live"
+  },
+  "results": {
+    "dry_run": true
+  }
+}
+>>>
+stderr_bytes: 206
+stderr:
+<<<
+GET http://golden.test/v1/funding_event_payments/550e8400-e29b-41d4-a716-446655440000
+  ?default_sort_order=asc
+  &page_number=0
+  &sort_order=asc
+  Authorization: ****_key
+
+(dry run - no request sent)
+>>>
+
+=== http-422 ===
+exit_code: 0
+error_class: none
+error: <nil>
+stdout_bytes: 81
+stdout:
+<<<
+{
+  "meta": {
+    "source": "live"
+  },
+  "results": {
+    "dry_run": true
+  }
+}
+>>>
+stderr_bytes: 206
+stderr:
+<<<
+GET http://golden.test/v1/funding_event_payments/550e8400-e29b-41d4-a716-446655440000
+  ?default_sort_order=asc
+  &page_number=0
+  &sort_order=asc
+  Authorization: ****_key
+
+(dry run - no request sent)
+>>>

@@ -24,7 +24,7 @@ func main() {
 
 func run(args []string, stdout, stderr io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: gen-endpoint <candidate-status|check|drift|generate|verify-lock|version> [flags]")
+		return errors.New("usage: gen-endpoint <candidate-status|check|drift|generate|surfaces|verify-lock|version> [flags]")
 	}
 	switch args[0] {
 	case "candidate-status":
@@ -35,6 +35,8 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return runDrift(args[1:], stdout, stderr)
 	case "generate":
 		return runGenerate(args[1:], stdout, stderr)
+	case "surfaces":
+		return runSurfaces(args[1:], stdout, stderr)
 	case "verify-lock":
 		return runVerifyLock(args[1:], stdout, stderr)
 	case "version":
@@ -167,6 +169,40 @@ func runDrift(args []string, stdout, stderr io.Writer) error {
 	}
 	_, err = io.WriteString(stdout, driftSummary(result))
 	return err
+}
+
+func runSurfaces(args []string, stdout, stderr io.Writer) error {
+	fs := flag.NewFlagSet("surfaces", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	specPath := fs.String("spec", "", "OpenAPI spec")
+	fs.Bool("agent", false, "emit JSON")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *specPath == "" {
+		return errors.New("surfaces requires --spec")
+	}
+	surfaces, unsupported, err := apisync.DeriveSurfaces(*specPath)
+	if err != nil {
+		return err
+	}
+	sort.Slice(surfaces, func(i, j int) bool {
+		if surfaces[i].Path != surfaces[j].Path {
+			return surfaces[i].Path < surfaces[j].Path
+		}
+		return surfaces[i].Method < surfaces[j].Method
+	})
+	if err := writeJSON(stdout, surfaces); err != nil {
+		return err
+	}
+	if len(unsupported) == 0 {
+		return nil
+	}
+	summaries := make([]string, len(unsupported))
+	for i, operation := range unsupported {
+		summaries[i] = operation.Operation.Key + ": " + strings.Join(operation.Reasons, ", ")
+	}
+	return fmt.Errorf("surface derivation found %d unsupported operations: %s", len(unsupported), strings.Join(summaries, "; "))
 }
 
 func runGenerate(args []string, stdout, stderr io.Writer) error {
