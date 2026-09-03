@@ -21,6 +21,8 @@ Local development commands, release process, and operational pointers for the St
 
 Agent mode: `--agent` = `--json --compact --no-input --no-color --yes`. Human color/rich output is opt-in via `--human-friendly`.
 
+The contract mock check runs the registered `customers create --stdin --no-cache` command against Scalar using the request example owned by the customer schema in `spec.yaml`. The test accepts either OpenAPI's singular `example` or plural `examples` representation.
+
 ## CI
 
 `.github/workflows/ci.yml` runs build, test, golangci-lint, govulncheck, and gitleaks (full history) on pushes to `main` and all PRs. PRs are additionally gated through the no-mistakes pipeline (`.no-mistakes.yaml`).

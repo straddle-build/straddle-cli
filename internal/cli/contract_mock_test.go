@@ -26,6 +26,13 @@ const (
 	contractMockStartup  = 60 * time.Second
 )
 
+func contractSpecPath() string {
+	if path := os.Getenv("STRADDLE_CONTRACT_SPEC"); path != "" {
+		return path
+	}
+	return contractMockSpecPath
+}
+
 type contractDocument struct {
 	Paths      map[string]map[string]contractOperation `json:"paths"`
 	Components struct {
@@ -142,7 +149,7 @@ func requireContractMock(t *testing.T) {
 func contractRequestExample(t *testing.T, method, path string) []byte {
 	t.Helper()
 
-	data, err := os.ReadFile(contractMockSpecPath)
+	data, err := os.ReadFile(contractSpecPath())
 	if err != nil {
 		t.Fatalf("read contract: %v", err)
 	}
@@ -239,7 +246,7 @@ func startContractMockServer(t *testing.T) string {
 	t.Cleanup(func() {
 		_ = stderr.Close()
 	})
-	cmd := exec.Command("npx", "--yes", "@scalar/cli@2.1.0", "document", "mock", contractMockSpecPath, "--port", strconv.Itoa(port))
+	cmd := exec.Command("npx", "--yes", "@scalar/cli@2.1.0", "document", "mock", contractSpecPath(), "--port", strconv.Itoa(port))
 	cmd.Stdout = io.Discard
 	cmd.Stderr = stderr
 	if err := cmd.Start(); err != nil {
