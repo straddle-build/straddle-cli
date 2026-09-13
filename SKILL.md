@@ -305,7 +305,7 @@ A `saas` or `marketplace` charge or payout with no account set fails fast with a
 
 ## Agent Mode
 
-Add `--agent` to any command. Expands to: `--json --compact --no-input --no-color --yes`.
+Add `--agent` to any command. See [Output Formats](README.md#output-formats) for its defaults and explicit override rules.
 
 - **Pipeable** — JSON on stdout, errors on stderr
 - **Filterable** — `--select` keeps a subset of fields. Dotted paths descend into nested structures; arrays traverse element-wise. Critical for keeping context small on verbose APIs:

@@ -19,7 +19,7 @@ Local development commands, release process, and operational pointers for the St
 | Runtime smoke | `go run ./cmd/straddle doctor --json` and `go run ./cmd/straddle agent-context --pretty` |
 | Install to PATH | `make install` (`go install ./cmd/straddle`) |
 
-Agent mode: `--agent` = `--json --compact --no-input --no-color --yes`. Human color/rich output is opt-in via `--human-friendly`.
+See [Output Formats](README.md#output-formats) for agent defaults, explicit overrides, and human-friendly output behavior.
 
 The contract mock check runs the registered `customers create --stdin --no-cache` command against Scalar using the `application/json` request example in `spec.yaml`. It prefers a media-type `example`, then the alphabetically first named media-type example, resolving local `#/components/examples/` references. When the media type has no example, it falls back to the referenced component schema's singular `example` or first plural `examples` value.
 

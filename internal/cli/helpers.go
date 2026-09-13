@@ -1252,7 +1252,8 @@ func suggestFlag(unknown string, cmd *cobra.Command) string {
 // Smart default: terminal=table, pipe=JSON.
 // - Human in terminal: isTerminal()=true → table
 // - Claude Code/Codex bash tool: stdout piped → JSON
-// - --json/--csv/--compact/--agent: machine format → JSON
+// - Effective --json/--csv/--compact/--quiet/--plain/--select values: machine format → JSON
+// --agent supplies defaults before this check; explicit false values can restore the table on a terminal.
 func wantsHumanTable(w io.Writer, flags *rootFlags) bool {
 	if flags.asJSON || flags.csv || flags.compact || flags.quiet || flags.plain {
 		return false
