@@ -561,3 +561,110 @@ func TestOverlayEnumSetWithoutEnumPanics(t *testing.T) {
 	}()
 	applyOverlay(endpoint, cmd)
 }
+
+func TestCustomerReviewRequiredStatusFromProfile(t *testing.T) {
+	cases := []struct {
+		name       string
+		profile    map[string]string
+		args       []string
+		wantStatus string
+		wantError  bool
+	}{
+		{
+			name:      "profile omits required default",
+			profile:   map[string]string{},
+			wantError: true,
+		},
+		{
+			name:       "profile supplies decision",
+			profile:    map[string]string{"status": "rejected"},
+			wantStatus: "rejected",
+		},
+		{
+			name:       "profile deliberately supplies schema default",
+			profile:    map[string]string{"status": "verified"},
+			wantStatus: "verified",
+		},
+		{
+			name:       "command line overrides profile",
+			profile:    map[string]string{"status": "rejected"},
+			args:       []string{"--status", "verified"},
+			wantStatus: "verified",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			captured := make(chan capturedSurfaceRequest, 1)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				got := capturedSurfaceRequest{method: r.Method, path: r.URL.Path}
+				got.err = json.NewDecoder(r.Body).Decode(&got.body)
+				captured <- got
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"data":{"id":"reviewed"}}`))
+			}))
+			defer server.Close()
+			isolateSurfaceConfig(t, server.URL)
+			t.Setenv("HOME", t.TempDir())
+			if err := saveProfileStore(&profileStore{Profiles: map[string]Profile{
+				"review": {Name: "review", Values: tc.profile},
+			}}); err != nil {
+				t.Fatal(err)
+			}
+
+			args := []string{"--json", "--no-cache", "--profile", "review", "customers", "review", "update-customer", goldenUUID}
+			args = append(args, tc.args...)
+			_, _, err := runRootForAPITest(t, args, "")
+			if tc.wantError {
+				if err == nil || !strings.Contains(err.Error(), "status") {
+					t.Fatalf("error = %v, want missing status error", err)
+				}
+				select {
+				case got := <-captured:
+					t.Fatalf("omitted status reached the API: %#v", got)
+				default:
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("review update: %v", err)
+			}
+			select {
+			case got := <-captured:
+				if got.err != nil {
+					t.Fatalf("decoding request: %v", got.err)
+				}
+				if got.method != http.MethodPatch || got.path != "/v1/customers/"+goldenUUID+"/review" {
+					t.Fatalf("request = %s %s, want PATCH /v1/customers/%s/review", got.method, got.path, goldenUUID)
+				}
+				wantBody := map[string]any{"status": tc.wantStatus}
+				if !reflect.DeepEqual(got.body, wantBody) {
+					t.Fatalf("body = %#v, want %#v", got.body, wantBody)
+				}
+			default:
+				t.Fatal("review update did not reach the API")
+			}
+		})
+	}
+}
+
+func TestBindSurfaceRequiredProfileFalse(t *testing.T) {
+	cmd := &cobra.Command{Use: "fixture"}
+	bind := bindSurface(cmd, &rootFlags{}, surface.Surface{
+		Path:    "/fixture",
+		HasBody: true,
+		Flags: []surface.Flag{
+			{Name: "control", In: surface.InBody, Key: "/relationship/control", Kind: surface.KindBoolean, Required: true},
+		},
+	})
+	if err := ApplyProfileToFlags(cmd, &Profile{Values: map[string]string{"control": "false"}}); err != nil {
+		t.Fatal(err)
+	}
+	req, err := bind(nil)
+	if err != nil {
+		t.Fatalf("binding profile false: %v", err)
+	}
+	wantBody := map[string]any{"relationship": map[string]any{"control": false}}
+	if !reflect.DeepEqual(req.Body, wantBody) {
+		t.Fatalf("body = %#v, want %#v", req.Body, wantBody)
+	}
+}
