@@ -16,6 +16,7 @@ import (
 )
 
 func TestCacheKey_StaleResponseAcrossTemplateVars(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests.Add(1)
@@ -24,18 +25,15 @@ func TestCacheKey_StaleResponseAcrossTemplateVars(t *testing.T) {
 	}))
 	defer server.Close()
 
-	cacheDir := t.TempDir()
 	baseURL := server.URL + "/{shop}"
 	alice := New(&config.Config{
 		BaseURL:      baseURL,
 		TemplateVars: map[string]string{"environment": "sandbox", "shop": "alice"},
 	}, time.Second, 0)
-	alice.cacheDir = cacheDir
 	bob := New(&config.Config{
 		BaseURL:      baseURL,
 		TemplateVars: map[string]string{"environment": "sandbox", "shop": "bob"},
 	}, time.Second, 0)
-	bob.cacheDir = cacheDir
 
 	first, err := alice.Get("/list", nil)
 	if err != nil || string(first) != `{"path":"/alice/list"}` {
@@ -55,19 +53,18 @@ func TestCacheKey_StaleResponseAcrossTemplateVars(t *testing.T) {
 }
 
 func TestCacheKey_UnresolvedDoesNotReceiveResolvedCachedBody(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, `{"shop":"alice"}`)
 	}))
 	defer server.Close()
 
-	cacheDir := t.TempDir()
 	baseURL := server.URL + "/{shop}"
 	resolved := New(&config.Config{
 		BaseURL:      baseURL,
 		TemplateVars: map[string]string{"environment": "sandbox", "shop": "alice"},
 	}, time.Second, 0)
-	resolved.cacheDir = cacheDir
 	body, err := resolved.Get("/list", nil)
 	if err != nil || string(body) != `{"shop":"alice"}` {
 		t.Fatalf("resolved Get = %s, %v; want alice's response", body, err)
@@ -77,7 +74,6 @@ func TestCacheKey_UnresolvedDoesNotReceiveResolvedCachedBody(t *testing.T) {
 		BaseURL:      baseURL,
 		TemplateVars: map[string]string{"environment": "sandbox"},
 	}, time.Second, 0)
-	unresolved.cacheDir = cacheDir
 	_, err = unresolved.Get("/list", nil)
 	var templateErr *TemplateVarError
 	if !errors.As(err, &templateErr) {
