@@ -41,6 +41,9 @@ func bindSurface(cmd *cobra.Command, flags *rootFlags, s surface.Surface) func(a
 	for _, definition := range s.Flags {
 		binding := &surfaceFlagBinding{definition: definition}
 		binding.register(cmd)
+		if definition.Required {
+			cmd.Flags().Lookup(definition.Name).Annotations = map[string][]string{"straddle:required": {"true"}}
+		}
 		bindings = append(bindings, binding)
 	}
 
@@ -72,7 +75,7 @@ func bindSurface(cmd *cobra.Command, flags *rootFlags, s surface.Surface) func(a
 
 		if !readStdin && !flags.dryRun {
 			for _, binding := range bindings {
-				if binding.definition.Required && !cmd.Flags().Changed(binding.definition.Name) && !binding.included(cmd) {
+				if binding.definition.Required && !cmd.Flags().Changed(binding.definition.Name) {
 					return req, fmt.Errorf("required flag %q not set", binding.definition.Name)
 				}
 			}
