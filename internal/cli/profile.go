@@ -131,9 +131,9 @@ func ApplyProfileToFlags(cmd *cobra.Command, profile *Profile) error {
 		// honored as an explicit per-call override. See root.go PersistentPreRunE
 		// ("runs after profile application so a profile-set --account is honored")
 		// and straddleacct.Resolve ("The per-call flag overrides the sticky account
-		// whenever the flag was supplied"). Explicit-input annotations likewise
-		// mark the profile value as deliberate without changing unrelated flags.
-		if flag.Name == "account" || len(flag.Annotations["straddle:explicit"]) > 0 {
+		// whenever the flag was supplied"). Required and explicit-input
+		// annotations also mark profile values as deliberate inputs.
+		if flag.Name == "account" || len(flag.Annotations["straddle:explicit"]) > 0 || len(flag.Annotations["straddle:required"]) > 0 {
 			flag.Changed = true
 		}
 	}
