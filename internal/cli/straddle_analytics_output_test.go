@@ -25,8 +25,11 @@ func TestCashflowOutputHonorsCompactOnTerminal(t *testing.T) {
 		{"terminal default", true, false, nil, false},
 		{"terminal JSON", true, false, []string{"--json"}, true},
 		{"terminal agent", true, false, []string{"--agent"}, true},
+		{"terminal agent with defaults disabled", true, false, []string{"--agent", "--json=false", "--compact=false"}, false},
 		{"pipe default", false, false, nil, true},
 		{"pipe compact", false, false, []string{"--compact"}, true},
+		{"pipe human-friendly", false, true, []string{"--human-friendly"}, true},
+		{"pipe agent with defaults disabled and human-friendly", false, true, []string{"--agent", "--json=false", "--compact=false", "--human-friendly"}, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			isolateAPIConfig(t)

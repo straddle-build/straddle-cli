@@ -310,11 +310,11 @@ straddle accounts list --json --select id,name,status
 # Dry run — show the request without sending
 straddle accounts list --dry-run
 
-# Agent mode — JSON + compact + no prompts in one flag
+# Agent mode: machine-friendly defaults in one flag
 straddle accounts list --agent
 ```
 
-Machine-format flags such as `--json` and `--compact` produce JSON even when stdout is a terminal. They also take precedence over `--human-friendly` when both are set.
+`--agent` defaults to `--json --compact --no-input --no-color --yes`. Explicit flag values override those defaults, so `--agent --json=false --compact=false` produces a human table in a terminal. Piped output remains JSON, including with `--human-friendly`. Machine-format flags such as `--json` and `--compact` produce JSON in a terminal and take precedence over `--human-friendly`.
 
 ## Agent Usage
 
