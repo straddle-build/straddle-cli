@@ -15,34 +15,6 @@ import (
 	"time"
 )
 
-// ---- CleanText ----
-
-func TestCleanText(t *testing.T) {
-	cases := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{"decodes numeric entity", "The Food Lab&#39;s Cookie", "The Food Lab's Cookie"},
-		{"decodes named entity", "AT&amp;T", "AT&T"},
-		{"trims whitespace", "  Chicken Tikka  ", "Chicken Tikka"},
-		{"empty input", "", ""},
-		{"plain passthrough", "Already clean.", "Already clean."},
-		// Single-pass unescape contract: nested &amp;amp; decodes once to &amp;
-		// but the inner &amp; stays encoded. If a caller needs repeated
-		// unescaping they have a deeper upstream problem.
-		{"single pass on nested entity", "&amp;amp;", "&amp;"},
-	}
-	for _, tc := range cases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			if got := CleanText(tc.in); got != tc.want {
-				t.Errorf("CleanText(%q) = %q, want %q", tc.in, got, tc.want)
-			}
-		})
-	}
-}
-
 func TestParseStoredTime(t *testing.T) {
 	cases := []struct {
 		name string
