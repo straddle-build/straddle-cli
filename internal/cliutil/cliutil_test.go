@@ -623,54 +623,7 @@ func TestProbeReachable_SendsRangeHeader(t *testing.T) {
 	}
 }
 
-// ---- AdaptiveLimiter / RateLimitError / RetryAfter / Backoff ----
-
-func TestRateLimitError_ErrorMessage(t *testing.T) {
-	cases := []struct {
-		name string
-		err  *RateLimitError
-		want string
-	}{
-		{
-			name: "with retry-after and body",
-			err:  &RateLimitError{URL: "https://api.example.com/x", RetryAfter: 5 * time.Second, Body: "slow down"},
-			want: "rate limited: HTTP 429 for https://api.example.com/x; retry after 5s: slow down",
-		},
-		{
-			name: "with retry-after no body",
-			err:  &RateLimitError{URL: "https://api.example.com/x", RetryAfter: 2 * time.Second},
-			want: "rate limited: HTTP 429 for https://api.example.com/x; retry after 2s",
-		},
-		{
-			name: "no retry-after with body",
-			err:  &RateLimitError{URL: "https://api.example.com/x", Body: "later"},
-			want: "rate limited: HTTP 429 for https://api.example.com/x: later",
-		},
-		{
-			name: "no retry-after no body",
-			err:  &RateLimitError{URL: "https://api.example.com/x"},
-			want: "rate limited: HTTP 429 for https://api.example.com/x",
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := tc.err.Error(); got != tc.want {
-				t.Errorf("Error() = %q, want %q", got, tc.want)
-			}
-		})
-	}
-}
-
-func TestRateLimitError_ErrorsAs(t *testing.T) {
-	var err error = &RateLimitError{URL: "https://x", RetryAfter: time.Second}
-	var target *RateLimitError
-	if !errors.As(err, &target) {
-		t.Fatal("errors.As should match *RateLimitError")
-	}
-	if target.URL != "https://x" {
-		t.Errorf("target.URL = %q, want %q", target.URL, "https://x")
-	}
-}
+// ---- AdaptiveLimiter / RetryAfter ----
 
 func TestRetryAfter_Seconds(t *testing.T) {
 	resp := &http.Response{Header: http.Header{}}
@@ -736,35 +689,5 @@ func TestRetryAfter_MalformedFallsBackToDefault(t *testing.T) {
 func TestRetryAfter_NilResp(t *testing.T) {
 	if got := RetryAfter(nil); got != 5*time.Second {
 		t.Errorf("RetryAfter(nil) = %v, want 5s default", got)
-	}
-}
-
-func TestBackoff_DoublesPerAttempt(t *testing.T) {
-	cases := []struct {
-		attempt int
-		want    time.Duration
-	}{
-		{0, 1 * time.Second},
-		{1, 2 * time.Second},
-		{2, 4 * time.Second},
-		{3, 8 * time.Second},
-		{4, 16 * time.Second},
-	}
-	for _, tc := range cases {
-		if got := Backoff(tc.attempt); got != tc.want {
-			t.Errorf("Backoff(%d) = %v, want %v", tc.attempt, got, tc.want)
-		}
-	}
-}
-
-func TestBackoff_CapsAtMax(t *testing.T) {
-	if got := Backoff(20); got != MaxBackoff {
-		t.Errorf("Backoff(20) = %v, want capped at %v", got, MaxBackoff)
-	}
-}
-
-func TestBackoff_NegativeAttemptClampsToZero(t *testing.T) {
-	if got := Backoff(-3); got != 1*time.Second {
-		t.Errorf("Backoff(-3) = %v, want 1s (clamped to 0)", got)
 	}
 }
