@@ -395,31 +395,38 @@ func (d surfaceDeriver) flattenNode(node schemaNode, nameParts, pointerParts []s
 	return nil, []string{"schema node at " + pointer + " has no representable kind"}
 }
 
-// objectSchema reports whether every non-null value the schema admits is a
-// JSON object. Unresolvable branches count as non-objects, so the binder falls
-// back to accepting any JSON value rather than rejecting valid input.
+// objectSchema reports whether the schema provably admits only JSON objects
+// (or null): an explicit object type, or a union whose non-null branches all
+// are. Anything else, including untyped, unresolvable, or recursive schemas,
+// counts as unknown so the binder accepts any JSON value.
 func (d surfaceDeriver) objectSchema(node schemaNode, pointer string, stack map[string]bool) bool {
 	if len(node.Type) > 0 {
 		schemaType, _ := nodeType(node)
 		return schemaType == "object"
 	}
-	branches := append(append([]json.RawMessage(nil), node.OneOf...), node.AnyOf...)
-	if len(branches) == 0 {
-		return len(node.Properties) > 0 || allowsAdditionalProperties(node.AdditionalProperties)
-	}
 	object := false
-	for _, raw := range branches {
-		branch, reasons := d.resolveSchema(raw, pointer, stack)
-		if len(reasons) > 0 {
-			return false
+	for _, branches := range [2][]json.RawMessage{node.OneOf, node.AnyOf} {
+		for _, raw := range branches {
+			branch, reasons := d.resolveSchema(raw, pointer, stack)
+			if len(reasons) > 0 {
+				return false
+			}
+			if schemaType, _ := nodeType(branch); schemaType == "null" {
+				continue
+			}
+			references := schemaReferences(raw)
+			for _, reference := range references {
+				stack[reference] = true
+			}
+			branchObject := d.objectSchema(branch, pointer, stack)
+			for _, reference := range references {
+				delete(stack, reference)
+			}
+			if !branchObject {
+				return false
+			}
+			object = true
 		}
-		if schemaType, _ := nodeType(branch); schemaType == "null" {
-			continue
-		}
-		if !d.objectSchema(branch, pointer, stack) {
-			return false
-		}
-		object = true
 	}
 	return object
 }

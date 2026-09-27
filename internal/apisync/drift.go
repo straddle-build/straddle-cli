@@ -197,6 +197,7 @@ func describeFlagChanges(base, head surface.Flag) string {
 	appendChange("key", base.Key, head.Key)
 	appendChange("kind", base.Kind, head.Kind)
 	appendChange("array", base.Array, head.Array)
+	appendChange("object", base.Object, head.Object)
 	appendChange("style", base.Style, head.Style)
 	appendChange("explode", base.Explode, head.Explode)
 	appendChange("required", base.Required, head.Required)

@@ -580,6 +580,13 @@ paths:
                   anyOf:
                     - $ref: "#/components/schemas/Profile"
                     - type: "null"
+                labels:
+                  anyOf:
+                    - properties:
+                        name:
+                          type: string
+                    - additionalProperties:
+                        type: string
                 rules:
                   type: array
                   items:
@@ -591,6 +598,9 @@ paths:
                   oneOf:
                     - type: string
                     - type: integer
+                tree:
+                  anyOf:
+                    - $ref: "#/components/schemas/Node"
 components:
   schemas:
     Profile:
@@ -598,6 +608,10 @@ components:
       properties:
         ein:
           type: string
+    Node:
+      anyOf:
+        - $ref: "#/components/schemas/Node"
+        - type: object
 `), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -628,6 +642,9 @@ components:
 		{"metadata", "metadata", `null`},
 		{"owner", "owner", `{"ein":"12-3456789"}`},
 		{"owner", "owner", `null`},
+		{"labels", "labels", `"text"`},
+		{"labels", "labels", `{"name":"a"}`},
+		{"tree", "tree", `{"child":{}}`},
 	} {
 		t.Run("accepts "+tc.flag+"="+tc.value, func(t *testing.T) {
 			var want any
