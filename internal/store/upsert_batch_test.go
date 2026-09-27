@@ -23,7 +23,7 @@ import (
 // Run under `go test -race` to catch any data races on Store fields.
 func TestStoreWrite_NoSQLITE_BUSY_HighConcurrency(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -76,7 +76,7 @@ func TestStoreWrite_NoSQLITE_BUSY_HighConcurrency(t *testing.T) {
 
 	// Verify all rows persisted: goroutines * itemsPerBatch in the generic
 	// resources table.
-	db := s.DB()
+	db := s.db
 	var total int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources`).Scan(&total); err != nil {
 		t.Fatalf("count resources: %v", err)
@@ -91,7 +91,7 @@ func TestStoreWrite_NoSQLITE_BUSY_HighConcurrency(t *testing.T) {
 // proceed. A leaked lock would deadlock the second call indefinitely.
 func TestStoreWrite_PanicReleasesLock(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestStoreWrite_PanicReleasesLock(t *testing.T) {
 // override) to assert the lookup path itself works.
 func TestUpsertBatch_TemplatedIDFieldOverrideWins(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -174,7 +174,7 @@ func TestUpsertBatch_TemplatedIDFieldOverrideWins(t *testing.T) {
 // does not silently break unannotated specs.
 func TestUpsertBatch_GenericFallbackList(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -230,7 +230,7 @@ func TestUpsertBatch_GenericFallbackList(t *testing.T) {
 // drops occur.
 func TestUpsertBatch_ExtractFailuresReturnedForPerItemMisses(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -261,7 +261,7 @@ func TestUpsertBatch_ExtractFailuresReturnedForPerItemMisses(t *testing.T) {
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesAccountsTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -276,7 +276,7 @@ func TestUpsertBatch_PopulatesAccountsTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "accounts").Scan(&generic); err != nil {
@@ -303,7 +303,7 @@ func TestUpsertBatch_PopulatesAccountsTable(t *testing.T) {
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesCapabilityRequestsTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -318,7 +318,7 @@ func TestUpsertBatch_PopulatesCapabilityRequestsTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "capability_requests").Scan(&generic); err != nil {
@@ -347,7 +347,7 @@ func TestUpsertBatch_PopulatesCapabilityRequestsTable(t *testing.T) {
 // discard every successfully fetched API row.
 func TestUpsertBatch_TypedFailureDoesNotStrandCapabilityRequestsGeneric(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -371,7 +371,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandCapabilityRequestsGeneric(t *testi
 		t.Fatalf("extractFailures = %d, want 0", extractFailures)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "capability_requests").Scan(&generic); err != nil {
@@ -396,7 +396,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandCapabilityRequestsGeneric(t *testi
 // parent_id column when items go through UpsertBatch. Regression for issue #268.
 func TestUpsertBatch_SetsCapabilityRequestsParentID(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -411,7 +411,7 @@ func TestUpsertBatch_SetsCapabilityRequestsParentID(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var matchedA int
 	parentQuery := fmt.Sprintf(`SELECT COUNT(*) FROM "%s" WHERE parent_id = ?`, "capability_requests")
@@ -430,7 +430,7 @@ func TestUpsertBatch_SetsCapabilityRequestsParentID(t *testing.T) {
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesOnboardTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -445,7 +445,7 @@ func TestUpsertBatch_PopulatesOnboardTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "onboard").Scan(&generic); err != nil {
@@ -474,7 +474,7 @@ func TestUpsertBatch_PopulatesOnboardTable(t *testing.T) {
 // discard every successfully fetched API row.
 func TestUpsertBatch_TypedFailureDoesNotStrandOnboardGeneric(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -498,7 +498,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandOnboardGeneric(t *testing.T) {
 		t.Fatalf("extractFailures = %d, want 0", extractFailures)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "onboard").Scan(&generic); err != nil {
@@ -525,7 +525,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandOnboardGeneric(t *testing.T) {
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesSimulateTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -540,7 +540,7 @@ func TestUpsertBatch_PopulatesSimulateTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "simulate").Scan(&generic); err != nil {
@@ -569,7 +569,7 @@ func TestUpsertBatch_PopulatesSimulateTable(t *testing.T) {
 // discard every successfully fetched API row.
 func TestUpsertBatch_TypedFailureDoesNotStrandSimulateGeneric(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -593,7 +593,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandSimulateGeneric(t *testing.T) {
 		t.Fatalf("extractFailures = %d, want 0", extractFailures)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "simulate").Scan(&generic); err != nil {
@@ -620,7 +620,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandSimulateGeneric(t *testing.T) {
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesBridgeTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -635,7 +635,7 @@ func TestUpsertBatch_PopulatesBridgeTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "bridge").Scan(&generic); err != nil {
@@ -662,7 +662,7 @@ func TestUpsertBatch_PopulatesBridgeTable(t *testing.T) {
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesChargesTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -677,7 +677,7 @@ func TestUpsertBatch_PopulatesChargesTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "charges").Scan(&generic); err != nil {
@@ -704,7 +704,7 @@ func TestUpsertBatch_PopulatesChargesTable(t *testing.T) {
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesChargesCancelTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -719,7 +719,7 @@ func TestUpsertBatch_PopulatesChargesCancelTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "charges_cancel").Scan(&generic); err != nil {
@@ -748,7 +748,7 @@ func TestUpsertBatch_PopulatesChargesCancelTable(t *testing.T) {
 // discard every successfully fetched API row.
 func TestUpsertBatch_TypedFailureDoesNotStrandChargesCancelGeneric(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -772,7 +772,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandChargesCancelGeneric(t *testing.T)
 		t.Fatalf("extractFailures = %d, want 0", extractFailures)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "charges_cancel").Scan(&generic); err != nil {
@@ -799,7 +799,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandChargesCancelGeneric(t *testing.T)
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesChargesHoldTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -814,7 +814,7 @@ func TestUpsertBatch_PopulatesChargesHoldTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "charges_hold").Scan(&generic); err != nil {
@@ -843,7 +843,7 @@ func TestUpsertBatch_PopulatesChargesHoldTable(t *testing.T) {
 // discard every successfully fetched API row.
 func TestUpsertBatch_TypedFailureDoesNotStrandChargesHoldGeneric(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -867,7 +867,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandChargesHoldGeneric(t *testing.T) {
 		t.Fatalf("extractFailures = %d, want 0", extractFailures)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "charges_hold").Scan(&generic); err != nil {
@@ -894,7 +894,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandChargesHoldGeneric(t *testing.T) {
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesChargesReleaseTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -909,7 +909,7 @@ func TestUpsertBatch_PopulatesChargesReleaseTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "charges_release").Scan(&generic); err != nil {
@@ -938,7 +938,7 @@ func TestUpsertBatch_PopulatesChargesReleaseTable(t *testing.T) {
 // discard every successfully fetched API row.
 func TestUpsertBatch_TypedFailureDoesNotStrandChargesReleaseGeneric(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -962,7 +962,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandChargesReleaseGeneric(t *testing.T
 		t.Fatalf("extractFailures = %d, want 0", extractFailures)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "charges_release").Scan(&generic); err != nil {
@@ -989,7 +989,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandChargesReleaseGeneric(t *testing.T
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesChargesResubmitTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1004,7 +1004,7 @@ func TestUpsertBatch_PopulatesChargesResubmitTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "charges_resubmit").Scan(&generic); err != nil {
@@ -1033,7 +1033,7 @@ func TestUpsertBatch_PopulatesChargesResubmitTable(t *testing.T) {
 // discard every successfully fetched API row.
 func TestUpsertBatch_TypedFailureDoesNotStrandChargesResubmitGeneric(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1057,7 +1057,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandChargesResubmitGeneric(t *testing.
 		t.Fatalf("extractFailures = %d, want 0", extractFailures)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "charges_resubmit").Scan(&generic); err != nil {
@@ -1084,7 +1084,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandChargesResubmitGeneric(t *testing.
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesChargesUnmaskTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1099,7 +1099,7 @@ func TestUpsertBatch_PopulatesChargesUnmaskTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "charges_unmask").Scan(&generic); err != nil {
@@ -1128,7 +1128,7 @@ func TestUpsertBatch_PopulatesChargesUnmaskTable(t *testing.T) {
 // discard every successfully fetched API row.
 func TestUpsertBatch_TypedFailureDoesNotStrandChargesUnmaskGeneric(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1152,7 +1152,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandChargesUnmaskGeneric(t *testing.T)
 		t.Fatalf("extractFailures = %d, want 0", extractFailures)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "charges_unmask").Scan(&generic); err != nil {
@@ -1179,7 +1179,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandChargesUnmaskGeneric(t *testing.T)
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesCustomersTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1194,7 +1194,7 @@ func TestUpsertBatch_PopulatesCustomersTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "customers").Scan(&generic); err != nil {
@@ -1221,7 +1221,7 @@ func TestUpsertBatch_PopulatesCustomersTable(t *testing.T) {
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesCustomersRefreshReviewTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1236,7 +1236,7 @@ func TestUpsertBatch_PopulatesCustomersRefreshReviewTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "customers_refresh_review").Scan(&generic); err != nil {
@@ -1265,7 +1265,7 @@ func TestUpsertBatch_PopulatesCustomersRefreshReviewTable(t *testing.T) {
 // discard every successfully fetched API row.
 func TestUpsertBatch_TypedFailureDoesNotStrandCustomersRefreshReviewGeneric(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1289,7 +1289,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandCustomersRefreshReviewGeneric(t *t
 		t.Fatalf("extractFailures = %d, want 0", extractFailures)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "customers_refresh_review").Scan(&generic); err != nil {
@@ -1316,7 +1316,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandCustomersRefreshReviewGeneric(t *t
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesCustomersReviewTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1331,7 +1331,7 @@ func TestUpsertBatch_PopulatesCustomersReviewTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "customers_review").Scan(&generic); err != nil {
@@ -1360,7 +1360,7 @@ func TestUpsertBatch_PopulatesCustomersReviewTable(t *testing.T) {
 // discard every successfully fetched API row.
 func TestUpsertBatch_TypedFailureDoesNotStrandCustomersReviewGeneric(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1384,7 +1384,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandCustomersReviewGeneric(t *testing.
 		t.Fatalf("extractFailures = %d, want 0", extractFailures)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "customers_review").Scan(&generic); err != nil {
@@ -1411,7 +1411,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandCustomersReviewGeneric(t *testing.
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesCustomersUnmaskedTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1426,7 +1426,7 @@ func TestUpsertBatch_PopulatesCustomersUnmaskedTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "customers_unmasked").Scan(&generic); err != nil {
@@ -1455,7 +1455,7 @@ func TestUpsertBatch_PopulatesCustomersUnmaskedTable(t *testing.T) {
 // discard every successfully fetched API row.
 func TestUpsertBatch_TypedFailureDoesNotStrandCustomersUnmaskedGeneric(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1479,7 +1479,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandCustomersUnmaskedGeneric(t *testin
 		t.Fatalf("extractFailures = %d, want 0", extractFailures)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "customers_unmasked").Scan(&generic); err != nil {
@@ -1506,7 +1506,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandCustomersUnmaskedGeneric(t *testin
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesFundingEventPaymentsTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1521,7 +1521,7 @@ func TestUpsertBatch_PopulatesFundingEventPaymentsTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "funding-event-payments").Scan(&generic); err != nil {
@@ -1548,7 +1548,7 @@ func TestUpsertBatch_PopulatesFundingEventPaymentsTable(t *testing.T) {
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesFundingEventsTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1563,7 +1563,7 @@ func TestUpsertBatch_PopulatesFundingEventsTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "funding-events").Scan(&generic); err != nil {
@@ -1590,7 +1590,7 @@ func TestUpsertBatch_PopulatesFundingEventsTable(t *testing.T) {
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesLinkedBankAccountsTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1605,7 +1605,7 @@ func TestUpsertBatch_PopulatesLinkedBankAccountsTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "linked-bank-accounts").Scan(&generic); err != nil {
@@ -1632,7 +1632,7 @@ func TestUpsertBatch_PopulatesLinkedBankAccountsTable(t *testing.T) {
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesLinkedBankAccountsCancelTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1647,7 +1647,7 @@ func TestUpsertBatch_PopulatesLinkedBankAccountsCancelTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "linked_bank_accounts_cancel").Scan(&generic); err != nil {
@@ -1676,7 +1676,7 @@ func TestUpsertBatch_PopulatesLinkedBankAccountsCancelTable(t *testing.T) {
 // discard every successfully fetched API row.
 func TestUpsertBatch_TypedFailureDoesNotStrandLinkedBankAccountsCancelGeneric(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1700,7 +1700,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandLinkedBankAccountsCancelGeneric(t 
 		t.Fatalf("extractFailures = %d, want 0", extractFailures)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "linked_bank_accounts_cancel").Scan(&generic); err != nil {
@@ -1727,7 +1727,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandLinkedBankAccountsCancelGeneric(t 
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesLinkedBankAccountsUnmaskTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1742,7 +1742,7 @@ func TestUpsertBatch_PopulatesLinkedBankAccountsUnmaskTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "linked_bank_accounts_unmask").Scan(&generic); err != nil {
@@ -1771,7 +1771,7 @@ func TestUpsertBatch_PopulatesLinkedBankAccountsUnmaskTable(t *testing.T) {
 // discard every successfully fetched API row.
 func TestUpsertBatch_TypedFailureDoesNotStrandLinkedBankAccountsUnmaskGeneric(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1795,7 +1795,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandLinkedBankAccountsUnmaskGeneric(t 
 		t.Fatalf("extractFailures = %d, want 0", extractFailures)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "linked_bank_accounts_unmask").Scan(&generic); err != nil {
@@ -1822,7 +1822,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandLinkedBankAccountsUnmaskGeneric(t 
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesOrganizationsTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1837,7 +1837,7 @@ func TestUpsertBatch_PopulatesOrganizationsTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "organizations").Scan(&generic); err != nil {
@@ -1864,7 +1864,7 @@ func TestUpsertBatch_PopulatesOrganizationsTable(t *testing.T) {
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesPaykeysTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1879,7 +1879,7 @@ func TestUpsertBatch_PopulatesPaykeysTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "paykeys").Scan(&generic); err != nil {
@@ -1906,7 +1906,7 @@ func TestUpsertBatch_PopulatesPaykeysTable(t *testing.T) {
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesPaykeysCancelTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1921,7 +1921,7 @@ func TestUpsertBatch_PopulatesPaykeysCancelTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "paykeys_cancel").Scan(&generic); err != nil {
@@ -1950,7 +1950,7 @@ func TestUpsertBatch_PopulatesPaykeysCancelTable(t *testing.T) {
 // discard every successfully fetched API row.
 func TestUpsertBatch_TypedFailureDoesNotStrandPaykeysCancelGeneric(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1974,7 +1974,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandPaykeysCancelGeneric(t *testing.T)
 		t.Fatalf("extractFailures = %d, want 0", extractFailures)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "paykeys_cancel").Scan(&generic); err != nil {
@@ -2001,7 +2001,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandPaykeysCancelGeneric(t *testing.T)
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesRefreshBalanceTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -2016,7 +2016,7 @@ func TestUpsertBatch_PopulatesRefreshBalanceTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "refresh_balance").Scan(&generic); err != nil {
@@ -2045,7 +2045,7 @@ func TestUpsertBatch_PopulatesRefreshBalanceTable(t *testing.T) {
 // discard every successfully fetched API row.
 func TestUpsertBatch_TypedFailureDoesNotStrandRefreshBalanceGeneric(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -2069,7 +2069,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandRefreshBalanceGeneric(t *testing.T
 		t.Fatalf("extractFailures = %d, want 0", extractFailures)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "refresh_balance").Scan(&generic); err != nil {
@@ -2096,7 +2096,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandRefreshBalanceGeneric(t *testing.T
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesPaykeysRefreshReviewTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -2111,7 +2111,7 @@ func TestUpsertBatch_PopulatesPaykeysRefreshReviewTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "paykeys_refresh_review").Scan(&generic); err != nil {
@@ -2140,7 +2140,7 @@ func TestUpsertBatch_PopulatesPaykeysRefreshReviewTable(t *testing.T) {
 // discard every successfully fetched API row.
 func TestUpsertBatch_TypedFailureDoesNotStrandPaykeysRefreshReviewGeneric(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -2164,7 +2164,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandPaykeysRefreshReviewGeneric(t *tes
 		t.Fatalf("extractFailures = %d, want 0", extractFailures)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "paykeys_refresh_review").Scan(&generic); err != nil {
@@ -2191,7 +2191,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandPaykeysRefreshReviewGeneric(t *tes
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesRevealTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -2206,7 +2206,7 @@ func TestUpsertBatch_PopulatesRevealTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "reveal").Scan(&generic); err != nil {
@@ -2235,7 +2235,7 @@ func TestUpsertBatch_PopulatesRevealTable(t *testing.T) {
 // discard every successfully fetched API row.
 func TestUpsertBatch_TypedFailureDoesNotStrandRevealGeneric(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -2259,7 +2259,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandRevealGeneric(t *testing.T) {
 		t.Fatalf("extractFailures = %d, want 0", extractFailures)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "reveal").Scan(&generic); err != nil {
@@ -2286,7 +2286,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandRevealGeneric(t *testing.T) {
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesPaykeysReviewTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -2301,7 +2301,7 @@ func TestUpsertBatch_PopulatesPaykeysReviewTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "paykeys_review").Scan(&generic); err != nil {
@@ -2330,7 +2330,7 @@ func TestUpsertBatch_PopulatesPaykeysReviewTable(t *testing.T) {
 // discard every successfully fetched API row.
 func TestUpsertBatch_TypedFailureDoesNotStrandPaykeysReviewGeneric(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -2354,7 +2354,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandPaykeysReviewGeneric(t *testing.T)
 		t.Fatalf("extractFailures = %d, want 0", extractFailures)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "paykeys_review").Scan(&generic); err != nil {
@@ -2381,7 +2381,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandPaykeysReviewGeneric(t *testing.T)
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesUnblockTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -2396,7 +2396,7 @@ func TestUpsertBatch_PopulatesUnblockTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "unblock").Scan(&generic); err != nil {
@@ -2425,7 +2425,7 @@ func TestUpsertBatch_PopulatesUnblockTable(t *testing.T) {
 // discard every successfully fetched API row.
 func TestUpsertBatch_TypedFailureDoesNotStrandUnblockGeneric(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -2449,7 +2449,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandUnblockGeneric(t *testing.T) {
 		t.Fatalf("extractFailures = %d, want 0", extractFailures)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "unblock").Scan(&generic); err != nil {
@@ -2476,7 +2476,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandUnblockGeneric(t *testing.T) {
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesPaykeysUnmaskedTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -2491,7 +2491,7 @@ func TestUpsertBatch_PopulatesPaykeysUnmaskedTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "paykeys_unmasked").Scan(&generic); err != nil {
@@ -2520,7 +2520,7 @@ func TestUpsertBatch_PopulatesPaykeysUnmaskedTable(t *testing.T) {
 // discard every successfully fetched API row.
 func TestUpsertBatch_TypedFailureDoesNotStrandPaykeysUnmaskedGeneric(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -2544,7 +2544,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandPaykeysUnmaskedGeneric(t *testing.
 		t.Fatalf("extractFailures = %d, want 0", extractFailures)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "paykeys_unmasked").Scan(&generic); err != nil {
@@ -2571,7 +2571,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandPaykeysUnmaskedGeneric(t *testing.
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesPaymentsTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -2586,7 +2586,7 @@ func TestUpsertBatch_PopulatesPaymentsTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "payments").Scan(&generic); err != nil {
@@ -2613,7 +2613,7 @@ func TestUpsertBatch_PopulatesPaymentsTable(t *testing.T) {
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesPayoutsTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -2628,7 +2628,7 @@ func TestUpsertBatch_PopulatesPayoutsTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "payouts").Scan(&generic); err != nil {
@@ -2655,7 +2655,7 @@ func TestUpsertBatch_PopulatesPayoutsTable(t *testing.T) {
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesPayoutsCancelTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -2670,7 +2670,7 @@ func TestUpsertBatch_PopulatesPayoutsCancelTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "payouts_cancel").Scan(&generic); err != nil {
@@ -2699,7 +2699,7 @@ func TestUpsertBatch_PopulatesPayoutsCancelTable(t *testing.T) {
 // discard every successfully fetched API row.
 func TestUpsertBatch_TypedFailureDoesNotStrandPayoutsCancelGeneric(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -2723,7 +2723,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandPayoutsCancelGeneric(t *testing.T)
 		t.Fatalf("extractFailures = %d, want 0", extractFailures)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "payouts_cancel").Scan(&generic); err != nil {
@@ -2750,7 +2750,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandPayoutsCancelGeneric(t *testing.T)
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesPayoutsHoldTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -2765,7 +2765,7 @@ func TestUpsertBatch_PopulatesPayoutsHoldTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "payouts_hold").Scan(&generic); err != nil {
@@ -2794,7 +2794,7 @@ func TestUpsertBatch_PopulatesPayoutsHoldTable(t *testing.T) {
 // discard every successfully fetched API row.
 func TestUpsertBatch_TypedFailureDoesNotStrandPayoutsHoldGeneric(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -2818,7 +2818,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandPayoutsHoldGeneric(t *testing.T) {
 		t.Fatalf("extractFailures = %d, want 0", extractFailures)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "payouts_hold").Scan(&generic); err != nil {
@@ -2845,7 +2845,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandPayoutsHoldGeneric(t *testing.T) {
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesPayoutsReleaseTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -2860,7 +2860,7 @@ func TestUpsertBatch_PopulatesPayoutsReleaseTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "payouts_release").Scan(&generic); err != nil {
@@ -2889,7 +2889,7 @@ func TestUpsertBatch_PopulatesPayoutsReleaseTable(t *testing.T) {
 // discard every successfully fetched API row.
 func TestUpsertBatch_TypedFailureDoesNotStrandPayoutsReleaseGeneric(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -2913,7 +2913,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandPayoutsReleaseGeneric(t *testing.T
 		t.Fatalf("extractFailures = %d, want 0", extractFailures)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "payouts_release").Scan(&generic); err != nil {
@@ -2940,7 +2940,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandPayoutsReleaseGeneric(t *testing.T
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesPayoutsResubmitTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -2955,7 +2955,7 @@ func TestUpsertBatch_PopulatesPayoutsResubmitTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "payouts_resubmit").Scan(&generic); err != nil {
@@ -2984,7 +2984,7 @@ func TestUpsertBatch_PopulatesPayoutsResubmitTable(t *testing.T) {
 // discard every successfully fetched API row.
 func TestUpsertBatch_TypedFailureDoesNotStrandPayoutsResubmitGeneric(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -3008,7 +3008,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandPayoutsResubmitGeneric(t *testing.
 		t.Fatalf("extractFailures = %d, want 0", extractFailures)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "payouts_resubmit").Scan(&generic); err != nil {
@@ -3035,7 +3035,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandPayoutsResubmitGeneric(t *testing.
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesPayoutsUnmaskTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -3050,7 +3050,7 @@ func TestUpsertBatch_PopulatesPayoutsUnmaskTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "payouts_unmask").Scan(&generic); err != nil {
@@ -3079,7 +3079,7 @@ func TestUpsertBatch_PopulatesPayoutsUnmaskTable(t *testing.T) {
 // discard every successfully fetched API row.
 func TestUpsertBatch_TypedFailureDoesNotStrandPayoutsUnmaskGeneric(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -3103,7 +3103,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandPayoutsUnmaskGeneric(t *testing.T)
 		t.Fatalf("extractFailures = %d, want 0", extractFailures)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "payouts_unmask").Scan(&generic); err != nil {
@@ -3130,7 +3130,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandPayoutsUnmaskGeneric(t *testing.T)
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesRepresentativesTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -3145,7 +3145,7 @@ func TestUpsertBatch_PopulatesRepresentativesTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "representatives").Scan(&generic); err != nil {
@@ -3172,7 +3172,7 @@ func TestUpsertBatch_PopulatesRepresentativesTable(t *testing.T) {
 // query the typed table saw zero rows.
 func TestUpsertBatch_PopulatesRepresentativesUnmaskTable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -3187,7 +3187,7 @@ func TestUpsertBatch_PopulatesRepresentativesUnmaskTable(t *testing.T) {
 		t.Fatalf("UpsertBatch: %v", err)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "representatives_unmask").Scan(&generic); err != nil {
@@ -3216,7 +3216,7 @@ func TestUpsertBatch_PopulatesRepresentativesUnmaskTable(t *testing.T) {
 // discard every successfully fetched API row.
 func TestUpsertBatch_TypedFailureDoesNotStrandRepresentativesUnmaskGeneric(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -3240,7 +3240,7 @@ func TestUpsertBatch_TypedFailureDoesNotStrandRepresentativesUnmaskGeneric(t *te
 		t.Fatalf("extractFailures = %d, want 0", extractFailures)
 	}
 
-	db := s.DB()
+	db := s.db
 
 	var generic int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, "representatives_unmask").Scan(&generic); err != nil {

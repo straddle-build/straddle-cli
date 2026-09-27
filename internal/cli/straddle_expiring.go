@@ -126,5 +126,5 @@ func newExpiringCmd(flags *rootFlags) *cobra.Command {
 
 	cmd.Flags().StringVar(&dbPath, "db", "", "Database path")
 	cmd.Flags().IntVar(&days, "days", 14, "Flag paykeys expiring within this many days")
-	return cmd
+	return markStoreScoped(cmd)
 }

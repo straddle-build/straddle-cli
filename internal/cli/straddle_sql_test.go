@@ -4,6 +4,7 @@ package cli
 
 import (
 	"bytes"
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -55,12 +56,11 @@ func TestValidateReadOnlySQL(t *testing.T) {
 func TestSQLCommandRejectsMutationsWithoutOpeningOrChangingStore(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	seed, err := store.Open(dbPath)
+	seed, err := store.Open(dbPath, testStoreScope(t))
 	if err != nil {
 		t.Fatalf("open seed store: %v", err)
 	}
-	if _, err := seed.DB().Exec(`INSERT INTO resources (id, resource_type, data) VALUES ('seed', 'thing', '{}')`); err != nil {
-		seed.Close()
+	if err := seed.Upsert("thing", "seed", []byte(`{}`)); err != nil {
 		t.Fatalf("seed resource: %v", err)
 	}
 	seed.Close()
@@ -90,20 +90,21 @@ func TestSQLCommandRejectsMutationsWithoutOpeningOrChangingStore(t *testing.T) {
 		t.Fatalf("ATTACH created %q, stat error = %v", attachedPath, err)
 	}
 
-	check, err := store.OpenReadOnly(dbPath)
+	check, err := store.Open(dbPath, testStoreScope(t))
 	if err != nil {
-		t.Fatalf("open read-only store: %v", err)
+		t.Fatalf("reopen store: %v", err)
 	}
 	defer check.Close()
-	var count int
-	if err := check.DB().QueryRow(`SELECT COUNT(*) FROM resources`).Scan(&count); err != nil {
-		t.Fatalf("count resources: %v", err)
+	if count, err := check.Count("thing"); err != nil || count != 1 {
+		t.Fatalf("resource count = %d, %v; want 1", count, err)
 	}
-	if count != 1 {
-		t.Fatalf("resource count = %d, want 1", count)
+	raw, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
 	}
+	defer raw.Close()
 	var tables int
-	if err := check.DB().QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'leaked'`).Scan(&tables); err != nil {
+	if err := raw.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'leaked'`).Scan(&tables); err != nil {
 		t.Fatalf("check leaked table: %v", err)
 	}
 	if tables != 0 {
@@ -114,7 +115,7 @@ func TestSQLCommandRejectsMutationsWithoutOpeningOrChangingStore(t *testing.T) {
 func TestSQLCommandReadsSelectAndCTE(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	seed, err := store.Open(dbPath)
+	seed, err := store.Open(dbPath, testStoreScope(t))
 	if err != nil {
 		t.Fatalf("open seed store: %v", err)
 	}

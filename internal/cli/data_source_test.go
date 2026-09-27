@@ -34,7 +34,7 @@ func TestWriteThroughCacheDetailEnvelopeDiagnostics(t *testing.T) {
 				writeThroughCache(context.Background(), "charges", json.RawMessage(envelope))
 			})
 
-			db, err := store.OpenWithContext(context.Background(), filepath.Join(home, ".local", "share", "straddle", "data.db"))
+			db, err := store.OpenWithContext(context.Background(), filepath.Join(home, ".local", "share", "straddle", "data.db"), testStoreScope(t))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -78,7 +78,7 @@ func TestWriteThroughCacheSkipsSensitiveObjectEnvelope(t *testing.T) {
 	t.Setenv("HOME", home)
 	payload := json.RawMessage(`{"meta":{},"response_type":"object","data":{"id":"secret-123","ssn":"masked"}}`)
 	writeThroughCache(context.Background(), "unmask", payload)
-	db, err := store.OpenWithContext(context.Background(), filepath.Join(home, ".local", "share", "straddle", "data.db"))
+	db, err := store.OpenWithContext(context.Background(), filepath.Join(home, ".local", "share", "straddle", "data.db"), testStoreScope(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestWriteThroughCachePreservesBareObjectWithDataField(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	writeThroughCache(context.Background(), "charges", json.RawMessage(`{"id":"outer","data":{"id":"inner"},"status":"pending"}`))
-	db, err := store.OpenWithContext(context.Background(), filepath.Join(home, ".local", "share", "straddle", "data.db"))
+	db, err := store.OpenWithContext(context.Background(), filepath.Join(home, ".local", "share", "straddle", "data.db"), testStoreScope(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,7 @@ func TestWriteThroughCacheSkipsRevealEnvelope(t *testing.T) {
 	t.Setenv("HOME", home)
 	payload := json.RawMessage(`{"meta":{},"response_type":"object","data":{"id":"secret-456"}}`)
 	writeThroughCache(context.Background(), "reveal", payload)
-	db, err := store.OpenWithContext(context.Background(), filepath.Join(home, ".local", "share", "straddle", "data.db"))
+	db, err := store.OpenWithContext(context.Background(), filepath.Join(home, ".local", "share", "straddle", "data.db"), testStoreScope(t))
 	if err != nil {
 		t.Fatal(err)
 	}

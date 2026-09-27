@@ -113,36 +113,22 @@ func openStraddleStore(cmd *cobra.Command, dbPath string) (*store.Store, error) 
 	if dbPath == "" {
 		dbPath = defaultDBPath("straddle")
 	}
-	db, err := store.OpenWithContext(cmd.Context(), dbPath)
+	db, err := openScopedStore(cmd.Context(), dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("opening local database: %w\nRun 'straddle sync' first.", err)
 	}
 	return db, nil
 }
 
-// straddleScanJSON streams `SELECT id, data FROM <table>` rows. id and data are
-// NOT NULL on every typed table, so a bare scan is safe; a per-row scan error
-// skips that row rather than aborting the whole query.
-func straddleScanJSON(ctx context.Context, db *store.Store, query string, fn func(id string, data []byte)) error {
-	rows, err := db.DB().QueryContext(ctx, query)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var id string
-		var data []byte
-		if err := rows.Scan(&id, &data); err != nil {
-			continue
-		}
-		fn(id, data)
-	}
-	return rows.Err()
+// straddleScanJSON streams the id and data of every row in a typed table
+// within the store's scope.
+func straddleScanJSON(ctx context.Context, db *store.Store, table string, fn func(id string, data []byte)) error {
+	return db.ScanTable(ctx, table, fn)
 }
 
 func loadStraddlePayments(ctx context.Context, db *store.Store) ([]straddlePayment, error) {
 	var out []straddlePayment
-	err := straddleScanJSON(ctx, db, `SELECT id, data FROM payments`, func(id string, data []byte) {
+	err := straddleScanJSON(ctx, db, "payments", func(id string, data []byte) {
 		var p straddlePayment
 		if json.Unmarshal(data, &p) != nil {
 			return
@@ -157,7 +143,7 @@ func loadStraddlePayments(ctx context.Context, db *store.Store) ([]straddlePayme
 
 func loadStraddlePaykeys(ctx context.Context, db *store.Store) ([]straddlePaykey, error) {
 	var out []straddlePaykey
-	err := straddleScanJSON(ctx, db, `SELECT id, data FROM paykeys`, func(id string, data []byte) {
+	err := straddleScanJSON(ctx, db, "paykeys", func(id string, data []byte) {
 		var p straddlePaykey
 		if json.Unmarshal(data, &p) != nil {
 			return
@@ -172,7 +158,7 @@ func loadStraddlePaykeys(ctx context.Context, db *store.Store) ([]straddlePaykey
 
 func loadStraddleCustomers(ctx context.Context, db *store.Store) ([]straddleCustomer, error) {
 	var out []straddleCustomer
-	err := straddleScanJSON(ctx, db, `SELECT id, data FROM customers`, func(id string, data []byte) {
+	err := straddleScanJSON(ctx, db, "customers", func(id string, data []byte) {
 		var c straddleCustomer
 		if json.Unmarshal(data, &c) != nil {
 			return
@@ -187,7 +173,7 @@ func loadStraddleCustomers(ctx context.Context, db *store.Store) ([]straddleCust
 
 func loadStraddleFundingEvents(ctx context.Context, db *store.Store) ([]straddleFundingEvent, error) {
 	var out []straddleFundingEvent
-	err := straddleScanJSON(ctx, db, `SELECT id, data FROM funding_events`, func(id string, data []byte) {
+	err := straddleScanJSON(ctx, db, "funding_events", func(id string, data []byte) {
 		var f straddleFundingEvent
 		if json.Unmarshal(data, &f) != nil {
 			return

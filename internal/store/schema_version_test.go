@@ -22,7 +22,7 @@ import (
 // records the version it was built under.
 func TestSchemaVersion_StampedOnFreshDB(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open fresh db: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestSchemaVersion_StampExistingZeroDB(t *testing.T) {
 	}
 	_ = raw.Close()
 
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open pre-gate db: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestSchemaVersion_RefusesNewerDB(t *testing.T) {
 	}
 	_ = raw.Close()
 
-	_, err = Open(dbPath)
+	_, err = Open(dbPath, testScope)
 	if err == nil {
 		t.Fatalf("expected open to fail on newer schema, got nil")
 	}
@@ -113,7 +113,7 @@ func TestMigrate_ConcurrentFreshDB(t *testing.T) {
 	for i := 0; i < n; i++ {
 		go func() {
 			defer wg.Done()
-			s, err := Open(dbPath)
+			s, err := Open(dbPath, testScope)
 			if err != nil {
 				errs <- err
 				return
@@ -174,7 +174,7 @@ func TestOpenWithContext_RespectsCancellation(t *testing.T) {
 	cancel()
 
 	start := time.Now()
-	_, err := OpenWithContext(ctx, dbPath)
+	_, err := OpenWithContext(ctx, dbPath, testScope)
 	elapsed := time.Since(start)
 
 	if err == nil {
@@ -214,7 +214,7 @@ func TestMigrate_RejectsNewerDBImmediately(t *testing.T) {
 	defer holdWriteLock(t, dbPath)()
 
 	start := time.Now()
-	_, err = Open(dbPath)
+	_, err = Open(dbPath, testScope)
 	elapsed := time.Since(start)
 
 	if err == nil {
@@ -234,13 +234,13 @@ func TestMigrate_RejectsNewerDBImmediately(t *testing.T) {
 func TestSchemaVersion_ReopenIsIdempotent(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
 
-	s1, err := Open(dbPath)
+	s1, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("first open: %v", err)
 	}
 	s1.Close()
 
-	s2, err := Open(dbPath)
+	s2, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("second open: %v", err)
 	}
@@ -257,7 +257,7 @@ func TestSchemaVersion_ReopenIsIdempotent(t *testing.T) {
 
 func TestResources_CompositeKeyPreservesOverlappingIDs(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
@@ -287,7 +287,7 @@ func TestResources_CompositeKeyPreservesOverlappingIDs(t *testing.T) {
 	}
 
 	var count int
-	if err := s.DB().QueryRow(`SELECT COUNT(*) FROM resources WHERE id = 'shared'`).Scan(&count); err != nil {
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM resources WHERE id = 'shared'`).Scan(&count); err != nil {
 		t.Fatalf("count overlapping rows: %v", err)
 	}
 	if count != 2 {
@@ -307,7 +307,7 @@ func TestResources_CompositeKeyPreservesOverlappingIDs(t *testing.T) {
 // rows return the JSON payload with a nil error.
 func TestGet_MissingRowReturnsErrNoRows(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -370,7 +370,7 @@ func TestMigrate_ResourcesCompositeKeyUpgrade(t *testing.T) {
 	}
 	raw.Close()
 
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
@@ -384,7 +384,7 @@ func TestMigrate_ResourcesCompositeKeyUpgrade(t *testing.T) {
 		t.Fatalf("upgraded version = %d, want %d", v, StoreSchemaVersion)
 	}
 
-	rows, err := s.DB().Query(`PRAGMA table_info(resources)`)
+	rows, err := s.db.Query(`PRAGMA table_info(resources)`)
 	if err != nil {
 		t.Fatalf("table_info resources: %v", err)
 	}
@@ -404,20 +404,20 @@ func TestMigrate_ResourcesCompositeKeyUpgrade(t *testing.T) {
 	if err := rows.Err(); err != nil {
 		t.Fatalf("table_info rows: %v", err)
 	}
-	if pk["resource_type"] != 1 || pk["id"] != 2 {
-		t.Fatalf("resources primary key order = resource_type:%d id:%d, want resource_type:1 id:2", pk["resource_type"], pk["id"])
+	if pk["scope_environment"] != 1 || pk["scope_account"] != 2 || pk["resource_type"] != 3 || pk["id"] != 4 {
+		t.Fatalf("resources primary key order = %v, want scope_environment, scope_account, resource_type, id", pk)
 	}
 
 	if err := s.Upsert("bookmark", "shared", []byte(`{"kind":"bookmark","note":"after upgrade"}`)); err != nil {
 		t.Fatalf("upsert overlapping resource after upgrade: %v", err)
 	}
 
-	biz, err := s.Get("biz", "shared")
-	if err != nil {
-		t.Fatalf("get migrated biz: %v", err)
+	// The v1 row survives the upgrade chain but belongs to no scope.
+	if _, err := s.Get("biz", "shared"); err == nil {
+		t.Fatal("legacy biz row is readable through a scope")
 	}
-	if string(biz) != `{"kind":"biz","name":"legacy restaurant"}` {
-		t.Fatalf("migrated biz payload = %s", biz)
+	if hidden, err := s.HiddenLegacyCount(); err != nil || hidden != 1 {
+		t.Fatalf("hidden legacy rows = %d, %v; want 1", hidden, err)
 	}
 
 	bookmark, err := s.Get("bookmark", "shared")
@@ -432,63 +432,8 @@ func TestMigrate_ResourcesCompositeKeyUpgrade(t *testing.T) {
 	if err != nil {
 		t.Fatalf("search migrated fts: %v", err)
 	}
-	if len(matches) != 1 || string(matches[0]) != `{"kind":"biz","name":"legacy restaurant"}` {
-		t.Fatalf("legacy search = %q, want migrated biz payload", matches)
-	}
-}
-
-// TestOpenReadOnly_RejectsWrites pins the contract: direct and CTE-wrapped
-// writes against the main DB fail under mode=ro. Deliberately does not
-// assert VACUUM INTO and ATTACH DATABASE — modernc.org/sqlite allows both
-// under mode=ro, so those defenses live in the handleSQL keyword blocklist.
-func TestOpenReadOnly_RejectsWrites(t *testing.T) {
-	dbPath := filepath.Join(t.TempDir(), "data.db")
-
-	rw, err := Open(dbPath)
-	if err != nil {
-		t.Fatalf("seed open: %v", err)
-	}
-	if _, err := rw.DB().Exec(`INSERT INTO resources (id, resource_type, data) VALUES ('seed', 'thing', '{}')`); err != nil {
-		t.Fatalf("seed insert: %v", err)
-	}
-	rw.Close()
-
-	ro, err := OpenReadOnly(dbPath)
-	if err != nil {
-		t.Fatalf("open read-only: %v", err)
-	}
-	defer ro.Close()
-
-	writes := []struct {
-		name string
-		stmt string
-	}{
-		{"insert", `INSERT INTO resources (id, resource_type, data) VALUES ('x', 'y', '{}')`},
-		{"update", `UPDATE resources SET resource_type = 'hijacked' WHERE id = 'seed'`},
-		{"delete", `DELETE FROM resources WHERE id = 'seed'`},
-		{"replace", `REPLACE INTO resources (id, resource_type, data) VALUES ('seed', 'evil', '{}')`},
-		// CTE-wrapped INSERT is load-bearing: it justifies leaving WITH
-		// out of the handleSQL blocklist so SELECT-form CTEs work.
-		{"cte_insert", `WITH stale AS (SELECT id FROM resources) INSERT INTO resources (id, resource_type, data) SELECT id || '-evil', 'thing', '{}' FROM stale`},
-	}
-	for _, w := range writes {
-		if _, err := ro.DB().Exec(w.stmt); err == nil {
-			t.Errorf("%s succeeded under mode=ro; expected rejection. stmt=%q", w.name, w.stmt)
-		}
-	}
-
-	var count int
-	if err := ro.DB().QueryRow(`SELECT COUNT(*) FROM resources`).Scan(&count); err != nil {
-		t.Fatalf("read-only SELECT failed: %v", err)
-	}
-	if count != 1 {
-		t.Fatalf("SELECT returned %d rows, want 1 (only the seed should remain)", count)
-	}
-	if err := ro.DB().QueryRow(`WITH r AS (SELECT id FROM resources WHERE id = 'seed') SELECT COUNT(*) FROM r`).Scan(&count); err != nil {
-		t.Fatalf("read-only WITH...SELECT CTE failed: %v", err)
-	}
-	if count != 1 {
-		t.Fatalf("CTE SELECT returned %d rows, want 1", count)
+	if len(matches) != 0 {
+		t.Fatalf("legacy search = %q, want no scoped matches", matches)
 	}
 }
 
@@ -517,14 +462,14 @@ func TestMigrate_AddsColumnsOnUpgrade_Accounts(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("accounts")`)
+	rows, err := s.db.Query(`PRAGMA table_info("accounts")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -586,14 +531,14 @@ func TestMigrate_AddsColumnsOnUpgrade_CapabilityRequests(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("capability_requests")`)
+	rows, err := s.db.Query(`PRAGMA table_info("capability_requests")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -649,14 +594,14 @@ func TestMigrate_AddsColumnsOnUpgrade_Onboard(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("onboard")`)
+	rows, err := s.db.Query(`PRAGMA table_info("onboard")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -711,14 +656,14 @@ func TestMigrate_AddsColumnsOnUpgrade_Simulate(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("simulate")`)
+	rows, err := s.db.Query(`PRAGMA table_info("simulate")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -773,14 +718,14 @@ func TestMigrate_AddsColumnsOnUpgrade_Bridge(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("bridge")`)
+	rows, err := s.db.Query(`PRAGMA table_info("bridge")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -835,14 +780,14 @@ func TestMigrate_AddsColumnsOnUpgrade_Charges(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("charges")`)
+	rows, err := s.db.Query(`PRAGMA table_info("charges")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -897,14 +842,14 @@ func TestMigrate_AddsColumnsOnUpgrade_ChargesCancel(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("charges_cancel")`)
+	rows, err := s.db.Query(`PRAGMA table_info("charges_cancel")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -959,14 +904,14 @@ func TestMigrate_AddsColumnsOnUpgrade_ChargesHold(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("charges_hold")`)
+	rows, err := s.db.Query(`PRAGMA table_info("charges_hold")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -1021,14 +966,14 @@ func TestMigrate_AddsColumnsOnUpgrade_ChargesRelease(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("charges_release")`)
+	rows, err := s.db.Query(`PRAGMA table_info("charges_release")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -1083,14 +1028,14 @@ func TestMigrate_AddsColumnsOnUpgrade_ChargesResubmit(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("charges_resubmit")`)
+	rows, err := s.db.Query(`PRAGMA table_info("charges_resubmit")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -1145,14 +1090,14 @@ func TestMigrate_AddsColumnsOnUpgrade_ChargesUnmask(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("charges_unmask")`)
+	rows, err := s.db.Query(`PRAGMA table_info("charges_unmask")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -1207,14 +1152,14 @@ func TestMigrate_AddsColumnsOnUpgrade_Customers(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("customers")`)
+	rows, err := s.db.Query(`PRAGMA table_info("customers")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -1277,14 +1222,14 @@ func TestMigrate_AddsColumnsOnUpgrade_CustomersRefreshReview(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("customers_refresh_review")`)
+	rows, err := s.db.Query(`PRAGMA table_info("customers_refresh_review")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -1339,14 +1284,14 @@ func TestMigrate_AddsColumnsOnUpgrade_CustomersReview(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("customers_review")`)
+	rows, err := s.db.Query(`PRAGMA table_info("customers_review")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -1401,14 +1346,14 @@ func TestMigrate_AddsColumnsOnUpgrade_CustomersUnmasked(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("customers_unmasked")`)
+	rows, err := s.db.Query(`PRAGMA table_info("customers_unmasked")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -1463,14 +1408,14 @@ func TestMigrate_AddsColumnsOnUpgrade_FundingEventPayments(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("funding_event_payments")`)
+	rows, err := s.db.Query(`PRAGMA table_info("funding_event_payments")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -1532,14 +1477,14 @@ func TestMigrate_AddsColumnsOnUpgrade_FundingEvents(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("funding_events")`)
+	rows, err := s.db.Query(`PRAGMA table_info("funding_events")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -1603,14 +1548,14 @@ func TestMigrate_AddsColumnsOnUpgrade_LinkedBankAccounts(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("linked_bank_accounts")`)
+	rows, err := s.db.Query(`PRAGMA table_info("linked_bank_accounts")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -1671,14 +1616,14 @@ func TestMigrate_AddsColumnsOnUpgrade_LinkedBankAccountsCancel(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("linked_bank_accounts_cancel")`)
+	rows, err := s.db.Query(`PRAGMA table_info("linked_bank_accounts_cancel")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -1733,14 +1678,14 @@ func TestMigrate_AddsColumnsOnUpgrade_LinkedBankAccountsUnmask(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("linked_bank_accounts_unmask")`)
+	rows, err := s.db.Query(`PRAGMA table_info("linked_bank_accounts_unmask")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -1795,14 +1740,14 @@ func TestMigrate_AddsColumnsOnUpgrade_Organizations(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("organizations")`)
+	rows, err := s.db.Query(`PRAGMA table_info("organizations")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -1861,14 +1806,14 @@ func TestMigrate_AddsColumnsOnUpgrade_Paykeys(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("paykeys")`)
+	rows, err := s.db.Query(`PRAGMA table_info("paykeys")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -1934,14 +1879,14 @@ func TestMigrate_AddsColumnsOnUpgrade_PaykeysCancel(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("paykeys_cancel")`)
+	rows, err := s.db.Query(`PRAGMA table_info("paykeys_cancel")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -1996,14 +1941,14 @@ func TestMigrate_AddsColumnsOnUpgrade_RefreshBalance(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("refresh_balance")`)
+	rows, err := s.db.Query(`PRAGMA table_info("refresh_balance")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -2058,14 +2003,14 @@ func TestMigrate_AddsColumnsOnUpgrade_PaykeysRefreshReview(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("paykeys_refresh_review")`)
+	rows, err := s.db.Query(`PRAGMA table_info("paykeys_refresh_review")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -2120,14 +2065,14 @@ func TestMigrate_AddsColumnsOnUpgrade_Reveal(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("reveal")`)
+	rows, err := s.db.Query(`PRAGMA table_info("reveal")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -2182,14 +2127,14 @@ func TestMigrate_AddsColumnsOnUpgrade_PaykeysReview(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("paykeys_review")`)
+	rows, err := s.db.Query(`PRAGMA table_info("paykeys_review")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -2244,14 +2189,14 @@ func TestMigrate_AddsColumnsOnUpgrade_Unblock(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("unblock")`)
+	rows, err := s.db.Query(`PRAGMA table_info("unblock")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -2306,14 +2251,14 @@ func TestMigrate_AddsColumnsOnUpgrade_PaykeysUnmasked(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("paykeys_unmasked")`)
+	rows, err := s.db.Query(`PRAGMA table_info("paykeys_unmasked")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -2368,14 +2313,14 @@ func TestMigrate_AddsColumnsOnUpgrade_Payments(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("payments")`)
+	rows, err := s.db.Query(`PRAGMA table_info("payments")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -2441,14 +2386,14 @@ func TestMigrate_AddsColumnsOnUpgrade_Payouts(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("payouts")`)
+	rows, err := s.db.Query(`PRAGMA table_info("payouts")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -2503,14 +2448,14 @@ func TestMigrate_AddsColumnsOnUpgrade_PayoutsCancel(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("payouts_cancel")`)
+	rows, err := s.db.Query(`PRAGMA table_info("payouts_cancel")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -2565,14 +2510,14 @@ func TestMigrate_AddsColumnsOnUpgrade_PayoutsHold(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("payouts_hold")`)
+	rows, err := s.db.Query(`PRAGMA table_info("payouts_hold")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -2627,14 +2572,14 @@ func TestMigrate_AddsColumnsOnUpgrade_PayoutsRelease(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("payouts_release")`)
+	rows, err := s.db.Query(`PRAGMA table_info("payouts_release")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -2689,14 +2634,14 @@ func TestMigrate_AddsColumnsOnUpgrade_PayoutsResubmit(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("payouts_resubmit")`)
+	rows, err := s.db.Query(`PRAGMA table_info("payouts_resubmit")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -2751,14 +2696,14 @@ func TestMigrate_AddsColumnsOnUpgrade_PayoutsUnmask(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("payouts_unmask")`)
+	rows, err := s.db.Query(`PRAGMA table_info("payouts_unmask")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -2813,14 +2758,14 @@ func TestMigrate_AddsColumnsOnUpgrade_Representatives(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("representatives")`)
+	rows, err := s.db.Query(`PRAGMA table_info("representatives")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -2889,14 +2834,14 @@ func TestMigrate_AddsColumnsOnUpgrade_RepresentativesUnmask(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("representatives_unmask")`)
+	rows, err := s.db.Query(`PRAGMA table_info("representatives_unmask")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -2951,14 +2896,14 @@ func TestMigrate_AddsColumnsOnUpgrade_SyncState(t *testing.T) {
 
 	// Opening with the new binary must run CREATE INDEX statements without
 	// erroring on missing generated columns.
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open upgraded db: %v", err)
 	}
 	defer s.Close()
 
 	// The migration must have added every generated column.
-	rows, err := s.DB().Query(`PRAGMA table_info("sync_state")`)
+	rows, err := s.db.Query(`PRAGMA table_info("sync_state")`)
 	if err != nil {
 		t.Fatalf("table_info: %v", err)
 	}
@@ -2991,7 +2936,7 @@ func TestMigrate_AddsColumnsOnUpgrade_SyncState(t *testing.T) {
 }
 
 func TestSearchTypedRestrictsResourceType(t *testing.T) {
-	db, err := OpenWithContext(context.Background(), filepath.Join(t.TempDir(), "data.db"))
+	db, err := OpenWithContext(context.Background(), filepath.Join(t.TempDir(), "data.db"), testScope)
 	if err != nil {
 		t.Fatal(err)
 	}

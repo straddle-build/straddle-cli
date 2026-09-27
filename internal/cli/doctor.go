@@ -4,7 +4,6 @@ package cli
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"io"
@@ -16,7 +15,6 @@ import (
 	"github.com/straddle-build/straddle-cli/internal/client"
 	"github.com/straddle-build/straddle-cli/internal/cliutil"
 	"github.com/straddle-build/straddle-cli/internal/config"
-	"github.com/straddle-build/straddle-cli/internal/store"
 )
 
 // looksLikeDoctorInterstitial reports whether the response body matches a known
@@ -362,7 +360,7 @@ func newDoctorCmd(flags *rootFlags) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&failOn, "fail-on", "", "Exit non-zero when a health level is reached: stale, error. Default is never.")
-	return cmd
+	return markStoreScoped(cmd)
 }
 
 // doctorValueIsError reports whether a doctor report string value represents
@@ -446,13 +444,16 @@ func collectCacheReport(ctx context.Context, staleAfterSpec string) map[string]a
 	}
 	report["db_bytes"] = fi.Size()
 
-	s, err := store.OpenWithContext(ctx, dbPath)
+	s, err := openScopedStore(ctx, dbPath)
 	if err != nil {
 		report["status"] = "error"
 		report["error"] = err.Error()
 		return report
 	}
 	defer s.Close()
+	if hidden := hiddenLegacyRecords(s); hidden > 0 {
+		report["hidden_legacy_records"] = hidden
+	}
 
 	if v, verr := s.SchemaVersion(); verr == nil {
 		report["schema_version"] = v
@@ -465,7 +466,7 @@ func collectCacheReport(ctx context.Context, staleAfterSpec string) map[string]a
 		}
 	}
 
-	rows, qerr := s.DB().Query(`SELECT resource_type, COALESCE(total_count, 0), last_synced_at FROM sync_state ORDER BY resource_type`)
+	states, qerr := s.SyncStates()
 	if qerr != nil {
 		// sync_state may not exist on a fresh DB that has migrated but not
 		// yet had any sync runs — treat as unknown rather than error.
@@ -473,19 +474,13 @@ func collectCacheReport(ctx context.Context, staleAfterSpec string) map[string]a
 		report["hint"] = "No sync state recorded; run 'straddle sync' to populate."
 		return report
 	}
-	defer rows.Close()
 
 	var resources []map[string]any
 	fresh := true
 	haveAny := false
 	oldest := time.Duration(0)
-	for rows.Next() {
-		var rtype string
-		var count int64
-		var lastSynced sql.NullTime
-		if err := rows.Scan(&rtype, &count, &lastSynced); err != nil {
-			continue
-		}
+	for _, state := range states {
+		rtype, count, lastSynced := state.ResourceType, int64(state.TotalCount), state.LastSyncedAt
 		r := map[string]any{"type": rtype, "rows": count}
 		if lastSynced.Valid {
 			haveAny = true

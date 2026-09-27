@@ -37,7 +37,7 @@ Data must be synced first with the sync command.`,
 				dbPath = defaultDBPath("straddle")
 			}
 
-			db, err := store.OpenWithContext(cmd.Context(), dbPath)
+			db, err := openScopedStore(cmd.Context(), dbPath)
 			if err != nil {
 				return fmt.Errorf("opening local database: %w\nRun 'straddle sync' first.", err)
 			}
@@ -88,7 +88,7 @@ Data must be synced first with the sync command.`,
 	cmd.Flags().StringVar(&dbPath, "db", "", "Database path")
 	cmd.Flags().IntVar(&limit, "limit", 25, "Max groups to show")
 
-	return cmd
+	return markStoreScoped(cmd)
 }
 
 func runGroupBy(db *store.Store, resourceType, field string, limit int, flags *rootFlags) error {

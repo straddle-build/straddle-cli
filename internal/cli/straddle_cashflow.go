@@ -139,7 +139,7 @@ func newCashflowCmd(flags *rootFlags) *cobra.Command {
 	cmd.Flags().StringVar(&dbPath, "db", "", "Database path")
 	cmd.Flags().IntVar(&days, "days", 30, "Number of days in the window")
 	cmd.Flags().BoolVar(&weekly, "weekly", false, "Roll days up into 7-day buckets")
-	return cmd
+	return markStoreScoped(cmd)
 }
 
 func truncDay(t time.Time) time.Time {

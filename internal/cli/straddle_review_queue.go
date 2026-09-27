@@ -133,5 +133,5 @@ func newReviewQueueCmd(flags *rootFlags) *cobra.Command {
 
 	cmd.Flags().StringVar(&dbPath, "db", "", "Database path")
 	cmd.Flags().StringVar(&kind, "type", "all", "Which items to show: all, customers, paykeys")
-	return cmd
+	return markStoreScoped(cmd)
 }

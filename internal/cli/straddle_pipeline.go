@@ -131,5 +131,5 @@ func newPipelineCmd(flags *rootFlags) *cobra.Command {
 
 	cmd.Flags().StringVar(&dbPath, "db", "", "Database path")
 	cmd.Flags().BoolVar(&cancelableOnly, "cancelable", false, "List only payments that can still be cancelled/held/released")
-	return cmd
+	return markStoreScoped(cmd)
 }
