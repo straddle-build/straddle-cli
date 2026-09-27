@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -86,10 +87,11 @@ func TestExitCode_UsageError_WrappedAsCode2(t *testing.T) {
 func TestFilterFields(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		name   string
-		input  string
-		fields string
-		want   string
+		name    string
+		input   string
+		fields  string
+		want    string
+		wantErr string
 	}{
 		{
 			name:   "bare array element-wise",
@@ -134,10 +136,10 @@ func TestFilterFields(t *testing.T) {
 			want:   `{"projects":[{"id":"a"}]}`,
 		},
 		{
-			name:   "flat object no match returns empty (no array fallback)",
-			input:  `{"a":1,"b":2}`,
-			fields: "c",
-			want:   `{}`,
+			name:    "flat object no match is a diagnostic listing available fields",
+			input:   `{"a":1,"b":2}`,
+			fields:  "c",
+			wantErr: `--select "c" matched no fields in the response. Selectors name fields of each returned resource, for example --select id,status,amount; this response has: a, b. CLI envelope paths such as results.id or meta.source are not selectable`,
 		},
 		{
 			// Null pagination cursors are common envelope metadata.
@@ -150,13 +152,10 @@ func TestFilterFields(t *testing.T) {
 			want:   `{"items":[{"id":"a","name":"x"}],"next_cursor":null}`,
 		},
 		{
-			// Without a real array sibling the envelope fallback does not
-			// fire, so a flat object whose only "extra" key is null still
-			// returns {} for a non-matching selector.
-			name:   "flat object with null sibling no match returns empty",
-			input:  `{"a":1,"b":null}`,
-			fields: "c",
-			want:   `{}`,
+			name:    "null sibling is not an envelope, so no match is a diagnostic",
+			input:   `{"a":1,"b":null}`,
+			fields:  "c",
+			wantErr: "matched no fields",
 		},
 		{
 			// Multiple array siblings at the same level each receive the
@@ -168,23 +167,104 @@ func TestFilterFields(t *testing.T) {
 			want:   `{"events":[{"id":"e1"}],"speakers":[{"id":"s1"}]}`,
 		},
 		{
-			// Envelope fallback is intentionally one level deep. A nested
-			// object envelope like {"data":{"items":[...]}} surfaces no
-			// array at the outer level, so the fallback does not fire and
-			// the result is the empty-object that flat-no-match would
-			// produce. Pins the boundary so a future deeper-walk change
-			// is an explicit decision, not an accident.
-			name:   "nested object envelope returns empty (one-level only)",
-			input:  `{"data":{"items":[{"id":"a","other":"y"}]}}`,
+			// Without meta, a nested object envelope is an ordinary
+			// object, so the fallback stays one level deep.
+			name:    "nested object envelope without meta is a diagnostic",
+			input:   `{"data":{"items":[{"id":"a","other":"y"}]}}`,
+			fields:  "id",
+			wantErr: "this response has: data.",
+		},
+		{
+			name:   "straddle single-object envelope selects resource fields",
+			input:  `{"meta":{"api_request_id":"r1"},"response_type":"object","data":{"id":"cus_1","status":"verified","name":"A"}}`,
+			fields: "id,status",
+			want:   `{"meta":{"api_request_id":"r1"},"response_type":"object","data":{"id":"cus_1","status":"verified"}}`,
+		},
+		{
+			name:   "resource fields named data and meta stay selectable",
+			input:  `{"meta":{"api_request_id":"r1"},"data":{"id":"x","data":{"k":1}}}`,
+			fields: "data.data",
+			want:   `{"data":{"data":{"k":1}}}`,
+		},
+		{
+			name:    "straddle envelope unmatched selector names resource fields",
+			input:   `{"meta":{"api_request_id":"r1"},"response_type":"object","data":{"id":"cus_1","status":"verified"}}`,
+			fields:  "no_such_field",
+			wantErr: "this response has: id, status.",
+		},
+		{
+			name:    "provenance path results.id is not selectable",
+			input:   `{"meta":{"api_request_id":"r1"},"data":[{"id":"a"}]}`,
+			fields:  "results.id",
+			wantErr: "matched no fields",
+		},
+		{
+			name:    "provenance path meta.source does not match api meta",
+			input:   `{"meta":{"api_request_id":"r1"},"data":{"id":"a"}}`,
+			fields:  "meta.source",
+			wantErr: "matched no fields",
+		},
+		{
+			// Retained pagination metadata must not count as a match.
+			name:    "list envelope with metadata and no matching item field",
+			input:   `{"meta":{"page_number":1,"total_items":2},"response_type":"array","data":[{"id":"a"},{"id":"b"}]}`,
+			fields:  "nope",
+			wantErr: "this response has: id.",
+		},
+		{
+			name:   "empty list is valid data, not a mismatch",
+			input:  `{"meta":{"total_items":0},"response_type":"array","data":[]}`,
+			fields: "nope",
+			want:   `{"meta":{"total_items":0},"response_type":"array","data":[]}`,
+		},
+		{
+			name:   "empty bare array is valid data",
+			input:  `[]`,
 			fields: "id",
-			want:   `{}`,
+			want:   `[]`,
+		},
+		{
+			name:   "one matching item in a heterogeneous list is enough",
+			input:  `[{"id":"a"},{"other":"b"}]`,
+			fields: "id",
+			want:   `[{"id":"a"},{}]`,
+		},
+		{
+			name:   "partial selector match keeps matched fields",
+			input:  `{"id":"a","status":"ok"}`,
+			fields: "id,nope",
+			want:   `{"id":"a"}`,
+		},
+		{
+			name:   "dotted path into an empty nested list keeps the field",
+			input:  `{"id":"a","events":[]}`,
+			fields: "events.name",
+			want:   `{"events":[]}`,
+		},
+		{
+			name:    "dotted path whose leaf is missing everywhere is a diagnostic",
+			input:   `{"id":"a","events":[{"name":"x"}]}`,
+			fields:  "events.nope",
+			wantErr: "matched no fields",
 		},
 	}
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := filterFields(json.RawMessage(tc.input), tc.fields)
+			got, err := filterFields(json.RawMessage(tc.input), tc.fields)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("filterFields(%q, %q) error = %v, want containing %q", tc.input, tc.fields, err, tc.wantErr)
+				}
+				if ExitCode(err) != 2 {
+					t.Fatalf("exit code = %d, want usage exit 2", ExitCode(err))
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("filterFields(%q, %q) unexpected error: %v", tc.input, tc.fields, err)
+			}
 			// Normalize both sides through json.Unmarshal+Marshal so
 			// map-iteration order does not produce false negatives.
 			var gotV, wantV interface{}

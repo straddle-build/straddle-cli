@@ -106,7 +106,11 @@ func runAPIPassthrough(cmd *cobra.Command, flags *rootFlags, method string, args
 		return nil
 	}
 
-	if err := printOutputWithFlags(cmd.OutOrStdout(), data, flags); err != nil {
+	projected, err := projectAPIPassthroughOutput(method, data, flags)
+	if err != nil {
+		return err
+	}
+	if err := renderOutputWithFlags(cmd.OutOrStdout(), projected, flags); err != nil {
 		return err
 	}
 	if partialFailure != nil && !flags.allowPartialFailure {
@@ -173,6 +177,15 @@ func shouldPrintAPIPassthroughEnvelope(cmd *cobra.Command, flags *rootFlags) boo
 	return flags.asJSON || (!isTerminal(cmd.OutOrStdout()) && !flags.csv && !flags.quiet && !flags.plain)
 }
 
+// projectAPIPassthroughOutput rejects an unmatched --select on reads, but keeps
+// the full response of any other method because that request already ran.
+func projectAPIPassthroughOutput(method string, data json.RawMessage, flags *rootFlags) (json.RawMessage, error) {
+	if method == "GET" {
+		return projectOutput(data, flags)
+	}
+	return projectWriteOutput(data, flags), nil
+}
+
 func printAPIPassthroughEnvelope(cmd *cobra.Command, flags *rootFlags, method, path string, status int, data json.RawMessage, partialFailure *partialFailureReport) error {
 	envelope := map[string]any{
 		"method":  method,
@@ -194,11 +207,9 @@ func printAPIPassthroughEnvelope(cmd *cobra.Command, flags *rootFlags, method, p
 		envelope["success"] = false
 	}
 
-	filtered := data
-	if flags.selectFields != "" {
-		filtered = filterFields(filtered, flags.selectFields)
-	} else if flags.compact {
-		filtered = compactFields(filtered)
+	filtered, err := projectAPIPassthroughOutput(method, data, flags)
+	if err != nil {
+		return err
 	}
 	if len(filtered) > 0 {
 		var parsed any
