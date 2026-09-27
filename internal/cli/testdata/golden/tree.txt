@@ -349,6 +349,12 @@ command straddle charges update
   --payment-date type=string default="" usage="The desired date on which the payment should be occur. For charges, this means the date you want the customer to be..."
   --request-id type=string default="" usage="Optional client-generated identifier for tracing one request."
   --stdin type=bool default="false" usage="Read request body as JSON from stdin"
+command straddle charges upload-authorization-proof
+  --correlation-id type=string default="" usage="Optional client-generated identifier for tracing a series of related requests."
+  --file type=string default="" usage="Path to the document to upload (.pdf, .png, .jpg, .jpeg, .doc, or .docx; at most 10 MiB)."
+  --help type=bool default="false" usage="help for upload-authorization-proof"
+  --idempotency-key type=string default="" usage="Optional client-generated key for an idempotent request."
+  --request-id type=string default="" usage="Optional client-generated identifier for tracing one request."
 command straddle customers
   --help type=bool default="false" usage="help for customers"
 command straddle customers create
@@ -788,6 +794,12 @@ command straddle payouts update
   --payment-date type=string default="" usage="The desired date on which the payment should be occur. For payouts, this means the date you want the funds to be..."
   --request-id type=string default="" usage="Optional client-generated identifier for tracing one request."
   --stdin type=bool default="false" usage="Read request body as JSON from stdin"
+command straddle payouts upload-authorization-proof
+  --correlation-id type=string default="" usage="Optional client-generated identifier for tracing a series of related requests."
+  --file type=string default="" usage="Path to the document to upload (.pdf, .png, .jpg, .jpeg, .doc, or .docx; at most 10 MiB)."
+  --help type=bool default="false" usage="help for upload-authorization-proof"
+  --idempotency-key type=string default="" usage="Optional client-generated key for an idempotent request."
+  --request-id type=string default="" usage="Optional client-generated identifier for tracing one request."
 command straddle pipeline
   --cancelable type=bool default="false" usage="List only payments that can still be cancelled/held/released"
   --db type=string default="" usage="Database path"

@@ -13,6 +13,9 @@ const (
 	KindNumber  Kind = "number"
 	KindBoolean Kind = "boolean"
 	KindJSON    Kind = "json"
+	// KindFile is a local file path whose bytes are streamed as a
+	// multipart/form-data file part. Enum lists the accepted content types.
+	KindFile Kind = "file"
 )
 
 type In string
@@ -21,6 +24,9 @@ const (
 	InQuery  In = "query"
 	InHeader In = "header"
 	InBody   In = "body"
+	// InForm places the flag in a multipart/form-data request body; Key is
+	// the form field name.
+	InForm In = "form"
 )
 
 type Style string

@@ -10,12 +10,12 @@ This page is the fastest way to find the code behind a command.
 - `internal/cli/straddle_setup.go` — persisted integration type (`account`, `saas`, `marketplace`) and current embedded account helpers.
 - `internal/cli/straddle_*.go` — hand-authored analytics, workflow, and reference commands that extend the Straddle API command surface.
 - `internal/cli/generated_registry.go` - self-registration hook for generated endpoint command files.
-* `internal/cli/bind_surface.go`: generated flag binding, live and dry-run required input validation, and structured JSON shape validation.
+* `internal/cli/bind_surface.go` / `bind_surface_form.go`: generated flag binding, live and dry-run required input validation, structured JSON shape validation, and multipart upload file validation.
 - `internal/apisync/` - OpenAPI loading, repo inventory, coverage checks, drift classification, and generic endpoint generation.
 - `internal/store/`: SQLite store, migrations, FTS, schema versioning (`store.go`), and in-memory query snapshots (`snapshot.go`).
 * `internal/cli/store_scope.go`: local store scope resolution (`--account`, `use-account`, API environment), request-pinned write-through context, and runtime context resolution.
 - `internal/straddleacct/policy.go` — `Straddle-Account-Id` decision engine.
-- `internal/client/` — HTTP client and response handling.
+- `internal/client/` — HTTP client, streamed multipart request bodies, and response handling.
 - `internal/config/` — config loading/saving.
 
 ## Command groups worth knowing
@@ -59,6 +59,7 @@ Create and manage debit attempts against customer bank accounts.
 - `charges release` / `charges release charge` — release a held charge.
 - `charges resubmit` / `charges resubmit create` — resubmit a charge.
 - `charges refund`: refund a paid charge through a linked payout.
+* `charges upload-authorization-proof`: stream a proof-of-authorization file (`--file`) as multipart form data.
 - `charges unmask` / `charges unmask charges-v1-get` — access an unmasked charge variant.
 
 #### `customers*`
@@ -115,6 +116,7 @@ Create and manage outgoing money movement.
 - `payouts hold` / `payouts hold payout` — place a payout on hold.
 - `payouts release` / `payouts release payout` — release a held payout.
 - `payouts resubmit` / `payouts resubmit create` — resubmit a payout.
+* `payouts upload-authorization-proof`: stream a proof-of-authorization file (`--file`) as multipart form data.
 - `payouts unmask` / `payouts unmask payouts-v1-get` — access an unmasked payout variant.
 
 #### `representatives*`

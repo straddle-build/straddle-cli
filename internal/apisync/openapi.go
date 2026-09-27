@@ -97,7 +97,10 @@ type rawRequestBody struct {
 }
 
 type rawMediaType struct {
-	Schema json.RawMessage `json:"schema"`
+	Schema   json.RawMessage `json:"schema"`
+	Encoding map[string]struct {
+		ContentType string `json:"contentType"`
+	} `json:"encoding"`
 }
 
 func LoadSpec(path string) ([]Operation, error) {

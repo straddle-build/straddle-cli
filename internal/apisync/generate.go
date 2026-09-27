@@ -475,6 +475,8 @@ func surfaceInLiteral(value surface.In) string {
 		return "surface.InHeader"
 	case surface.InBody:
 		return "surface.InBody"
+	case surface.InForm:
+		return "surface.InForm"
 	default:
 		return fmt.Sprintf("surface.In(%q)", value)
 	}
@@ -492,6 +494,8 @@ func surfaceKindLiteral(value surface.Kind) string {
 		return "surface.KindBoolean"
 	case surface.KindJSON:
 		return "surface.KindJSON"
+	case surface.KindFile:
+		return "surface.KindFile"
 	default:
 		return fmt.Sprintf("surface.Kind(%q)", value)
 	}

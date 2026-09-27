@@ -59,7 +59,7 @@ func UnsupportedReasons(op Operation) []string {
 	if op.RequestBodyRequired || len(op.RequestBodyMediaTypes) > 0 {
 		if len(op.RequestBodyMediaTypes) == 0 {
 			reasons = append(reasons, "request body has no declared media type")
-		} else if !hasJSONMediaType(op.RequestBodyMediaTypes) {
+		} else if !hasJSONMediaType(op.RequestBodyMediaTypes) && !hasMultipartMediaType(op.RequestBodyMediaTypes) {
 			reasons = append(reasons, "request body lacks application/json content")
 		}
 	}
@@ -78,6 +78,19 @@ func hasJSONMediaType(mediaTypes []string) bool {
 		}
 	}
 	return false
+}
+
+func hasMultipartMediaType(mediaTypes []string) bool {
+	for _, mediaType := range mediaTypes {
+		if isMultipartFormData(mediaType) {
+			return true
+		}
+	}
+	return false
+}
+
+func isMultipartFormData(mediaType string) bool {
+	return strings.EqualFold(strings.TrimSpace(strings.SplitN(mediaType, ";", 2)[0]), "multipart/form-data")
 }
 
 func generatedParameterUnsupportedReasons(op Operation) []string {
@@ -147,7 +160,7 @@ func generatedReservedFlagOwners() map[string]string {
 
 func surfaceUnsupportedReasons(derived surface.Surface) []string {
 	flagOwners := generatedReservedFlagOwners()
-	if derived.HasBody {
+	if derived.HasBody && !hasFormFlag(derived) {
 		flagOwners["stdin"] = "request body stdin flag"
 	}
 	var reasons []string
@@ -163,6 +176,17 @@ func surfaceUnsupportedReasons(derived surface.Surface) []string {
 		}
 	}
 	return reasons
+}
+
+// hasFormFlag reports a multipart/form-data surface, which has no JSON
+// --stdin body.
+func hasFormFlag(derived surface.Surface) bool {
+	for _, flag := range derived.Flags {
+		if flag.In == surface.InForm {
+			return true
+		}
+	}
+	return false
 }
 
 func surfaceFlagOwner(flag surface.Flag) string {

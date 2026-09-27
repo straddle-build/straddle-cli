@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/straddle-build/straddle-cli/internal/client"
 	"github.com/straddle-build/straddle-cli/internal/surface"
 )
 
@@ -48,12 +49,13 @@ func bindSurface(cmd *cobra.Command, s surface.Surface) func(args []string) (bou
 	}
 
 	var stdinBody bool
-	if s.HasBody {
+	isForm := hasFormFlag(s)
+	if s.HasBody && !isForm {
 		cmd.Flags().BoolVar(&stdinBody, "stdin", false, "Read JSON request body from stdin")
 	}
 
 	return func(args []string) (boundRequest, error) {
-		hasBody := s.HasBody || cmd.Annotations["straddle:body"] == "true"
+		hasBody := (s.HasBody && !isForm) || cmd.Annotations["straddle:body"] == "true"
 		readStdin := stdinBody
 		if hasBody && !s.HasBody {
 			readStdin, _ = cmd.Flags().GetBool("stdin")
@@ -93,12 +95,21 @@ func bindSurface(cmd *cobra.Command, s surface.Surface) func(args []string) (bou
 			req.Body = body
 		}
 
+		var form client.MultipartForm
 		for _, binding := range bindings {
 			if err := binding.validateExplicitInput(cmd, req.Body, readStdin); err != nil {
 				return req, usageErr(err)
 			}
 			definition := binding.definition
 			if readStdin && definition.In == surface.InBody || !binding.included(cmd) {
+				continue
+			}
+			if definition.In == surface.InForm {
+				part, err := formFile(cmd, definition, binding.stringValue)
+				if err != nil {
+					return req, err
+				}
+				form.Files = append(form.Files, part)
 				continue
 			}
 			value, err := binding.value()
@@ -118,6 +129,9 @@ func bindSurface(cmd *cobra.Command, s surface.Surface) func(args []string) (bou
 			case surface.InBody:
 				setSurfaceBodyValue(req.Body.(map[string]any), definition.Key, value.body)
 			}
+		}
+		if len(form.Files) > 0 {
+			req.Body = form
 		}
 		return req, nil
 	}
@@ -145,7 +159,7 @@ func (b *surfaceFlagBinding) register(cmd *cobra.Command) {
 	}
 
 	switch definition.Kind {
-	case surface.KindString:
+	case surface.KindString, surface.KindFile:
 		b.stringValue = definition.Default
 		cmd.Flags().StringVar(&b.stringValue, definition.Name, b.stringValue, definition.Description)
 	case surface.KindJSON:

@@ -19,6 +19,7 @@ type schemaNode struct {
 	Type                 json.RawMessage            `json:"type"`
 	Description          string                     `json:"description"`
 	Format               string                     `json:"format"`
+	ContentMediaType     string                     `json:"contentMediaType"`
 	Properties           map[string]json.RawMessage `json:"properties"`
 	Required             []string                   `json:"required"`
 	Items                json.RawMessage            `json:"items"`
@@ -103,6 +104,10 @@ func SurfaceFromOperation(op Operation, doc *parsedDocument) (surface.Surface, [
 				derived.Flags = append(derived.Flags, bodyFlags...)
 				reasons = append(reasons, bodyReasons...)
 			}
+		} else if media, ok := multipartMedia(parsed.operation.RequestBody); ok {
+			formFlags, formReasons := deriver.formFlags(media, derived.BodyRequired)
+			derived.Flags = append(derived.Flags, formFlags...)
+			reasons = append(reasons, formReasons...)
 		} else if len(parsed.operation.RequestBody.Content) == 0 {
 			reasons = append(reasons, "request body has no declared media type")
 		} else {
@@ -221,6 +226,66 @@ func requestBodySchema(body *rawRequestBody) (json.RawMessage, bool) {
 	return nil, false
 }
 
+func multipartMedia(body *rawRequestBody) (rawMediaType, bool) {
+	for mediaType, media := range body.Content {
+		if isMultipartFormData(mediaType) {
+			return media, true
+		}
+	}
+	return rawMediaType{}, false
+}
+
+// formFlags derives one file flag per property of a multipart/form-data
+// body. Only binary file properties are representable; any other property,
+// or a body without one, keeps the operation unsupported.
+func (d surfaceDeriver) formFlags(media rawMediaType, bodyRequired bool) ([]surface.Flag, []string) {
+	noFiles := []string{"request body lacks application/json content"}
+	if len(bytes.TrimSpace(media.Schema)) == 0 {
+		return nil, noFiles
+	}
+	root, reasons := d.resolveSchema(media.Schema, "/", map[string]bool{})
+	if len(reasons) > 0 {
+		return nil, reasons
+	}
+	if len(root.Properties) == 0 {
+		return nil, noFiles
+	}
+	names := make([]string, 0, len(root.Properties))
+	for name := range root.Properties {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	required := stringSet(root.Required)
+	var flags []surface.Flag
+	for _, name := range names {
+		node, nodeReasons := d.resolveSchema(root.Properties[name], "/"+name, map[string]bool{})
+		if len(nodeReasons) > 0 {
+			reasons = append(reasons, nodeReasons...)
+			continue
+		}
+		if schemaType, _ := nodeType(node); schemaType != "string" || (node.Format != "binary" && node.ContentMediaType == "") {
+			reasons = append(reasons, fmt.Sprintf("multipart property %q is not a file", name))
+			continue
+		}
+		var contentTypes []string
+		for _, contentType := range strings.Split(media.Encoding[name].ContentType, ",") {
+			if contentType = strings.TrimSpace(contentType); contentType != "" {
+				contentTypes = append(contentTypes, contentType)
+			}
+		}
+		flags = append(flags, surface.Flag{
+			Name:        kebab(name),
+			In:          surface.InForm,
+			Key:         name,
+			Kind:        surface.KindFile,
+			Required:    bodyRequired && required[name],
+			Enum:        contentTypes,
+			Description: surfaceDescription(node.Description),
+		})
+	}
+	return flags, reasons
+}
+
 func (d surfaceDeriver) resolveSchema(raw json.RawMessage, pointer string, stack map[string]bool) (schemaNode, []string) {
 	var node schemaNode
 	if err := json.Unmarshal(raw, &node); err != nil {
@@ -275,6 +340,9 @@ func mergeSchemaNodes(base, overlay schemaNode, pointer string) (schemaNode, []s
 	}
 	if overlay.Format != "" {
 		base.Format = overlay.Format
+	}
+	if overlay.ContentMediaType != "" {
+		base.ContentMediaType = overlay.ContentMediaType
 	}
 	if base.Properties == nil && len(overlay.Properties) > 0 {
 		base.Properties = make(map[string]json.RawMessage, len(overlay.Properties))

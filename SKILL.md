@@ -137,6 +137,7 @@ These capabilities aren't available in any other tool for this API.
 - `straddle charges create` — Use charges to collect money from a customer for the sale of goods or services.
 - `straddle charges get` — Retrieves the details of an existing charge. Supply the unique charge `id`, and Straddle will return the...
 - `straddle charges update` — Change the values of parameters associated with a charge prior to processing. The status of the charge must be...
+* `straddle charges upload-authorization-proof`: upload a proof-of-authorization document for a charge. See [README.md](README.md#charges).
 
 **customers** — Customers represent the end users who send or receive payments through your integration. Each customer undergoes automatic identity verification and fraud screening upon creation. Use customers to track payment history, manage bank account connections, and maintain a secure record of all transactions associated with a user. Customers can be either individuals or businesses with appropriate compliance checks for each type.
 
@@ -183,6 +184,7 @@ These capabilities aren't available in any other tool for this API.
 - `straddle payouts create` — Use payouts to send money to your customers.
 - `straddle payouts get` — Retrieves the details of an existing payout. Supply the unique payout `id` to retrieve the corresponding payout...
 - `straddle payouts update` — Update the details of a payout prior to processing. The status of the payout must be `created`, `scheduled`, or...
+* `straddle payouts upload-authorization-proof`: upload a proof-of-authorization document for a payout. See [README.md](README.md#payouts).
 
 **reports** — Manage reports
 
