@@ -155,6 +155,47 @@ func apiEnvironment(baseURL string, templateVars map[string]string) (string, err
 	return strings.ToLower(parsed.Scheme + "://" + parsed.Host), nil
 }
 
+// runtimeContext is the selection a command acts under: the API
+// environment and acting account of its local store scope, plus the
+// configured integration type. Null means not selected. It reports
+// selection only; whether a request carries Straddle-Account-Id is still
+// decided per operation by straddleacct.
+type runtimeContext struct {
+	Environment     *string `json:"environment"`
+	IntegrationType *string `json:"integration_type"`
+	ActingAccount   *string `json:"acting_account"`
+	Error           string  `json:"error,omitempty"`
+}
+
+// resolveRuntimeContext resolves the running command's runtime context
+// the same way its local store scope is resolved, without opening the
+// store.
+func resolveRuntimeContext(ctx context.Context) runtimeContext {
+	var rc runtimeContext
+	platform, err := platformContext(ctx)
+	if err != nil {
+		rc.Error = err.Error()
+		return rc
+	}
+	if platform.IntegrationType != "" {
+		rc.IntegrationType = &platform.IntegrationType
+	}
+	scope, err := localStoreScope(ctx)
+	if err != nil {
+		rc.Error = err.Error()
+		return rc
+	}
+	rc.Environment = &scope.Environment
+	if scope.Account != "" {
+		rc.ActingAccount = &scope.Account
+	}
+	if platform.IntegrationType != "" && !straddleacct.ValidIntegrationType(platform.IntegrationType) {
+		rc.Error = fmt.Sprintf("invalid integration type %q in %s: must be %s, %s, or %s; run 'straddle setup --type ...'",
+			platform.IntegrationType, straddleacct.ContextPath(), straddleacct.TypeAccount, straddleacct.TypeSaaS, straddleacct.TypeMarketplace)
+	}
+	return rc
+}
+
 // openScopedStore opens the local store in the command's scope.
 func openScopedStore(ctx context.Context, dbPath string) (*store.Store, error) {
 	scope, err := localStoreScope(ctx)

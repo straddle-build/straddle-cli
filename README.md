@@ -347,7 +347,7 @@ Base URL: `https://{environment}.straddle.com`
 straddle doctor
 ```
 
-Verifies configuration, credentials, connectivity to the API, and local store health.
+Verifies configuration, credentials, connectivity to the API, runtime context, and local store health.
 
 ## Configuration
 

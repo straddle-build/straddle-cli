@@ -4,7 +4,6 @@ package cli
 
 import (
 	"encoding/json"
-	"os"
 	"sort"
 
 	"github.com/spf13/cobra"
@@ -27,6 +26,7 @@ type agentContext struct {
 	Commands                   []agentContextCommand `json:"commands"`
 	AvailableProfiles          []string              `json:"available_profiles"`
 	FeedbackEndpointConfigured bool                  `json:"feedback_endpoint_configured"`
+	RuntimeContext             runtimeContext        `json:"runtime_context"`
 }
 
 type agentContextCLI struct {
@@ -72,10 +72,13 @@ func newAgentContextCmd(rootCmd *cobra.Command) *cobra.Command {
 		Annotations: map[string]string{"mcp:read-only": "true"},
 		Long: `Outputs a machine-readable description of commands, flags, and auth so
 agents can introspect this CLI at runtime without parsing --help or
-reading source. Schema is versioned via schema_version.`,
+reading source. runtime_context reports the selected API environment,
+integration type and acting account, including a --account override,
+without opening the local store. Schema is versioned via schema_version.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := buildAgentContext(rootCmd)
-			enc := json.NewEncoder(os.Stdout)
+			ctx.RuntimeContext = resolveRuntimeContext(cmd.Context())
+			enc := json.NewEncoder(cmd.OutOrStdout())
 			if pretty {
 				enc.SetIndent("", "  ")
 			}
@@ -83,7 +86,9 @@ reading source. Schema is versioned via schema_version.`,
 		},
 	}
 	cmd.Flags().BoolVar(&pretty, "pretty", false, "indent JSON output for human reading")
-	return cmd
+	// Store-scoped so --account selects the reported acting account
+	// instead of being rejected as a header this command never sends.
+	return markStoreScoped(cmd)
 }
 
 func buildAgentContext(rootCmd *cobra.Command) agentContext {

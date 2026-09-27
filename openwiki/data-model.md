@@ -31,6 +31,8 @@ Every row belongs to one scope: the API environment (the lowercase origin of the
 
 Local scope is separate from the `Straddle-Account-Id` header. A marketplace fetches customers without the header, but rows captured while acting as one account stay under that account. Sync applies the header policy per request and sends the acting account only where the operation accepts it. Live reads skip the HTTP response cache when the header sent differs from the local account, so a cached response never crosses acting accounts. A command resolves its scope once, so a read already in flight keeps storing and falling back under its original environment and account even if `use-account` changes the context meanwhile.
 
+`doctor` and `agent-context` report this selection as `runtime_context` (`environment`, `integration_type`, `acting_account`, and `error` when it cannot be applied), resolved exactly as the store scope is but without opening the store.
+
 Schema version 3 rebuilds each table in place with `scope_environment` and `scope_account` leading its primary key, so the same resource ID coexists across scopes. Rows written before scoping keep an empty environment; they stay in the file, no scope can read them, and `doctor` and local-read provenance (`meta.hidden_legacy_records`, present only when nonzero) report their count.
 
 `straddle sql` runs on an in-memory snapshot of the current scope, copied in one read transaction with the unscoped column order, rowids, plain column indexes and the FTS index, then detached from the file and set `query_only`. Its cost grows with the current scope's row count (about 360 ms and 75 MB for 50,000 charges on a laptop).

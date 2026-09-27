@@ -13,7 +13,7 @@ This page is the fastest way to find the code behind a command.
 * `internal/cli/bind_surface.go`: generated flag binding, live and dry-run required input validation, and structured JSON shape validation.
 - `internal/apisync/` - OpenAPI loading, repo inventory, coverage checks, drift classification, and generic endpoint generation.
 - `internal/store/`: SQLite store, migrations, FTS, schema versioning (`store.go`), and in-memory query snapshots (`snapshot.go`).
-* `internal/cli/store_scope.go`: local store scope resolution (`--account`, `use-account`, API environment) and request-pinned write-through context.
+* `internal/cli/store_scope.go`: local store scope resolution (`--account`, `use-account`, API environment), request-pinned write-through context, and runtime context resolution.
 - `internal/straddleacct/policy.go` — `Straddle-Account-Id` decision engine.
 - `internal/client/` — HTTP client and response handling.
 - `internal/config/` — config loading/saving.
@@ -153,7 +153,7 @@ These are the command families that make this repo more than a direct API wrappe
 - `import` — import data snapshots into the local store.
 - `deliver` — route command output to alternate sinks such as files or webhooks.
 - `analytics` — umbrella entrypoint for analytics-related helpers.
-- `agent-context` — expose runtime context to agents.
+* `agent-context`: expose CLI metadata and runtime context to agents.
 - `channel` and `promoted*` commands — extra workflow/reporting surfaces in the Straddle command tree.
 
 ## Supporting directories
