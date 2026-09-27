@@ -93,4 +93,14 @@ func init() {
 		},
 		resource: "payouts",
 	})
+	registerCommandOverlay("payouts.upload-payout-authorization-proof", commandOverlay{
+		short:   "Upload a proof-of-authorization document for a payout",
+		long:    "Uploads a proof-of-authorization document for a payout: a PDF, PNG, JPEG, DOC, or DOCX file of at most 10 MiB whose contents match its extension. The file is streamed, never loaded into memory. A later upload adds another document and does not replace an existing one.",
+		example: "  straddle payouts upload-authorization-proof 550e8400-e29b-41d4-a716-446655440000 --file ./authorization.pdf",
+		flags: []flagOverlay{
+			{name: "file", usage: "Path to the document to upload (.pdf, .png, .jpg, .jpeg, .doc, or .docx; at most 10 MiB).", maxBytes: 10 << 20},
+		},
+		resource: "payouts",
+		action:   "upload-authorization-proof",
+	})
 }

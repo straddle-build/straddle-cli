@@ -487,8 +487,9 @@ func (c *Client) doInternalWithValues(method, path string, params map[string]str
 		return nil, 0, urlErr
 	}
 
+	form, isForm := body.(MultipartForm)
 	var bodyBytes []byte
-	if body != nil {
+	if body != nil && !isForm {
 		b, err := json.Marshal(body)
 		if err != nil {
 			return nil, 0, fmt.Errorf("marshaling body: %w", err)
@@ -507,11 +508,15 @@ func (c *Client) doInternalWithValues(method, path string, params map[string]str
 
 	// Build the request for dry-run display or actual execution
 	if c.DryRun {
+		var formPreview *MultipartForm
+		if isForm {
+			formPreview = &form
+		}
 		if encodedQuery := query.Encode(); encodedQuery != "" {
 			targetURL += "?" + encodedQuery
-			return c.dryRun(method, targetURL, path, nil, bodyBytes, headerOverrides, authHeader)
+			return c.dryRun(method, targetURL, path, nil, bodyBytes, formPreview, headerOverrides, authHeader)
 		}
-		return c.dryRun(method, targetURL, path, params, bodyBytes, headerOverrides, authHeader)
+		return c.dryRun(method, targetURL, path, params, bodyBytes, formPreview, headerOverrides, authHeader)
 	}
 
 	const maxRetries = 3
@@ -521,16 +526,32 @@ func (c *Client) doInternalWithValues(method, path string, params map[string]str
 		// Proactive rate limiting — wait before sending
 		c.limiter.Wait()
 		var bodyReader io.Reader
+		var contentLength int64
+		contentType := ""
 		if bodyBytes != nil {
 			bodyReader = strings.NewReader(string(bodyBytes))
+			contentType = "application/json"
+		}
+		if isForm {
+			formReader, length, formType, err := form.open()
+			if err != nil {
+				return nil, 0, fmt.Errorf("opening upload: %w", err)
+			}
+			bodyReader, contentLength, contentType = formReader, length, formType
 		}
 
 		req, err := http.NewRequest(method, targetURL, bodyReader)
 		if err != nil {
+			if closer, ok := bodyReader.(io.Closer); ok {
+				_ = closer.Close()
+			}
 			return nil, 0, fmt.Errorf("creating request: %w", err)
 		}
-		if bodyBytes != nil {
-			req.Header.Set("Content-Type", "application/json")
+		if isForm {
+			req.ContentLength = contentLength
+		}
+		if contentType != "" {
+			req.Header.Set("Content-Type", contentType)
 		}
 
 		if query != nil {
@@ -658,7 +679,7 @@ func (c *Client) doInternalWithValues(method, path string, params map[string]str
 // dryRun prints the outgoing request exactly as the live path would send it,
 // using the auth material already resolved in `do()`. Never triggers a network
 // call — the caller is responsible for passing cached auth material only.
-func (c *Client) dryRun(method, targetURL, path string, params map[string]string, body []byte, headerOverrides map[string]string, authHeader string) (json.RawMessage, int, error) {
+func (c *Client) dryRun(method, targetURL, path string, params map[string]string, body []byte, form *MultipartForm, headerOverrides map[string]string, authHeader string) (json.RawMessage, int, error) {
 	fmt.Fprintf(os.Stderr, "%s %s\n", method, targetURL)
 	queryPrinted := false
 	if params != nil {
@@ -687,6 +708,9 @@ func (c *Client) dryRun(method, targetURL, path string, params map[string]string
 			fmt.Fprintf(os.Stderr, "  Body:\n")
 			_ = enc.Encode(pretty)
 		}
+	}
+	if form != nil {
+		form.describe(os.Stderr)
 	}
 	if authHeader != "" {
 		fmt.Fprintf(os.Stderr, "  %s: %s\n", "Authorization", maskToken(authHeader))

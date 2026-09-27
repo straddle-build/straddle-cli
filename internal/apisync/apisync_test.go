@@ -29,7 +29,7 @@ func TestCurrentSpecOperationsAreCoveredByCheckedInAnnotations(t *testing.T) {
 		t.Fatalf("current spec coverage failed: missing=%d extra=%d duplicate=%d invalid=%d operation_id_mismatch=%d", len(result.Missing), len(result.Extra), len(result.DuplicateAnnotations), len(result.InvalidAnnotations), len(result.OperationIDMismatches))
 	}
 	if !unsupportedInventoryAccepted(len(result.UnsupportedOperations), allowReviewDrift) {
-		t.Fatalf("unsupported operations = %d, want two unsupported contract operations", len(result.UnsupportedOperations))
+		t.Fatalf("unsupported operations = %d, want every contract operation supported", len(result.UnsupportedOperations))
 	}
 }
 
@@ -50,10 +50,10 @@ func TestAPISyncReviewModeAllowsOnlyRemovedOrRenamedOperations(t *testing.T) {
 	if coverageAccepted(reviewable, true) {
 		t.Fatal("API sync review mode accepted a missing supported operation")
 	}
-	if unsupportedInventoryAccepted(3, false) {
+	if unsupportedInventoryAccepted(1, false) {
 		t.Fatal("strict coverage accepted an unexpected unsupported operation")
 	}
-	if !unsupportedInventoryAccepted(3, true) {
+	if !unsupportedInventoryAccepted(1, true) {
 		t.Fatal("API sync review mode rejected an unsupported operation for human review")
 	}
 }
@@ -66,7 +66,7 @@ func coverageAccepted(result apisync.CheckResult, allowReviewDrift bool) bool {
 }
 
 func unsupportedInventoryAccepted(count int, allowReviewDrift bool) bool {
-	return allowReviewDrift || count == 2
+	return allowReviewDrift || count == 0
 }
 
 func TestParseSpecLoadsYAMLAndResolvesSharedParameters(t *testing.T) {

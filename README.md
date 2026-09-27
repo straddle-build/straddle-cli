@@ -213,6 +213,7 @@ Charges represent attempts to debit money from a customer's bank account using a
 - **`straddle charges get`** - Retrieves the details of an existing charge. Supply the unique charge `id`, and Straddle will return the corresponding charge information.
 - **`straddle charges update`** - Change the values of parameters associated with a charge prior to processing. The status of the charge must be `created`, `scheduled`, or `on_hold`.
 - **`straddle charges refund <id>`** - Refund a paid charge by creating a linked payout. Supply request fields with flags such as `--amount`, `--external-id`, and `--payment-date`, or pass a JSON request body with `--stdin`.
+- **`straddle charges upload-authorization-proof <id> --file PATH`** - Upload a proof-of-authorization document (PDF, PNG, JPEG, DOC, or DOCX, at most 10 MiB). The file is streamed as multipart form data; missing, unreadable, empty, oversized, unsupported, and non-regular files fail before any request, and `--dry-run` describes the file without printing its contents.
 
 ### customers
 
@@ -275,6 +276,7 @@ Payouts represent transfers from Straddle to customer bank accounts. Create payo
 - **`straddle payouts create`** - Use payouts to send money to your customers.
 - **`straddle payouts get`** - Retrieves the details of an existing payout. Supply the unique payout `id` to retrieve the corresponding payout information.
 - **`straddle payouts update`** - Update the details of a payout prior to processing. The status of the payout must be `created`, `scheduled`, or `on_hold`.
+- **`straddle payouts upload-authorization-proof <id> --file PATH`** - Upload a proof-of-authorization document for a payout, with the same file rules as the charge command.
 
 ### reports
 

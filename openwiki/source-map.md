@@ -59,6 +59,7 @@ Create and manage debit attempts against customer bank accounts.
 - `charges release` / `charges release charge` — release a held charge.
 - `charges resubmit` / `charges resubmit create` — resubmit a charge.
 - `charges refund`: refund a paid charge through a linked payout.
+* `charges upload-authorization-proof`: stream a proof-of-authorization file (`--file`) as multipart form data.
 - `charges unmask` / `charges unmask charges-v1-get` — access an unmasked charge variant.
 
 #### `customers*`
@@ -115,6 +116,7 @@ Create and manage outgoing money movement.
 - `payouts hold` / `payouts hold payout` — place a payout on hold.
 - `payouts release` / `payouts release payout` — release a held payout.
 - `payouts resubmit` / `payouts resubmit create` — resubmit a payout.
+* `payouts upload-authorization-proof`: stream a proof-of-authorization file (`--file`) as multipart form data.
 - `payouts unmask` / `payouts unmask payouts-v1-get` — access an unmasked payout variant.
 
 #### `representatives*`

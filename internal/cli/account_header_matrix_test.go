@@ -4,6 +4,8 @@ package cli
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -45,7 +47,11 @@ func TestAccountHeaderMatrix(t *testing.T) {
 	if len(surfaces) == 0 {
 		t.Fatal("registeredSurfaces() is empty")
 	}
-	arguments := accountHeaderArgumentTable(surfaces)
+	upload := filepath.Join(t.TempDir(), "authorization.pdf")
+	if err := os.WriteFile(upload, []byte("%PDF-1.4 account matrix"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	arguments := accountHeaderArgumentTable(surfaces, upload)
 	commands := accountHeaderCommands(t, RootCmd())
 	recorder := &accountHeaderRequestRecorder{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
@@ -153,18 +159,21 @@ func accountHeaderMatrixArgs(prefix, required []string, withAccount bool) []stri
 	return append(args, required...)
 }
 
-func accountHeaderArgumentTable(surfaces []surface.Surface) map[string][]string {
+func accountHeaderArgumentTable(surfaces []surface.Surface, uploadPath string) map[string][]string {
 	table := make(map[string][]string, len(surfaces))
 	for _, registered := range surfaces {
 		args := make([]string, 0, len(registered.PathParams)+1)
 		for range registered.PathParams {
 			args = append(args, accountHeaderTestID)
 		}
-		if registered.HasBody {
+		if registered.HasBody && !hasFormFlag(registered) {
 			args = append(args, "--stdin")
 		} else {
 			for _, flag := range registered.Flags {
-				if flag.Required {
+				switch {
+				case flag.Required && flag.Kind == surface.KindFile:
+					args = append(args, "--"+flag.Name, uploadPath)
+				case flag.Required:
 					args = append(args, "--"+flag.Name, accountHeaderFlagValue(flag))
 				}
 			}

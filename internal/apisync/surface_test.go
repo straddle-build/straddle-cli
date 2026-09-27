@@ -392,6 +392,75 @@ paths:
 				})
 			},
 		},
+		{
+			name: "multipart binary property becomes a streamed file flag",
+			spec: `
+openapi: 3.1.0
+paths:
+  /v1/widgets/{id}/proof:
+    post:
+      operationId: uploadWidgetProof
+      tags: [widgets]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [File]
+              properties:
+                File:
+                  type: string
+                  description: The document. More detail.
+                  contentMediaType: application/octet-stream
+            encoding:
+              File:
+                contentType: application/pdf, image/png
+`,
+			want: func(t *testing.T, surfaces []surface.Surface, unsupported []UnsupportedOperation) {
+				t.Helper()
+				got := requireSingleSupportedSurface(t, surfaces, unsupported)
+				if !got.HasBody || !got.BodyRequired {
+					t.Fatalf("surface = %#v, want a required body", got)
+				}
+				requireFlag(t, got, surface.Flag{
+					Name:        "file",
+					In:          surface.InForm,
+					Key:         "File",
+					Kind:        surface.KindFile,
+					Required:    true,
+					Enum:        []string{"application/pdf", "image/png"},
+					Description: "The document.",
+				})
+			},
+		},
+		{
+			name: "multipart text property stays unsupported",
+			spec: `
+openapi: 3.1.0
+paths:
+  /v1/widgets:
+    post:
+      operationId: createWidget
+      tags: [widgets]
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                File: {type: string, format: binary}
+                note: {type: string}
+`,
+			want: func(t *testing.T, surfaces []surface.Surface, unsupported []UnsupportedOperation) {
+				t.Helper()
+				if len(unsupported) != 1 || !surfaceReasonContains(unsupported[0].Reasons, `multipart property "note" is not a file`) {
+					t.Fatalf("unsupported = %#v, want the text property rejected", unsupported)
+				}
+			},
+		},
 	}
 
 	for _, test := range tests {

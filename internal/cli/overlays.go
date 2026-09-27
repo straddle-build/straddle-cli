@@ -4,6 +4,7 @@ package cli
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -20,6 +21,8 @@ type flagOverlay struct {
 	requireExplicit bool
 	enumSet         bool
 	enum            []string
+	// maxBytes caps a file flag's size, checked before any request.
+	maxBytes int64
 }
 
 type commandOverlay struct {
@@ -74,6 +77,12 @@ func registerCommandOverlay(endpoint string, overlay commandOverlay) {
 					flag.Annotations = map[string][]string{}
 				}
 				flag.Annotations["straddle:enum"] = append([]string(nil), change.enum...)
+			}
+			if change.maxBytes > 0 {
+				if flag.Annotations == nil {
+					flag.Annotations = map[string][]string{}
+				}
+				flag.Annotations["straddle:max-bytes"] = []string{strconv.FormatInt(change.maxBytes, 10)}
 			}
 		}
 		if overlay.paginated {
