@@ -773,6 +773,17 @@ func printJSONFiltered(w io.Writer, v any, flags *rootFlags) error {
 	return printOutputWithFlags(w, json.RawMessage(raw), flags)
 }
 
+// printWriteJSONFiltered is printJSONFiltered for output reporting a side
+// effect that already happened (local state saved, requests sent), so an
+// unmatched --select warns instead of failing the completed command.
+func printWriteJSONFiltered(w io.Writer, v any, flags *rootFlags) error {
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	return renderOutputWithFlags(w, projectWriteOutput(raw, flags), flags)
+}
+
 // filterFields keeps only the specified fields (comma-separated) from JSON objects/arrays.
 // Supports dotted paths like "events.shortName" to descend into nested structures.
 // Arrays are traversed element-wise: "events.shortName" keeps shortName on each event.

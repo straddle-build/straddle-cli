@@ -95,7 +95,7 @@ but do not stop the import. Dry-run JSON summaries include dry_run: true.`,
 				if dryRun {
 					result["dry_run"] = true
 				}
-				return printJSONFiltered(cmd.OutOrStdout(), result, flags)
+				return printWriteJSONFiltered(cmd.OutOrStdout(), result, flags)
 			}
 			fmt.Fprintf(os.Stderr, "Import complete: %d succeeded, %d failed, %d skipped\n", success, failed, skipped)
 			return nil

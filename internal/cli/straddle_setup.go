@@ -36,7 +36,7 @@ account with 'use-account <acct_id>'.`,
 				return err
 			}
 			if typ == "" {
-				return printPlatformContext(cmd, flags, ctx)
+				return printPlatformContext(cmd, flags, ctx, false)
 			}
 			if !straddleacct.ValidIntegrationType(typ) {
 				return usageErr(fmt.Errorf("invalid --type %q: must be %s, %s, or %s",
@@ -49,7 +49,7 @@ account with 'use-account <acct_id>'.`,
 			if !flags.asJSON && typ != straddleacct.TypeAccount && ctx.CurrentAccount == "" {
 				fmt.Fprintln(cmd.ErrOrStderr(), "next: pick an acting account with 'use-account <acct_id>'")
 			}
-			return printPlatformContext(cmd, flags, ctx)
+			return printPlatformContext(cmd, flags, ctx, true)
 		},
 	}
 	cmd.Flags().StringVar(&typ, "type", "", "Integration type: account, saas, or marketplace")
@@ -79,12 +79,12 @@ Run without an id to show the current account. Use --clear to unset it.`,
 			case len(args) == 1:
 				ctx.CurrentAccount = args[0]
 			default:
-				return printPlatformContext(cmd, flags, ctx)
+				return printPlatformContext(cmd, flags, ctx, false)
 			}
 			if err := straddleacct.SaveContext(ctx); err != nil {
 				return err
 			}
-			return printPlatformContext(cmd, flags, ctx)
+			return printPlatformContext(cmd, flags, ctx, true)
 		},
 	}
 	cmd.Flags().BoolVar(&clear, "clear", false, "Clear the current account")
@@ -92,13 +92,18 @@ Run without an id to show the current account. Use --clear to unset it.`,
 }
 
 // printPlatformContext renders the current integration type and acting account,
-// as JSON under --json or a short human summary otherwise.
-func printPlatformContext(cmd *cobra.Command, f *rootFlags, ctx straddleacct.Context) error {
+// as JSON under --json or a short human summary otherwise. saved reports that
+// the context was just written, so an unmatched --select only warns.
+func printPlatformContext(cmd *cobra.Command, f *rootFlags, ctx straddleacct.Context, saved bool) error {
 	if f.asJSON {
-		return f.printJSON(cmd, map[string]any{
+		out := map[string]any{
 			"integration_type": ctx.IntegrationType,
 			"current_account":  ctx.CurrentAccount,
-		})
+		}
+		if saved {
+			return printWriteJSONFiltered(cmd.OutOrStdout(), out, f)
+		}
+		return f.printJSON(cmd, out)
 	}
 	it := ctx.IntegrationType
 	if it == "" {

@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -99,4 +102,57 @@ func TestSelectWithoutMatchKeepsCompletedWriteResult(t *testing.T) {
 	if resource["id"] != "cus_1" || resource["name"] != "A" {
 		t.Fatalf("write response was not kept in full: %v", env["data"])
 	}
+}
+
+func TestSelectWithoutMatchKeepsCompletedLocalWrites(t *testing.T) {
+	t.Run("import", func(t *testing.T) {
+		isolateAPIConfig(t)
+		t.Setenv("HOME", t.TempDir())
+		t.Setenv("STRADDLE_API_KEY", "test_key")
+		var posts atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			posts.Add(1)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"created"}`))
+		}))
+		defer server.Close()
+		t.Setenv("STRADDLE_BASE_URL", server.URL)
+		input := filepath.Join(t.TempDir(), "customers.jsonl")
+		if err := os.WriteFile(input, []byte("{\"name\":\"One\"}\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		stdout, stderr, err, _ := capturedRun(t, []string{"import", "customers", "--input", input, "--json", "--select", "nope"})
+		if err != nil {
+			t.Fatalf("import that sent its request failed: %v", err)
+		}
+		if posts.Load() != 1 {
+			t.Fatalf("posts = %d, want 1", posts.Load())
+		}
+		if !strings.Contains(stderr, `warning: --select "nope" matched no fields`) {
+			t.Fatalf("stderr missing selector warning; got:\n%s", stderr)
+		}
+		if got := decodeAPIEnvelope(t, stdout); got["succeeded"] != float64(1) {
+			t.Fatalf("summary = %v, want succeeded 1", got)
+		}
+	})
+
+	t.Run("profile save", func(t *testing.T) {
+		isolateAPIConfig(t)
+		t.Setenv("HOME", t.TempDir())
+
+		stdout, stderr, err, _ := capturedRun(t, []string{"profile", "save", "p", "--timeout", "5s", "--json", "--select", "nope"})
+		if err != nil {
+			t.Fatalf("saved profile reported failure: %v", err)
+		}
+		if !strings.Contains(stderr, `warning: --select "nope" matched no fields`) {
+			t.Fatalf("stderr missing selector warning; got:\n%s", stderr)
+		}
+		if p, err := GetProfile("p"); err != nil || p == nil {
+			t.Fatalf("profile not saved: %v, %v", p, err)
+		}
+		if !strings.Contains(stdout, `"name"`) {
+			t.Fatalf("saved profile not printed in full: %s", stdout)
+		}
+	})
 }
