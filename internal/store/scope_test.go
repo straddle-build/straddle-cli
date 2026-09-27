@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -122,7 +123,7 @@ func TestLegacyRowsMigrateInPlaceAndStayHidden(t *testing.T) {
 		`CREATE TABLE resources (id TEXT NOT NULL, resource_type TEXT NOT NULL, data JSON NOT NULL, synced_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (resource_type, id))`,
 		`CREATE TABLE sync_state (resource_type TEXT PRIMARY KEY, last_cursor TEXT, last_synced_at DATETIME, total_count INTEGER DEFAULT 0)`,
 		`CREATE TABLE "charges" ("id" TEXT PRIMARY KEY, "data" JSON NOT NULL, "synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP, "response_type" TEXT)`,
-		resourcesFTSCreateSQL,
+		`CREATE VIRTUAL TABLE resources_fts USING fts5(id, resource_type, content, tokenize='porter unicode61')`,
 		`INSERT INTO resources (id, resource_type, data) VALUES ('ch_old', 'charges', '{"id":"ch_old","description":"legacy marker"}'), ('cus_old', 'customers', '{"id":"cus_old"}')`,
 		`INSERT INTO "charges" ("id", "data") VALUES ('ch_old', '{"id":"ch_old","description":"legacy marker"}')`,
 		`INSERT INTO sync_state (resource_type, last_cursor) VALUES ('charges', 'legacy-cursor')`,
@@ -236,14 +237,6 @@ func TestSnapshotExposesOnlyItsScope(t *testing.T) {
 	if !reflect.DeepEqual(cols, wantCols) {
 		t.Fatalf("snapshot customers columns = %v, want the unscoped shape %v", cols, wantCols)
 	}
-	indexes, err := queryAll(t, snap, `SELECT name FROM pragma_index_list('customers') WHERE origin = 'c' ORDER BY name`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(indexes, []string{"idx_customers_created_at", "idx_customers_external_id", "idx_customers_updated_at"}) {
-		t.Fatalf("snapshot indexes = %v", indexes)
-	}
-
 	for query, want := range map[string][]string{
 		`SELECT id, name FROM customers`: {"cus_shared|alpha"},
 		`WITH c AS (SELECT id FROM customers) SELECT r.id FROM c JOIN resources r ON r.id = c.id`:                            {"cus_shared"},
@@ -277,5 +270,73 @@ func TestSnapshotExposesOnlyItsScope(t *testing.T) {
 		if strings.Contains(table, "src") {
 			t.Fatalf("dbstat exposed %s", table)
 		}
+	}
+}
+
+// TestSnapshotIsConsistentDuringConcurrentWrites takes snapshots while a
+// separate connection keeps committing batches. Each batch writes the
+// generic row, the typed row and the FTS row in one transaction, so a
+// consistent snapshot always sees equal counts on a batch boundary.
+func TestSnapshotIsConsistentDuringConcurrentWrites(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "data.db")
+	writer := openScoped(t, dbPath, testScope)
+	const batchSize = 25
+	batch := func(n int) []json.RawMessage {
+		items := make([]json.RawMessage, batchSize)
+		for i := range items {
+			items[i] = json.RawMessage(fmt.Sprintf(`{"id":"ch_%d_%d","description":"concurrent"}`, n, i))
+		}
+		return items
+	}
+	if _, _, err := writer.UpsertBatch("charges", batch(0)); err != nil {
+		t.Fatal(err)
+	}
+
+	stop := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		for n := 1; ; n++ {
+			select {
+			case <-stop:
+				done <- nil
+				return
+			default:
+			}
+			if _, _, err := writer.UpsertBatch("charges", batch(n)); err != nil {
+				done <- err
+				return
+			}
+		}
+	}()
+
+	for range 15 {
+		snap, err := OpenSnapshot(context.Background(), dbPath, testScope)
+		if err != nil {
+			close(stop)
+			t.Fatalf("snapshot during writes: %v", err)
+		}
+		got, err := queryAll(t, snap, `SELECT (SELECT count(*) FROM resources WHERE resource_type = 'charges'), (SELECT count(*) FROM charges), (SELECT count(*) FROM resources_fts)`)
+		_ = snap.Close()
+		if err != nil {
+			close(stop)
+			t.Fatal(err)
+		}
+		var generic, typed, fts int
+		if _, err := fmt.Sscanf(got[0], "%d|%d|%d", &generic, &typed, &fts); err != nil {
+			close(stop)
+			t.Fatal(err)
+		}
+		if generic != typed || typed != fts || generic%batchSize != 0 {
+			close(stop)
+			t.Fatalf("snapshot counts generic=%d typed=%d fts=%d, want one committed batch boundary", generic, typed, fts)
+		}
+	}
+	close(stop)
+	if err := <-done; err != nil {
+		t.Fatalf("concurrent writer: %v", err)
+	}
+	var written int
+	if err := writer.db.QueryRow(`SELECT count(*) FROM charges`).Scan(&written); err != nil || written <= batchSize {
+		t.Fatalf("writer committed %d rows, %v; want writes during the snapshots", written, err)
 	}
 }

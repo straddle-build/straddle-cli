@@ -176,14 +176,17 @@ func newSQLCmd(flags *rootFlags) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("opening local database: %w\nRun 'straddle sync' first.", err)
 			}
-			if err := migrated.Close(); err != nil {
-				return err
-			}
+			// Keep the store open while the snapshot loads so the WAL
+			// sidecars exist for the snapshot's read-only attach.
 			snapshot, err := store.OpenSnapshot(cmd.Context(), dbPath, scope)
+			closeErr := migrated.Close()
 			if err != nil {
 				return fmt.Errorf("opening local database: %w", err)
 			}
 			defer snapshot.Close()
+			if closeErr != nil {
+				return closeErr
+			}
 
 			rows, err := snapshot.Query(cmd.Context(), query)
 			if err != nil {

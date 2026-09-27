@@ -104,7 +104,10 @@ func OpenWithContext(ctx context.Context, dbPath string, scope Scope) (*Store, e
 		return nil, fmt.Errorf("creating db directory: %w", err)
 	}
 
-	db, err := sql.Open("sqlite", dbPath+"?_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=5000&_foreign_keys=ON&_temp_store=MEMORY&_mmap_size=268435456")
+	// modernc.org/sqlite applies connection pragmas only through _pragma;
+	// underscore names such as _journal_mode are silently ignored, which
+	// left the store in rollback-journal mode with no busy timeout.
+	db, err := sql.Open("sqlite", dbPath+"?_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)&_pragma=temp_store(MEMORY)&_pragma=mmap_size(268435456)")
 	if err != nil {
 		return nil, fmt.Errorf("opening database: %w", err)
 	}
@@ -961,6 +964,10 @@ func migrateScopeColumns(ctx context.Context, conn *sql.Conn) error {
 		}
 		tables = append(tables, name)
 	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return fmt.Errorf("listing tables: %w", err)
+	}
 	if err := rows.Close(); err != nil {
 		return err
 	}
@@ -1005,6 +1012,10 @@ func migrateScopeColumns(ctx context.Context, conn *sql.Conn) error {
 			return err
 		}
 		indexed = append(indexed, r)
+	}
+	if err := resourceRows.Err(); err != nil {
+		_ = resourceRows.Close()
+		return fmt.Errorf("reading resources for resources_fts: %w", err)
 	}
 	if err := resourceRows.Close(); err != nil {
 		return err
@@ -1079,6 +1090,10 @@ func rebuildTableWithScope(ctx context.Context, conn *sql.Conn, table string, co
 			return err
 		}
 		indexes = append(indexes, ddl)
+	}
+	if err := indexRows.Err(); err != nil {
+		_ = indexRows.Close()
+		return err
 	}
 	if err := indexRows.Close(); err != nil {
 		return err

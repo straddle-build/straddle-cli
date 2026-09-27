@@ -91,6 +91,10 @@ func (s *Snapshot) copyScope(ctx context.Context, scope Scope) error {
 		}
 		tables = append(tables, name)
 	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return fmt.Errorf("listing local tables: %w", err)
+	}
 	if err := rows.Close(); err != nil {
 		return err
 	}
@@ -165,6 +169,10 @@ func (s *Snapshot) copyIndexes(ctx context.Context, table string) error {
 		}
 		indexes = append(indexes, ix)
 	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return err
+	}
 	if err := rows.Close(); err != nil {
 		return err
 	}
@@ -185,6 +193,10 @@ func (s *Snapshot) copyIndexes(ctx context.Context, table string) error {
 				skip = true
 			}
 			cols = append(cols, quoteIdent(col.String))
+		}
+		if err := colRows.Err(); err != nil {
+			_ = colRows.Close()
+			return err
 		}
 		if err := colRows.Close(); err != nil {
 			return err
