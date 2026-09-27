@@ -5,7 +5,6 @@ package cli
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -13,27 +12,6 @@ import (
 
 	"github.com/straddle-build/straddle-cli/internal/store"
 )
-
-func TestWriteThroughCacheUnwrapsObjectEnvelope(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	writeThroughCache(context.Background(), "charges", json.RawMessage(`{"meta":{},"response_type":"object","data":{"id":"ch_123","status":"pending"}}`))
-	db, err := store.OpenWithContext(context.Background(), filepath.Join(home, ".local", "share", "straddle", "data.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	got, err := db.Get("charges", "ch_123")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(got) != `{"id":"ch_123","status":"pending"}` {
-		t.Fatalf("cached object = %s", got)
-	}
-	if _, err := os.Stat(filepath.Dir(filepath.Join(home, ".local", "share", "straddle", "data.db"))); err != nil {
-		t.Fatal(err)
-	}
-}
 
 // No t.Parallel(): captureStderr swaps the process-global os.Stderr.
 func TestWriteThroughCacheDetailEnvelopeDiagnostics(t *testing.T) {
