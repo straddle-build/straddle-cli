@@ -125,6 +125,11 @@ func bindSurface(cmd *cobra.Command, s surface.Surface) func(args []string) (bou
 
 func (b *surfaceFlagBinding) register(cmd *cobra.Command) {
 	definition := b.definition
+	if definition.Array && definition.In == surface.InBody {
+		b.stringValue = definition.Default
+		cmd.Flags().StringVar(&b.stringValue, definition.Name, b.stringValue, jsonArrayUsage(definition))
+		return
+	}
 	if definition.Array {
 		switch definition.Kind {
 		case surface.KindString:
@@ -165,6 +170,9 @@ func (b *surfaceFlagBinding) included(cmd *cobra.Command) bool {
 }
 
 func (b *surfaceFlagBinding) value() (surfaceFlagValue, error) {
+	if b.definition.Array && b.definition.In == surface.InBody {
+		return b.jsonArrayValue()
+	}
 	if b.definition.Array {
 		switch b.definition.Kind {
 		case surface.KindString:
@@ -197,6 +205,56 @@ func (b *surfaceFlagBinding) value() (surfaceFlagValue, error) {
 	default:
 		panic(fmt.Sprintf("unsupported flag kind %q for --%s", b.definition.Kind, b.definition.Name))
 	}
+}
+
+func (b *surfaceFlagBinding) jsonArrayValue() (surfaceFlagValue, error) {
+	definition := b.definition
+	raw := []byte(b.stringValue)
+	switch definition.Kind {
+	case surface.KindString:
+		var values []string
+		if err := json.Unmarshal(raw, &values); err == nil && values != nil {
+			return surfaceFlagValue{body: values, wire: values}, nil
+		}
+	case surface.KindInteger:
+		var values []int
+		if err := json.Unmarshal(raw, &values); err == nil && values != nil {
+			wire := make([]string, len(values))
+			for i, value := range values {
+				wire[i] = strconv.Itoa(value)
+			}
+			return surfaceFlagValue{body: values, wire: wire}, nil
+		}
+	default:
+		panic(fmt.Sprintf("unsupported array flag kind %q for --%s", definition.Kind, definition.Name))
+	}
+	return surfaceFlagValue{}, usageErr(fmt.Errorf("--%s expects a JSON array of %ss, for example --%s '%s'", definition.Name, definition.Kind, definition.Name, jsonArrayExample(definition)))
+}
+
+func jsonArrayUsage(definition surface.Flag) string {
+	usage := strings.TrimSpace(definition.Description + " JSON array of " + string(definition.Kind) + "s")
+	if len(definition.Enum) > 0 {
+		usage += "; items one of: " + strings.Join(definition.Enum, ", ")
+	}
+	return fmt.Sprintf("%s. Example: --%s '%s'", usage, definition.Name, jsonArrayExample(definition))
+}
+
+func jsonArrayExample(definition surface.Flag) string {
+	items := definition.Enum
+	if len(items) > 2 {
+		items = items[:2]
+	}
+	if definition.Kind == surface.KindInteger {
+		if len(items) == 0 {
+			items = []string{"1"}
+		}
+		return "[" + strings.Join(items, ",") + "]"
+	}
+	if len(items) == 0 {
+		items = []string{"value"}
+	}
+	example, _ := json.Marshal(items)
+	return string(example)
 }
 
 func validateSurfaceEnum(cmd *cobra.Command, definition surface.Flag, values []string) error {

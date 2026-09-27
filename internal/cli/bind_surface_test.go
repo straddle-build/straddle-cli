@@ -321,6 +321,111 @@ func TestGeneratedCreateRequiredFlagsInBothModes(t *testing.T) {
 	}
 }
 
+func TestGeneratedBodyArrayFlagTakesJSONArray(t *testing.T) {
+	var requests atomic.Int64
+	var body map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		body = nil
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"id":"created"}}`))
+	}))
+	defer server.Close()
+	isolateSurfaceConfig(t, server.URL)
+	t.Setenv("HOME", t.TempDir())
+	create := append([]string{"--json", "--no-cache", "linked-bank-accounts", "create"}, goldenInvocations["linked-bank-accounts.create"]...)
+
+	t.Run("JSON array becomes the body array", func(t *testing.T) {
+		requests.Store(0)
+		if _, _, err := runRootForAPITest(t, append(create, `--purposes=["charges","payouts"]`), ""); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if requests.Load() != 1 || !reflect.DeepEqual(body["purposes"], []any{"charges", "payouts"}) {
+			t.Fatalf("requests = %d, purposes = %#v, want one request with [charges payouts]", requests.Load(), body["purposes"])
+		}
+	})
+
+	for _, tc := range []struct{ name, value, wantErr string }{
+		{"comma list", "charges,payouts", "JSON array"},
+		{"bare value", "charges", "JSON array"},
+		{"wrong item type", "[1]", "JSON array"},
+		{"null", "null", "JSON array"},
+		{"unknown item", `["charges","bogus"]`, `"bogus"`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			requests.Store(0)
+			_, _, err := runRootForAPITest(t, append(create, "--purposes="+tc.value), "")
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("error = %v, want error mentioning %s", err, tc.wantErr)
+			}
+			if requests.Load() != 0 {
+				t.Fatalf("invalid --purposes sent %d HTTP requests", requests.Load())
+			}
+			if tc.wantErr != "JSON array" {
+				return
+			}
+			example, ok := copyableFlagExample(err.Error(), "purposes")
+			if !ok {
+				t.Fatalf("error %q has no copyable --purposes example", err)
+			}
+			if _, _, err := runRootForAPITest(t, append(create, "--purposes="+example), ""); err != nil || requests.Load() != 1 {
+				t.Fatalf("suggested --purposes %s: error = %v, requests = %d, want accepted", example, err, requests.Load())
+			}
+		})
+	}
+}
+
+// copyableFlagExample returns the quoted value in "--name '<value>'".
+func copyableFlagExample(text, name string) (string, bool) {
+	_, rest, found := strings.Cut(text, "--"+name+" '")
+	if !found {
+		return "", false
+	}
+	example, _, found := strings.Cut(rest, "'")
+	return example, found
+}
+
+// Every generated body array flag must keep its JSON shape, accepted values,
+// and example in help, even when an endpoint overlay rewrites flag usage.
+func TestGeneratedBodyArrayFlagHelpShowsShape(t *testing.T) {
+	commands := map[string]*cobra.Command{}
+	var walk func(*cobra.Command)
+	walk = func(cmd *cobra.Command) {
+		if endpoint := cmd.Annotations["straddle:endpoint"]; endpoint != "" {
+			commands[endpoint] = cmd
+		}
+		for _, child := range cmd.Commands() {
+			walk(child)
+		}
+	}
+	walk(RootCmd())
+
+	checked := 0
+	for _, s := range registeredSurfaces() {
+		for _, definition := range s.Flags {
+			if !definition.Array || definition.In != surface.InBody {
+				continue
+			}
+			flag := commands[s.Endpoint].Flags().Lookup(definition.Name)
+			example, ok := copyableFlagExample(flag.Usage, definition.Name)
+			var items []any
+			if !strings.Contains(flag.Usage, "JSON array") || !ok || json.Unmarshal([]byte(example), &items) != nil || len(items) == 0 {
+				t.Errorf("%s --%s usage %q, want JSON array shape and a copyable non-empty array example", s.Endpoint, definition.Name, flag.Usage)
+			}
+			for _, value := range definition.Enum {
+				if !strings.Contains(flag.Usage, value) {
+					t.Errorf("%s --%s usage %q omits accepted value %q", s.Endpoint, definition.Name, flag.Usage, value)
+				}
+			}
+			checked++
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no generated body array flags found")
+	}
+}
+
 func TestBindSurfaceRequiredWithDefault(t *testing.T) {
 	surfaceWithRequiredDefault := surface.Surface{
 		Endpoint:    "widgets.update",
