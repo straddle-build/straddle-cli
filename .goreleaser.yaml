@@ -19,6 +19,13 @@ builds:
       - linux_arm64
       - windows_amd64
       - windows_arm64
+    hooks:
+      post:
+        # Release builds sign and notarize each darwin binary before GoReleaser
+        # archives, checksums or publishes anything. Snapshots stay unsigned
+        # for local development and are not release candidates.
+        - cmd: '{{ if and (eq .Os "darwin") (not .IsSnapshot) }}./scripts/macos-sign-notarize.sh "{{ .Path }}"{{ else }}true{{ end }}'
+          output: true
 
 archives:
   - formats: [tar.gz]
@@ -48,11 +55,3 @@ homebrew_casks:
     description: "Human and agent friendly CLI for the Straddle API"
     binaries:
       - straddle
-    # Binaries are unsigned (no notarization): drop the quarantine
-    # attribute at install so Gatekeeper does not block first run.
-    hooks:
-      post:
-        install: |
-          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/straddle"]
-          end

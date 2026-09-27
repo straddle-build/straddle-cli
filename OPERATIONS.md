@@ -50,10 +50,26 @@ Configure `API_SYNC_BOT_TOKEN` with contents and pull-request write access. It c
 Releases are cut from `main` by tag. A merged version-specific `automation/api-sync-*` PR creates the next patch tag automatically; other releases may still be tagged manually.
 
 1. Push a `vX.Y.Z` tag, or merge the generated contract synchronization PR.
-2. `.github/workflows/release.yml` runs tests, then GoReleaser publishes the GitHub release (6 os/arch archives + `checksums.txt`) and publishes the `@straddlecom/cli` npm wrapper using npm trusted publishing. An npm publication failure fails the workflow. GoReleaser publishes the Homebrew cask when `HOMEBREW_TAP_GITHUB_TOKEN` is configured.
+2. `.github/workflows/release.yml` runs tests on a macOS runner, imports the Developer ID certificate into a temporary keychain, then GoReleaser builds the six os/arch binaries. A build post hook (`scripts/macos-sign-notarize.sh`) signs each darwin binary with hardened runtime and a secure timestamp and requires Apple notarization status `Accepted` before GoReleaser archives, checksums or publishes anything, so `checksums.txt` covers the signed bytes. Any missing credential, signature check or non-Accepted notarization fails the release before publication. GoReleaser then publishes the GitHub release (6 os/arch archives + `checksums.txt`) and the `@straddlecom/cli` npm wrapper publishes using npm trusted publishing. An npm publication failure fails the workflow. GoReleaser publishes the Homebrew cask when `HOMEBREW_TAP_GITHUB_TOKEN` is configured.
 3. `install.sh` and `go install github.com/straddle-build/straddle-cli/cmd/straddle@latest` resolve the new release with no further action.
 
-Local dry run: `make release-snapshot` builds everything into `dist/` without publishing.
+Local dry run: `make release-snapshot` builds everything into `dist/` without publishing. Snapshots skip signing and notarization, so their darwin binaries are unsigned development builds, not release candidates.
+
+### Apple signing setup
+
+The release job needs these GitHub Actions repository secrets. The workflow runs only on pushed `v*` tags, so pull requests never receive them.
+
+| Secret | Value |
+|---|---|
+| `APPLE_CERTIFICATE_P12_BASE64` | Base64 of a password-protected `.p12` export of the Developer ID Application certificate including its private key |
+| `APPLE_CERTIFICATE_PASSWORD` | The `.p12` export password |
+| `APPLE_ID` | Apple ID email used for notarization |
+| `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password for that Apple ID |
+| `APPLE_TEAM_ID` | 10-character Apple Developer Team ID; the keychain must hold exactly one Developer ID Application identity for this team |
+
+The signing identity is derived from the imported certificate, so no identity name secret is needed. A local `notarytool` keychain profile cannot be exported to CI; the Apple ID and app-specific password are supplied directly instead.
+
+Apple cannot staple a notarization ticket to a bare executable or a ZIP, so release binaries are not stapled. On first launch of a quarantined binary, such as a Homebrew cask install, Gatekeeper looks the ticket up online. `install.sh` and npm downloads are not quarantined.
 
 ### npm setup (once per package)
 

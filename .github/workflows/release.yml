@@ -10,8 +10,10 @@ permissions:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # codesign and notarytool exist only on macOS; GoReleaser still
+    # cross-compiles all six targets here.
+    runs-on: macos-latest
+    timeout-minutes: 60
     env:
       # Homebrew remains optional until the tap credential is configured.
       HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
@@ -28,10 +30,46 @@ jobs:
       - name: Test
         run: go test ./...
 
+      - name: Import Developer ID certificate
+        env:
+          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for var in APPLE_CERTIFICATE_P12_BASE64 APPLE_CERTIFICATE_PASSWORD; do
+            if [ -z "${!var}" ]; then
+              echo "::error::$var secret is required to sign macOS binaries." >&2
+              exit 1
+            fi
+          done
+          umask 077
+          keychain="$RUNNER_TEMP/straddle-release.keychain-db"
+          p12="$RUNNER_TEMP/developer-id.p12"
+          keychain_password=$(openssl rand -hex 32)
+          echo "::add-mask::$keychain_password"
+          printf '%s' "$APPLE_CERTIFICATE_P12_BASE64" | base64 --decode >"$p12"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$p12" -k "$keychain" -P "$APPLE_CERTIFICATE_PASSWORD" -f pkcs12 -T /usr/bin/codesign
+          rm -f "$p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          echo "APPLE_SIGNING_KEYCHAIN=$keychain" >>"$GITHUB_ENV"
+
       - name: GoReleaser
         run: go run github.com/goreleaser/goreleaser/v2@v2.15.4 release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Remove signing keychain
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/straddle-release.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/developer-id.p12"
 
       - uses: actions/setup-node@v6
         with:
