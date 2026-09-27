@@ -53,6 +53,7 @@ The API sync workflow regenerates every supported contract-derived endpoint comm
 - Output formatting must stay stable for agent/JSON use cases.
 - The local store is scoped by environment and acting account, and is expected by search, SQL, and analytics workflows.
 * Generated endpoint commands enforce required flags and validate structured JSON values (arrays and objects) locally in both live and dry-run modes before sending any HTTP request.
+* `doctor` and `agent-context` report selected `runtime_context` (environment, integration type, acting account) without opening the local store.
 
 ## Where to look next
 
