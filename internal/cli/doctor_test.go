@@ -4,6 +4,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -271,5 +272,183 @@ func TestDoctorFailOnErrorExitsZeroWhenReachable(t *testing.T) {
 		if strings.Contains(line, "API:") && !strings.Contains(line, "reachable") {
 			t.Fatalf("API line not reported reachable; line: %q", line)
 		}
+	}
+}
+
+// runtimeContextOf runs a command and decodes the runtime_context it reports.
+func runtimeContextOf(t *testing.T, args ...string) runtimeContext {
+	t.Helper()
+	stdout, stderr, err := runDoctor(t, args)
+	if err != nil {
+		t.Fatalf("%v: %v\nstderr: %s", args, err, stderr)
+	}
+	var out struct {
+		RuntimeContext *runtimeContext `json:"runtime_context"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &out); err != nil || out.RuntimeContext == nil {
+		t.Fatalf("%v: no runtime_context (%v) in:\n%s", args, err, stdout)
+	}
+	return *out.RuntimeContext
+}
+
+// TestRuntimeContextReportsSelection checks that doctor and agent-context
+// report the same environment, integration type and acting account a
+// command would scope its local data to.
+func TestRuntimeContextReportsSelection(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("{}"))
+	}))
+	defer server.Close()
+	origin := server.URL
+	str := func(s string) *string { return &s }
+
+	tests := []struct {
+		name      string
+		config    string
+		platform  string
+		profile   string
+		env       map[string]string
+		args      []string
+		offline   bool // agent-context only; doctor would dial the real host
+		want      runtimeContext
+		wantError string
+	}{
+		{
+			name: "unset context is null, not guessed",
+			env:  map[string]string{"STRADDLE_BASE_URL": origin},
+			want: runtimeContext{Environment: str(origin)},
+		},
+		{
+			name:    "STRADDLE_ENVIRONMENT selects the default host",
+			env:     map[string]string{"STRADDLE_ENVIRONMENT": "production"},
+			offline: true,
+			want:    runtimeContext{Environment: str("https://production.straddle.com")},
+		},
+		{
+			name:     "saas acts as use-account",
+			platform: "integration_type = 'saas'\ncurrent_account = 'acct_sticky'\n",
+			env:      map[string]string{"STRADDLE_BASE_URL": origin},
+			want:     runtimeContext{Environment: str(origin), IntegrationType: str("saas"), ActingAccount: str("acct_sticky")},
+		},
+		{
+			name:     "explicit --account overrides use-account",
+			platform: "integration_type = 'saas'\ncurrent_account = 'acct_sticky'\n",
+			env:      map[string]string{"STRADDLE_BASE_URL": origin},
+			args:     []string{"--account", "acct_flag"},
+			want:     runtimeContext{Environment: str(origin), IntegrationType: str("saas"), ActingAccount: str("acct_flag")},
+		},
+		{
+			name:     "saved profile account overrides use-account",
+			platform: "integration_type = 'saas'\ncurrent_account = 'acct_sticky'\n",
+			profile:  "acct_profile",
+			env:      map[string]string{"STRADDLE_BASE_URL": origin},
+			args:     []string{"--profile", "p"},
+			want:     runtimeContext{Environment: str(origin), IntegrationType: str("saas"), ActingAccount: str("acct_profile")},
+		},
+		{
+			name:     "marketplace keeps its acting account",
+			platform: "integration_type = 'marketplace'\ncurrent_account = 'acct_sticky'\n",
+			env:      map[string]string{"STRADDLE_BASE_URL": origin},
+			want:     runtimeContext{Environment: str(origin), IntegrationType: str("marketplace"), ActingAccount: str("acct_sticky")},
+		},
+		{
+			name:     "direct account never acts as another account",
+			platform: "integration_type = 'account'\ncurrent_account = 'acct_sticky'\n",
+			env:      map[string]string{"STRADDLE_BASE_URL": origin},
+			want:     runtimeContext{Environment: str(origin), IntegrationType: str("account")},
+		},
+		{
+			name:      "direct account rejects --account",
+			platform:  "integration_type = 'account'\n",
+			env:       map[string]string{"STRADDLE_BASE_URL": origin},
+			args:      []string{"--account", "acct_flag"},
+			want:      runtimeContext{IntegrationType: str("account")},
+			wantError: "remove --account",
+		},
+		{
+			name:      "invalid integration type is reported, not dropped",
+			platform:  "integration_type = 'reseller'\ncurrent_account = 'acct_sticky'\n",
+			env:       map[string]string{"STRADDLE_BASE_URL": origin},
+			want:      runtimeContext{Environment: str(origin), IntegrationType: str("reseller"), ActingAccount: str("acct_sticky")},
+			wantError: `invalid integration type "reseller"`,
+		},
+		{
+			name:   "STRADDLE_BASE_URL overrides saved base_url",
+			config: "base_url = 'http://localhost:1'\n",
+			env:    map[string]string{"STRADDLE_BASE_URL": origin},
+			want:   runtimeContext{Environment: str(origin)},
+		},
+		{
+			name:   "saved base_url is the target, not STRADDLE_ENVIRONMENT",
+			config: "base_url = '" + origin + "'\n",
+			env:    map[string]string{"STRADDLE_ENVIRONMENT": "production"},
+			want:   runtimeContext{Environment: str(origin)},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			home := filepath.Dir(doctorSetup(t, tc.config))
+			t.Setenv("STRADDLE_API_KEY", "test_key")
+			t.Setenv("STRADDLE_ENVIRONMENT", "")
+			for k, v := range tc.env {
+				t.Setenv(k, v)
+			}
+			if tc.platform != "" {
+				if err := os.WriteFile(filepath.Join(home, "platform.toml"), []byte(tc.platform), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.profile != "" {
+				s := &profileStore{Profiles: map[string]Profile{"p": {Name: "p", Values: map[string]string{"account": tc.profile}}}}
+				if err := saveProfileStore(s); err != nil {
+					t.Fatal(err)
+				}
+			}
+			surfaces := map[string]runtimeContext{"agent-context": runtimeContextOf(t, append([]string{"agent-context"}, tc.args...)...)}
+			if !tc.offline {
+				surfaces["doctor"] = runtimeContextOf(t, append([]string{"doctor", "--agent"}, tc.args...)...)
+			}
+			for surface, got := range surfaces {
+				if !strings.Contains(got.Error, tc.wantError) || (tc.wantError == "") != (got.Error == "") {
+					t.Errorf("%s error = %q, want containing %q", surface, got.Error, tc.wantError)
+				}
+				got.Error = ""
+				gotJSON, _ := json.Marshal(got)
+				wantJSON, _ := json.Marshal(tc.want)
+				if string(gotJSON) != string(wantJSON) {
+					t.Errorf("%s runtime_context = %s, want %s", surface, gotJSON, wantJSON)
+				}
+			}
+		})
+	}
+}
+
+// TestAgentContextDoesNotOpenStore keeps agent-context offline: reporting
+// the runtime context must not create the local store.
+func TestAgentContextDoesNotOpenStore(t *testing.T) {
+	home := filepath.Dir(doctorSetup(t, ""))
+	runtimeContextOf(t, "agent-context")
+	if _, err := os.Stat(filepath.Join(home, ".local")); !os.IsNotExist(err) {
+		t.Fatalf("agent-context created local store directory (stat err %v)", err)
+	}
+}
+
+// TestDoctorFailOnErrorTripsOnInvalidRuntimeContext keeps the exit gate
+// honest when the integration type cannot be applied.
+func TestDoctorFailOnErrorTripsOnInvalidRuntimeContext(t *testing.T) {
+	home := filepath.Dir(doctorSetup(t, ""))
+	if err := os.WriteFile(filepath.Join(home, "platform.toml"), []byte("integration_type = 'reseller'\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer server.Close()
+	t.Setenv("STRADDLE_BASE_URL", server.URL)
+	t.Setenv("STRADDLE_API_KEY", "test_key")
+	stdout, _, err := runDoctor(t, []string{"doctor", "--fail-on=error"})
+	if err == nil || !strings.Contains(err.Error(), "--fail-on=error triggered") {
+		t.Fatalf("err = %v, want --fail-on=error triggered", err)
+	}
+	if !strings.Contains(stdout, "FAIL Runtime Context: error") {
+		t.Fatalf("human output missing FAIL runtime context:\n%s", stdout)
 	}
 }

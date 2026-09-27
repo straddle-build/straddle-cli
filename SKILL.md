@@ -305,6 +305,14 @@ A `saas` or `marketplace` charge or payout with no account set fails fast with a
 
 Synced local data follows the same context. The store keeps rows per API environment and acting account, so `sync`, `search`, `sql`, analytics and offline reads only see data captured under the current `use-account` (or `--account`) in the current environment. Marketplace customers and paykeys are fetched without the header but still stay with the account you were acting as. `doctor` and local-read `meta.hidden_legacy_records` report rows stored before scoping; run `straddle sync` to repopulate them in your current context.
 
+To check which context a command will use, read `runtime_context` from `straddle agent-context` (offline) or `straddle doctor --agent`. Both report the same three values, and `null` means nothing is selected:
+
+* `environment` is the lowercase origin of the resolved API base URL, so a saved `base_url` or `STRADDLE_BASE_URL` wins over `STRADDLE_ENVIRONMENT`.
+* `integration_type` is the value saved by `setup`.
+* `acting_account` is `--account` (including a profile value), else `use-account`, and always `null` for direct accounts.
+
+`acting_account` is the selection, not a promise that every request sends `Straddle-Account-Id`; the header is still decided per operation by the table above. An `error` field appears when the context cannot be applied, such as an invalid integration type or `--account` on a direct account, and `doctor --fail-on error` then exits nonzero.
+
 ## Agent Mode
 
 Add `--agent` to any command. See [Output Formats](README.md#output-formats) for its defaults and explicit override rules.

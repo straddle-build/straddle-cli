@@ -264,6 +264,7 @@ func newDoctorCmd(flags *rootFlags) *cobra.Command {
 			} else if cfg != nil && cfg.BaseURL == "" {
 				report["api"] = "not configured (set base_url in config file)"
 			}
+			report["runtime_context"] = resolveRuntimeContext(cmd.Context())
 			// Cache health: only reported when this CLI has a local store.
 			// Surfaces rows + last_synced_at per resource, schema version,
 			// and a fresh/stale/unknown verdict so agents can introspect
@@ -349,6 +350,7 @@ func newDoctorCmd(flags *rootFlags) *cobra.Command {
 			if keyURL, ok := report["auth_key_url"]; ok {
 				fmt.Fprintf(w, "  Get a key at: %v\n", keyURL)
 			}
+			renderRuntimeContext(w, report["runtime_context"].(runtimeContext))
 			// Cache section: render after the primary health block so it
 			// sits next to version info, mirroring the JSON report layout.
 			if cacheAny, ok := report["cache"]; ok {
@@ -401,6 +403,9 @@ func doctorExitForFailOn(failOn string, report map[string]any) error {
 			} else if st == "stale" {
 				worstStale = true
 			}
+		}
+		if rc, ok := v.(runtimeContext); ok && rc.Error != "" {
+			worstError = true
 		}
 	}
 	switch failOn {
@@ -514,6 +519,32 @@ func collectCacheReport(ctx context.Context, staleAfterSpec string) map[string]a
 		report["hint"] = "Some resources are older than stale_after; run 'straddle sync' to refresh."
 	}
 	return report
+}
+
+func renderRuntimeContext(w io.Writer, rc runtimeContext) {
+	indicator := green("OK")
+	status := "selected"
+	if rc.Error != "" {
+		indicator, status = red("FAIL"), "error"
+	}
+	fmt.Fprintf(w, "  %s Runtime Context: %s\n", indicator, status)
+	for _, field := range []struct {
+		label string
+		value *string
+	}{
+		{"environment", rc.Environment},
+		{"integration_type", rc.IntegrationType},
+		{"acting_account", rc.ActingAccount},
+	} {
+		value := "(none)"
+		if field.value != nil {
+			value = *field.value
+		}
+		fmt.Fprintf(w, "    %s: %s\n", field.label, value)
+	}
+	if rc.Error != "" {
+		fmt.Fprintf(w, "    error: %s\n", rc.Error)
+	}
 }
 
 func renderCacheReport(w io.Writer, rep map[string]any) {
