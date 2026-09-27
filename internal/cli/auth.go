@@ -148,7 +148,7 @@ func newAuthSetTokenCmd(flags *rootFlags) *cobra.Command {
 
 			// JSON envelope: {saved, config_path}.
 			if flags.asJSON {
-				return printJSONFiltered(cmd.OutOrStdout(), map[string]any{
+				return printWriteJSONFiltered(cmd.OutOrStdout(), map[string]any{
 					"saved":       true,
 					"config_path": cfg.Path,
 				}, flags)
@@ -187,7 +187,7 @@ func newAuthLogoutCmd(flags *rootFlags) *cobra.Command {
 				if envStillSet != "" {
 					out["note"] = envStillSet + " env var is still set"
 				}
-				return printJSONFiltered(cmd.OutOrStdout(), out, flags)
+				return printWriteJSONFiltered(cmd.OutOrStdout(), out, flags)
 			}
 
 			if envStillSet != "" {

@@ -773,10 +773,23 @@ func printJSONFiltered(w io.Writer, v any, flags *rootFlags) error {
 	return printOutputWithFlags(w, json.RawMessage(raw), flags)
 }
 
+// printWriteJSONFiltered is printJSONFiltered for output reporting a side
+// effect that already happened (local state saved, requests sent), so an
+// unmatched --select warns instead of failing the completed command.
+func printWriteJSONFiltered(w io.Writer, v any, flags *rootFlags) error {
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	return renderOutputWithFlags(w, projectWriteOutput(raw, flags), flags)
+}
+
 // filterFields keeps only the specified fields (comma-separated) from JSON objects/arrays.
 // Supports dotted paths like "events.shortName" to descend into nested structures.
 // Arrays are traversed element-wise: "events.shortName" keeps shortName on each event.
-func filterFields(data json.RawMessage, fields string) json.RawMessage {
+// It returns a usage error when resource objects were present but no selector
+// reached any of their fields; empty lists and scalars are never a mismatch.
+func filterFields(data json.RawMessage, fields string) (json.RawMessage, error) {
 	var paths [][]string
 	for _, f := range strings.Split(fields, ",") {
 		f = strings.TrimSpace(f)
@@ -790,22 +803,37 @@ func filterFields(data json.RawMessage, fields string) json.RawMessage {
 		paths = append(paths, parts)
 	}
 	if len(paths) == 0 {
-		return data
+		return data, nil
 	}
-	return filterFieldsRec(data, paths)
+	var available []string
+	out, seen, matched := filterFieldsRec(data, paths, &available)
+	if seen && !matched {
+		msg := fmt.Sprintf("--select %q matched no fields in the response. Selectors name fields of each returned resource, for example --select id,status,amount", fields)
+		if len(available) > 0 {
+			msg += "; this response has: " + strings.Join(available, ", ")
+		}
+		return nil, usageErr(errors.New(msg + ". CLI envelope paths such as results.id or meta.source are not selectable"))
+	}
+	return out, nil
 }
 
 // filterFieldsRec applies path filters to a JSON value. Each path is a list of
-// lowercase segments; arrays descend element-wise.
-func filterFieldsRec(data json.RawMessage, paths [][]string) json.RawMessage {
+// lowercase segments; arrays descend element-wise. seen reports that at least
+// one object was examined at this selector level and matched that some
+// selector reached an existing field. available collects the field names of
+// the first unmatched object at the top selector level (nil below it).
+func filterFieldsRec(data json.RawMessage, paths [][]string, available *[]string) (json.RawMessage, bool, bool) {
 	var arr []json.RawMessage
 	if err := json.Unmarshal(data, &arr); err == nil {
 		out := make([]json.RawMessage, len(arr))
+		seen, matched := false, false
 		for i, el := range arr {
-			out[i] = filterFieldsRec(el, paths)
+			var s, m bool
+			out[i], s, m = filterFieldsRec(el, paths, available)
+			seen, matched = seen || s, matched || m
 		}
 		result, _ := json.Marshal(out)
-		return result
+		return result, seen, matched
 	}
 
 	var obj map[string]json.RawMessage
@@ -825,53 +853,101 @@ func filterFieldsRec(data json.RawMessage, paths [][]string) json.RawMessage {
 		}
 		filtered := map[string]json.RawMessage{}
 		matchedAny := false
+		matched := false
 		for k, v := range obj {
-			matched := matchSelectSegment(k, keepWhole, subPaths)
-			if matched == "" {
+			seg := matchSelectSegment(k, keepWhole, subPaths)
+			if seg == "" {
 				continue
 			}
 			matchedAny = true
-			if keepWhole[matched] {
+			if keepWhole[seg] {
 				filtered[k] = v
+				matched = true
 				continue
 			}
-			if subs := subPaths[matched]; subs != nil {
-				filtered[k] = filterFieldsRec(v, subs)
+			if subs := subPaths[seg]; subs != nil {
+				// A nested value with nothing to examine (scalar, empty
+				// list) still counts: the named field exists.
+				var s, m bool
+				filtered[k], s, m = filterFieldsRec(v, subs, nil)
+				matched = matched || m || !s
 			}
 		}
-		// Envelope fallback: when no top-level keys matched but at least one
-		// sibling is a non-null array, treat the object as a list envelope
-		// (`{"items":[...]}`, `{"data":[...]}`, `{"total_count":N,"items":[...]}`)
-		// and apply the selector inside the array(s). Non-array siblings pass
-		// through verbatim so envelope metadata (counts, null pagination
-		// cursors) stays visible. The foundArray guard preserves the prior
-		// empty-object result for flat objects where no key matches and no
-		// array exists. The `arr != nil` check rejects JSON null, which
-		// json.Unmarshal otherwise accepts into a []json.RawMessage as a
-		// nil slice and would coerce to `[]`.
-		if !matchedAny {
-			pending := map[string]json.RawMessage{}
-			foundArray := false
-			for k, v := range obj {
-				var arr []json.RawMessage
-				if json.Unmarshal(v, &arr) == nil && arr != nil {
-					foundArray = true
-					pending[k] = filterFieldsRec(v, paths)
-				} else {
-					pending[k] = v
-				}
-			}
-			if foundArray {
-				for k, v := range pending {
-					filtered[k] = v
-				}
-			}
+		if matchedAny {
+			result, _ := json.Marshal(filtered)
+			return result, true, matched
 		}
-		result, _ := json.Marshal(filtered)
-		return result
+		// Envelope fallback: when no top-level keys matched, treat the object
+		// as a list envelope (`{"items":[...]}`, `{"data":[...]}`,
+		// `{"total_count":N,"items":[...]}`) and apply the selector inside each
+		// non-null array, or as a Straddle response envelope ({meta, data:{...}},
+		// the co-presence rule extractResponseData uses) and apply it inside
+		// data. Other siblings pass through verbatim so envelope metadata
+		// (counts, null pagination cursors) stays visible, but they never count
+		// as a match. The `arr != nil` check rejects JSON null, which
+		// json.Unmarshal otherwise accepts as a nil slice.
+		_, straddleEnvelope := obj["meta"]
+		pending := map[string]json.RawMessage{}
+		descended, seen := false, false
+		for k, v := range obj {
+			var arr []json.RawMessage
+			var inner map[string]json.RawMessage
+			isArray := json.Unmarshal(v, &arr) == nil && arr != nil
+			isData := straddleEnvelope && k == "data" && json.Unmarshal(v, &inner) == nil && inner != nil
+			if !isArray && !isData {
+				pending[k] = v
+				continue
+			}
+			descended = true
+			var s, m bool
+			pending[k], s, m = filterFieldsRec(v, paths, available)
+			seen, matched = seen || s, matched || m
+		}
+		if descended {
+			result, _ := json.Marshal(pending)
+			return result, seen, matched
+		}
+		if available != nil && *available == nil {
+			*available = sortedKeys(obj)
+		}
+		return []byte("{}"), true, false
 	}
 
-	return data
+	return data, false, false
+}
+
+func sortedKeys(obj map[string]json.RawMessage) []string {
+	keys := make([]string, 0, len(obj))
+	for k := range obj {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// projectOutput applies --select, or --compact when no fields were named,
+// to a response before it is rendered or wrapped.
+func projectOutput(data json.RawMessage, flags *rootFlags) (json.RawMessage, error) {
+	if flags.selectFields != "" {
+		return filterFields(data, flags.selectFields)
+	}
+	if flags.compact {
+		return compactFields(data), nil
+	}
+	return data, nil
+}
+
+// projectWriteOutput is projectOutput for the response of a request that
+// already ran. A selector that matches nothing must not hide the write's
+// result or turn it into a failure, so the full response is kept and the
+// diagnostic goes to stderr.
+func projectWriteOutput(data json.RawMessage, flags *rootFlags) json.RawMessage {
+	projected, err := projectOutput(data, flags)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: %v; showing the full response instead\n", err)
+		return data
+	}
+	return projected
 }
 
 // matchSelectSegment returns the matching lowercase segment, or "" if no match.
@@ -909,11 +985,16 @@ func printOutputWithFlags(w io.Writer, data json.RawMessage, flags *rootFlags) e
 	// must not strip those fields out before --select can pick them. When
 	// only --compact is set (e.g., --agent without --select), the allow-list
 	// still runs.
-	if flags.selectFields != "" {
-		data = filterFields(data, flags.selectFields)
-	} else if flags.compact {
-		data = compactFields(data)
+	projected, err := projectOutput(data, flags)
+	if err != nil {
+		return err
 	}
+	return renderOutputWithFlags(w, projected, flags)
+}
+
+// renderOutputWithFlags renders already-projected output in the format the
+// flags request.
+func renderOutputWithFlags(w io.Writer, data json.RawMessage, flags *rootFlags) error {
 	// --quiet: suppress all output, exit code communicates result
 	if flags.quiet {
 		return nil

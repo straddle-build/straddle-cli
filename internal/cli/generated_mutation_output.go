@@ -44,7 +44,7 @@ func printGeneratedMutationOutput(cmd *cobra.Command, flags *rootFlags, method, 
 		}
 		return generatedMutationPartialFailureErr(flags, resource, partialFailure)
 	}
-	if err := printOutputWithFlags(cmd.OutOrStdout(), data, flags); err != nil {
+	if err := renderOutputWithFlags(cmd.OutOrStdout(), projectWriteOutput(data, flags), flags); err != nil {
 		return err
 	}
 	return generatedMutationPartialFailureErr(flags, resource, partialFailure)
@@ -101,12 +101,7 @@ func printGeneratedMutationEnvelope(cmd *cobra.Command, flags *rootFlags, method
 		envelope["success"] = false
 	}
 
-	filtered := data
-	if flags.selectFields != "" {
-		filtered = filterFields(filtered, flags.selectFields)
-	} else if flags.compact {
-		filtered = compactFields(filtered)
-	}
+	filtered := projectWriteOutput(data, flags)
 	if len(filtered) > 0 {
 		var parsed any
 		if err := json.Unmarshal(filtered, &parsed); err == nil {

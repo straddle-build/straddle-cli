@@ -55,6 +55,6 @@ Global Flags:
       --profile string          Apply values from a saved profile (see 'straddle profile list')
       --quiet                   Bare output, one value per line
       --rate-limit float        Max requests per second (0 to disable)
-      --select string           Comma-separated fields to include in output (e.g. --select id,name,status)
+      --select string           Comma-separated fields of each returned resource to include in output (e.g. --select id,status,amount); CLI envelope paths such as results.id or meta.source are not valid selectors
       --timeout duration        Request timeout (default 30s)
       --yes                     Skip confirmation prompts (for agents and scripts)

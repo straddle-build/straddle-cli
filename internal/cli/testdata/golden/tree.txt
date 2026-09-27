@@ -20,7 +20,7 @@ command straddle
   --profile type=string default="" usage="Apply values from a saved profile (see 'straddle profile list')"
   --quiet type=bool default="false" usage="Bare output, one value per line"
   --rate-limit type=float64 default="0" usage="Max requests per second (0 to disable)"
-  --select type=string default="" usage="Comma-separated fields to include in output (e.g. --select id,name,status)"
+  --select type=string default="" usage="Comma-separated fields of each returned resource to include in output (e.g. --select id,status,amount); CLI envelope paths such as results.id or meta.source are not valid selectors"
   --timeout type=duration default="30s" usage="Request timeout"
   --yes type=bool default="false" usage="Skip confirmation prompts (for agents and scripts)"
 command straddle account-settings

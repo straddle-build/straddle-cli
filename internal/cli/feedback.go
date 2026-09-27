@@ -153,7 +153,7 @@ maintainer sees it.`,
 			}
 
 			if flags.asJSON {
-				return printJSONFiltered(cmd.OutOrStdout(), map[string]any{
+				return printWriteJSONFiltered(cmd.OutOrStdout(), map[string]any{
 					"recorded":  true,
 					"truncated": truncated,
 					"upstream":  upstreamResult,

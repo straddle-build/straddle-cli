@@ -221,7 +221,7 @@ flag.`,
 				return err
 			}
 			if flags.asJSON {
-				return printJSONFiltered(cmd.OutOrStdout(), s.Profiles[name], flags)
+				return printWriteJSONFiltered(cmd.OutOrStdout(), s.Profiles[name], flags)
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "saved profile %q with %d values\n", name, len(values))
 			return nil
@@ -351,7 +351,7 @@ func newProfileDeleteCmd(flags *rootFlags) *cobra.Command {
 			}
 			// JSON envelope: {deleted: name}.
 			if flags.asJSON {
-				return printJSONFiltered(cmd.OutOrStdout(), map[string]any{
+				return printWriteJSONFiltered(cmd.OutOrStdout(), map[string]any{
 					"deleted": name,
 				}, flags)
 			}

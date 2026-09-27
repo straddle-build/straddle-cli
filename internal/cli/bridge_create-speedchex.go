@@ -176,12 +176,7 @@ func newBridgeCreateSpeedchexCmd(flags *rootFlags) *cobra.Command {
 				// --select wins when both are set: explicit field choice trumps the
 				// generic high-gravity allow-list. Otherwise --compact still applies
 				// when --agent is on but the user did not name fields.
-				filtered := data
-				if flags.selectFields != "" {
-					filtered = filterFields(filtered, flags.selectFields)
-				} else if flags.compact {
-					filtered = compactFields(filtered)
-				}
+				filtered := projectWriteOutput(data, flags)
 				if len(filtered) > 0 {
 					var parsed any
 					if err := json.Unmarshal(filtered, &parsed); err == nil {
@@ -202,12 +197,12 @@ func newBridgeCreateSpeedchexCmd(flags *rootFlags) *cobra.Command {
 			}
 			// Fall-through for mutate paths that did not hit the table or
 			// asJSON branches: --quiet, --csv, --plain, and default terminal
-			// raw output. printOutputWithFlags renders the body, then the
+			// raw output. renderOutputWithFlags renders the body, then the
 			// typed partial-failure exit fires unless --allow-partial-failure
 			// downgrades it. Without this guard a partial failure would exit
 			// 0 for these output modes — the exact silent-swallow regression
 			// the surrounding patch is preventing for asJSON / piped output.
-			if perr := printOutputWithFlags(cmd.OutOrStdout(), data, flags); perr != nil {
+			if perr := renderOutputWithFlags(cmd.OutOrStdout(), projectWriteOutput(data, flags), flags); perr != nil {
 				return perr
 			}
 			if partialFailure != nil && !flags.allowPartialFailure {

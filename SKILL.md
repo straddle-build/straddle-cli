@@ -318,7 +318,7 @@ To check which context a command will use, read `runtime_context` from `straddle
 Add `--agent` to any command. See [Output Formats](README.md#output-formats) for its defaults and explicit override rules.
 
 - **Pipeable** — JSON on stdout, errors on stderr
-- **Filterable** — `--select` keeps a subset of fields. Dotted paths descend into nested structures; arrays traverse element-wise. Critical for keeping context small on verbose APIs:
+- **Filterable**: `--select` keeps a subset of each returned resource's fields (`id,status,amount`), inside list envelopes and the API's `data` wrapper alike. Dotted paths descend into nested structures; arrays traverse element-wise. CLI envelope paths such as `results.id` or `meta.source` are not selectors; a selector that matches no field exits 2 with the available field names, and after a completed write it prints a warning and the full response instead. Critical for keeping context small on verbose APIs:
 
   ```bash
   straddle accounts list --agent --select id,name,status
