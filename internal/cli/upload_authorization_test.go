@@ -14,6 +14,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+
+	"github.com/straddle-build/straddle-cli/internal/surface"
 )
 
 const uploadTestID = "550e8400-e29b-41d4-a716-446655440000"
@@ -249,5 +251,19 @@ func TestUploadAuthorizationProofRejectsFilesBeforeRequest(t *testing.T) {
 				t.Fatalf("sent %d requests for a rejected file", n)
 			}
 		})
+	}
+}
+
+func TestUploadContentTypeRequiresContractEnum(t *testing.T) {
+	definition := surface.Flag{
+		Name: "file",
+		In:   surface.InForm,
+		Key:  "File",
+		Kind: surface.KindFile,
+	}
+	for _, file := range []string{"proof.pdf", "proof.octet", "proof"} {
+		if _, err := uploadContentType(definition, file); err == nil {
+			t.Fatalf("uploadContentType(%q) with empty Enum succeeded, want rejection", file)
+		}
 	}
 }

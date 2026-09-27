@@ -70,13 +70,7 @@ func formFile(cmd *cobra.Command, definition surface.Flag, path string) (client.
 }
 
 func uploadContentType(definition surface.Flag, path string) (string, error) {
-	contentType, known := uploadContentTypes[strings.ToLower(filepath.Ext(path))]
-	if len(definition.Enum) == 0 {
-		if !known {
-			contentType = "application/octet-stream"
-		}
-		return contentType, nil
-	}
+	contentType := uploadContentTypes[strings.ToLower(filepath.Ext(path))]
 	var supported []string
 	for extension, candidate := range uploadContentTypes {
 		for _, allowed := range definition.Enum {
