@@ -33,11 +33,14 @@ const straddleAccountHeader = straddleacct.Header
 // stashes the result on flags for newClient to apply, or returns an actionable
 // usage error when the account is required-but-missing or forbidden-but-given.
 func resolveStraddleAccount(cmd *cobra.Command, f *rootFlags, args []string) error {
-	recordStoreSelection(cmd, f)
 	ctx, err := straddleacct.LoadContext()
 	if err != nil {
 		return err
 	}
+	// One platform-context read serves both the header decision and the
+	// command's local store scope, so a concurrent use-account cannot
+	// split them.
+	recordStoreSelection(cmd, f, ctx)
 	// Local-store commands take --account as their store context and send
 	// no header of their own; sync resolves the header per request.
 	if cmd.Annotations[storeScopeAnnotation] == "true" {

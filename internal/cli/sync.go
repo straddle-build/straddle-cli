@@ -161,7 +161,7 @@ Resource scoping:
 			if err != nil {
 				return err
 			}
-			getter, err := newSyncGetter(c, scope)
+			getter, err := newSyncGetter(cmd.Context(), c, scope)
 			if err != nil {
 				return err
 			}

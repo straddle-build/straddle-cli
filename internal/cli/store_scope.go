@@ -38,13 +38,22 @@ type storeSelection struct {
 	configPath     string
 	account        string
 	accountChanged bool
+	// platform is the sticky context read once when the command started;
+	// it is never reloaded, so use-account in another process cannot
+	// move this command's rows.
+	platform straddleacct.Context
+	recorded bool
 }
 
-type storeSelectionKey struct{}
+type (
+	storeSelectionKey struct{}
+	requestScopeKey   struct{}
+)
 
-// recordStoreSelection keeps the command's config path and --account
-// choice on its context so every store opened for it resolves one scope.
-func recordStoreSelection(cmd *cobra.Command, f *rootFlags) {
+// recordStoreSelection keeps the command's config path, --account choice
+// and platform context on its context so every store opened for it
+// resolves one scope.
+func recordStoreSelection(cmd *cobra.Command, f *rootFlags, platform straddleacct.Context) {
 	ctx := cmd.Context()
 	if ctx == nil {
 		ctx = context.Background()
@@ -53,6 +62,8 @@ func recordStoreSelection(cmd *cobra.Command, f *rootFlags) {
 		configPath:     f.configPath,
 		account:        f.straddleAccount,
 		accountChanged: cmd.Flags().Changed("account"),
+		platform:       platform,
+		recorded:       true,
 	}))
 }
 
@@ -64,9 +75,38 @@ func selectionFrom(ctx context.Context) storeSelection {
 	return selection
 }
 
+// platformContext returns the command's recorded platform context, or
+// reads it when no command recorded one.
+func platformContext(ctx context.Context) (straddleacct.Context, error) {
+	if selection := selectionFrom(ctx); selection.recorded {
+		return selection.platform, nil
+	}
+	return straddleacct.LoadContext()
+}
+
+// withRequestScope pins the store scope for one live read, resolved from
+// the client that sends it, so its write-through and any offline
+// fallback use the request's origin and acting account.
+func withRequestScope(ctx context.Context, c *client.Client) (context.Context, store.Scope, error) {
+	var templateVars map[string]string
+	if c.Config != nil {
+		templateVars = c.Config.TemplateVars
+	}
+	scope, err := storeScopeFor(ctx, c.BaseURL, templateVars)
+	if err != nil {
+		return ctx, store.Scope{}, err
+	}
+	return context.WithValue(ctx, requestScopeKey{}, scope), scope, nil
+}
+
 // localStoreScope resolves the store scope for the running command from
 // its config and platform context.
 func localStoreScope(ctx context.Context) (store.Scope, error) {
+	if ctx != nil {
+		if scope, ok := ctx.Value(requestScopeKey{}).(store.Scope); ok {
+			return scope, nil
+		}
+	}
 	cfg, err := config.Load(selectionFrom(ctx).configPath)
 	if err != nil {
 		return store.Scope{}, configErr(err)
@@ -81,7 +121,7 @@ func storeScopeFor(ctx context.Context, baseURL string, templateVars map[string]
 	if err != nil {
 		return store.Scope{}, err
 	}
-	platform, err := straddleacct.LoadContext()
+	platform, err := platformContext(ctx)
 	if err != nil {
 		return store.Scope{}, err
 	}
@@ -143,8 +183,8 @@ type syncGetter struct {
 	account         string
 }
 
-func newSyncGetter(c *client.Client, scope store.Scope) (syncGetter, error) {
-	platform, err := straddleacct.LoadContext()
+func newSyncGetter(ctx context.Context, c *client.Client, scope store.Scope) (syncGetter, error) {
+	platform, err := platformContext(ctx)
 	if err != nil {
 		return syncGetter{}, err
 	}
@@ -164,22 +204,24 @@ func (g syncGetter) RateLimit() float64 {
 	return g.client.RateLimit()
 }
 
-// bypassCacheOutsideScope turns off the HTTP response cache for a read whose
-// account header differs from the local store account. The cache key
-// includes the header, so skipping both cache reads and writes in that case
-// means every cached response was fetched under the scope that reads it; a
-// marketplace response cached while acting as one account can then never
-// be replayed, and written through, while acting as another.
-func bypassCacheOutsideScope(ctx context.Context, c *client.Client, headers map[string]string) {
-	if c == nil || c.NoCache {
-		return
+// scopeLiveRead pins the read's store scope and turns off the HTTP
+// response cache when the account header sent differs from that scope's
+// account. The cache key includes the header, so skipping both cache
+// reads and writes in that case means every cached response was fetched
+// under the scope that reads it; a marketplace response cached while
+// acting as one account can then never be replayed, and written through,
+// while acting as another.
+func scopeLiveRead(ctx context.Context, c *client.Client, headers map[string]string) context.Context {
+	scoped, scope, err := withRequestScope(ctx, c)
+	if c.NoCache {
+		return scoped
 	}
 	sent := headers[straddleacct.Header]
 	if sent == "" && c.Config != nil {
 		sent = c.Config.Headers[straddleacct.Header]
 	}
-	scope, err := localStoreScope(ctx)
 	if err != nil || scope.Account != sent {
 		c.NoCache = true
 	}
+	return scoped
 }

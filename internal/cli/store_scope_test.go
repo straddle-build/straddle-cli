@@ -324,3 +324,42 @@ func TestLocalProvenanceReportsHiddenLegacyRecords(t *testing.T) {
 		t.Fatalf("meta = %v, want hidden_legacy_records 2", meta)
 	}
 }
+
+// TestWriteThroughKeepsTheScopeTheRequestWasMadeIn changes the sticky
+// acting account while a live read is in flight. The response must be
+// stored under the account the request was sent for, not the new one.
+func TestWriteThroughKeepsTheScopeTheRequestWasMadeIn(t *testing.T) {
+	seen := make(chan string, 1)
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen <- r.Header.Get(straddleacct.Header)
+		<-release
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"meta":{"api_request_id":"req"},"response_type":"object","data":{"id":"` + goldenUUID + `","name":"account_a_only"}}`))
+	}))
+	t.Cleanup(server.Close)
+	isolateStoreScopeEnv(t, server.URL)
+	useAccount(t, straddleacct.TypeSaaS, "acct_a")
+
+	done := make(chan error, 1)
+	go func() {
+		_, _, err := runRootForAPITest(t, []string{"--json", "customers", "get", goldenUUID}, "")
+		done <- err
+	}()
+	if header := <-seen; header != "acct_a" {
+		t.Fatalf("request header = %q, want acct_a", header)
+	}
+	useAccount(t, straddleacct.TypeSaaS, "acct_b")
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatalf("live get: %v", err)
+	}
+
+	stdout, _, err := runRootForAPITest(t, []string{"--json", "--data-source", "local", "customers", "get", goldenUUID, "--account", "acct_a"}, "")
+	if err != nil || !strings.Contains(stdout, "account_a_only") {
+		t.Fatalf("acct_a local copy = %s, %v; want the response sent for acct_a", stdout, err)
+	}
+	if stdout, _, err := runRootForAPITest(t, []string{"--json", "--data-source", "local", "customers", "get", goldenUUID, "--account", "acct_b"}, ""); err == nil {
+		t.Fatalf("acct_b local copy = %s; want nothing stored under acct_b", stdout)
+	}
+}

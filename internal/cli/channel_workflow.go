@@ -51,15 +51,16 @@ stored before a resource failed.`,
 			if dbPath == "" {
 				dbPath = defaultDBPath("straddle")
 			}
-			scope, err := localStoreScope(cmd.Context())
+			// Scope follows the archive client's origin, not a later config read.
+			ctx, scope, err := withRequestScope(cmd.Context(), c)
 			if err != nil {
 				return err
 			}
-			getter, err := newSyncGetter(c, scope)
+			getter, err := newSyncGetter(ctx, c, scope)
 			if err != nil {
 				return err
 			}
-			s, err := openScopedStore(cmd.Context(), dbPath)
+			s, err := openScopedStore(ctx, dbPath)
 			if err != nil {
 				return fmt.Errorf("opening store: %w", err)
 			}

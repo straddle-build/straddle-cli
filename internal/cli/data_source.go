@@ -80,7 +80,7 @@ func attachFreshness(prov DataProvenance, flags *rootFlags) DataProvenance {
 }
 
 func resolveReadWithValues(ctx context.Context, c *client.Client, flags *rootFlags, resourceType string, isList bool, path string, params url.Values, headers map[string]string) (json.RawMessage, DataProvenance, error) {
-	bypassCacheOutsideScope(ctx, c, headers)
+	ctx = scopeLiveRead(ctx, c, headers)
 	return resolveReadRequest(ctx, flags, resourceType, isList, path, firstQueryValues(params), func() (json.RawMessage, error) {
 		if queryHasRepeatedValues(params) {
 			return c.GetWithValues(path, params, headers)
@@ -117,7 +117,7 @@ func resolveReadRequest(ctx context.Context, flags *rootFlags, resourceType stri
 }
 
 func resolvePaginatedReadWithValues(ctx context.Context, c *client.Client, flags *rootFlags, resourceType string, path string, params url.Values, headers map[string]string, fetchAll bool, cursorParam, nextCursorPath, hasMoreField string) (json.RawMessage, DataProvenance, error) {
-	bypassCacheOutsideScope(ctx, c, headers)
+	ctx = scopeLiveRead(ctx, c, headers)
 	return resolvePaginatedReadRequest(ctx, flags, resourceType, path, firstQueryValues(params), func() (json.RawMessage, error) {
 		return paginatedGetWithValues(c, path, params, headers, fetchAll, cursorParam, nextCursorPath, hasMoreField)
 	})
