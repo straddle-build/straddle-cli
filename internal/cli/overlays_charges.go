@@ -17,12 +17,12 @@ func init() {
 	registerCommandOverlay("charges.create", commandOverlay{
 		short:   "Use charges to collect money from a customer for the sale of goods or services.",
 		long:    "",
-		example: "  straddle charges create --consent-type internet",
+		example: "  straddle charges create --amount 1250 --config-balance-check enabled --consent-type internet --currency USD --description \"Invoice 1001\" --device-ip-address 192.0.2.1 --external-id invoice-1001 --paykey 550e8400-e29b-41d4-a716-446655440000 --payment-date 2026-01-15",
 		flags: []flagOverlay{
 			{name: "amount", usage: "The amount of the charge in cents."},
 			{name: "config-auto-hold", usage: "Defines whether to automatically place this charge on hold after being created."},
 			{name: "config-auto-hold-message", usage: "The reason the charge is being automatically held on creation."},
-			{name: "config-balance-check", usage: "Defines whether to check the customer's balance before processing the charge."},
+			{name: "config-balance-check", usage: "Defines whether to check the customer's balance before processing the charge. Accepted values: required, enabled, disabled."},
 			{name: "consent-type", usage: "The channel or mechanism through which the payment was authorized. Use `internet` for payments made online or..."},
 			{name: "currency", usage: "The currency of the charge. Only USD is supported."},
 			{name: "description", usage: "An arbitrary description for the charge."},

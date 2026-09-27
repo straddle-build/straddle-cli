@@ -474,6 +474,41 @@ components:
 	}
 }
 
+func TestDriftSpecsReportsJSONObjectShapeChange(t *testing.T) {
+	t.Parallel()
+
+	spec := func(branch string) string {
+		return `
+openapi: 3.1.0
+paths:
+  /v1/widgets:
+    post:
+      operationId: createWidget
+      tags: [widgets]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                config:
+                  anyOf:
+                    - type: object
+                    - type: ` + branch + `
+`
+	}
+	result, err := DriftSpecs(writeSurfaceSpec(t, spec(`"null"`)), writeSurfaceSpec(t, spec("string")))
+	if err != nil {
+		t.Fatalf("DriftSpecs: %v", err)
+	}
+	if len(result.Changes) != 1 || len(result.Changes[0].Fields) != 1 {
+		t.Fatalf("Changes = %#v, want one config field change", result.Changes)
+	}
+	if field := result.Changes[0].Fields[0]; field.Flag != "config" || !strings.Contains(field.Detail, "object") {
+		t.Fatalf("field = %#v, want config change detail naming the object shape", field)
+	}
+}
+
 func writeSurfaceSpec(t *testing.T, spec string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "spec.yaml")

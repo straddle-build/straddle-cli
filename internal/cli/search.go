@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/straddle-build/straddle-cli/internal/store"
 )
 
 // isNilOrEmpty checks whether a JSON object has nil or empty values for
@@ -101,7 +100,7 @@ In local mode: searches locally synced data only.`,
 				dbPath = defaultDBPath("straddle")
 			}
 
-			db, err := store.OpenWithContext(cmd.Context(), dbPath)
+			db, err := openScopedStore(cmd.Context(), dbPath)
 			if err != nil {
 				return fmt.Errorf("opening local database: %w\nRun 'straddle sync' first to populate the local database.", err)
 			}
@@ -136,7 +135,7 @@ In local mode: searches locally synced data only.`,
 	cmd.Flags().IntVar(&limit, "limit", 50, "Maximum results to return")
 	cmd.Flags().StringVar(&dbPath, "db", "", "Database path (default: ~/.local/share/straddle/data.db)")
 
-	return cmd
+	return markStoreScoped(cmd)
 }
 
 // outputSearchResults filters, counts, and outputs search results with provenance.

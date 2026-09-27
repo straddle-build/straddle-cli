@@ -10,8 +10,10 @@ This page is the fastest way to find the code behind a command.
 - `internal/cli/straddle_setup.go` — persisted integration type (`account`, `saas`, `marketplace`) and current embedded account helpers.
 - `internal/cli/straddle_*.go` — hand-authored analytics, workflow, and reference commands that extend the Straddle API command surface.
 - `internal/cli/generated_registry.go` - self-registration hook for generated endpoint command files.
+* `internal/cli/bind_surface.go`: generated flag binding, live and dry-run required input validation, and structured JSON shape validation.
 - `internal/apisync/` - OpenAPI loading, repo inventory, coverage checks, drift classification, and generic endpoint generation.
-- `internal/store/store.go` — SQLite store, migrations, FTS, schema versioning.
+- `internal/store/`: SQLite store, migrations, FTS, schema versioning (`store.go`), and in-memory query snapshots (`snapshot.go`).
+* `internal/cli/store_scope.go`: local store scope resolution (`--account`, `use-account`, API environment) and request-pinned write-through context.
 - `internal/straddleacct/policy.go` — `Straddle-Account-Id` decision engine.
 - `internal/client/` — HTTP client and response handling.
 - `internal/config/` — config loading/saving.
@@ -140,7 +142,7 @@ These are the command families that make this repo more than a direct API wrappe
 - `sandbox` — print deterministic sandbox outcomes and test bank details.
 - `setup` — set the integration type that controls `Straddle-Account-Id` scoping.
 - `use-account` — set or clear the current embedded account for platform calls.
-- `sql`: run read-only queries against the local SQLite database. See `straddle sql --help` for the accepted query shape.
+- `sql`: run read-only queries against an in-memory snapshot of the local SQLite database for the active scope. See `straddle sql --help` for the accepted query shape.
 - `which` — resolve a natural-language capability query to the best matching command.
 - `auth` — manage saved authentication state.
 - `profile` — save, load, list, show, and delete local CLI profiles.

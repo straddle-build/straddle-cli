@@ -72,7 +72,7 @@ func TestWorkflowArchiveReportsResourceFailures(t *testing.T) {
 						t.Errorf("summary=%+v, want %d synced resources and items", result, tc.wantSynced)
 					}
 				}
-				db, err := store.Open(dbPath)
+				db, err := store.Open(dbPath, testStoreScope(t))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -140,7 +140,7 @@ func TestWorkflowArchivePreservesPartialCountAfterMalformedLaterPage(t *testing.
 	if result.ResourcesSynced != 7 || result.TotalItems != 107 {
 		t.Errorf("summary=%+v, want 7 completed resources and 107 stored items", result)
 	}
-	db, openErr := store.Open(dbPath)
+	db, openErr := store.Open(dbPath, testStoreScope(t))
 	if openErr != nil {
 		t.Fatal(openErr)
 	}

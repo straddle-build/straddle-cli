@@ -31,11 +31,14 @@ const (
 )
 
 type Flag struct {
-	Name        string   `json:"name"`
-	In          In       `json:"in"`
-	Key         string   `json:"key"`
-	Kind        Kind     `json:"kind"`
-	Array       bool     `json:"array,omitempty"`
+	Name  string `json:"name"`
+	In    In     `json:"in"`
+	Key   string `json:"key"`
+	Kind  Kind   `json:"kind"`
+	Array bool   `json:"array,omitempty"`
+	// Object marks a KindJSON flag whose schema only admits a JSON object
+	// (or null). Other KindJSON flags accept any JSON value.
+	Object      bool     `json:"object,omitempty"`
 	Style       Style    `json:"style,omitempty"`
 	Explode     bool     `json:"explode,omitempty"`
 	Required    bool     `json:"required,omitempty"`

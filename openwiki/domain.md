@@ -73,6 +73,7 @@ If you change any of the following, inspect the policy layer and command wiring 
 
 - `internal/straddleacct/policy.go`
 - `internal/cli/straddle_setup.go`
+* `internal/cli/store_scope.go`
 - `internal/cli/charges*.go`
 - `internal/cli/payouts*.go`
 - `internal/cli/customers*.go`

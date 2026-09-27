@@ -37,6 +37,16 @@ func resolveStraddleAccount(cmd *cobra.Command, f *rootFlags, args []string) err
 	if err != nil {
 		return err
 	}
+	// One platform-context read serves both the header decision and the
+	// command's local store scope, so a concurrent use-account cannot
+	// split them.
+	recordStoreSelection(cmd, f, ctx)
+	// Local-store commands take --account as their store context and send
+	// no header of their own; sync resolves the header per request.
+	if cmd.Annotations[storeScopeAnnotation] == "true" {
+		f.straddleAccountResolved = ""
+		return nil
+	}
 	// `straddle api` with anything other than exactly `<HTTP_METHOD> /path`
 	// is a local-only browse (listing interfaces or an interface's methods):
 	// it makes no network call, so account-scope policy has nothing to gate.
@@ -79,12 +89,7 @@ func straddleAccountPolicyTarget(cmd *cobra.Command, args []string) (string, str
 	path := cmd.Annotations["straddle:path"]
 	method := cmd.Annotations["straddle:method"]
 	if path != "" || method != "" {
-		for _, registered := range registeredSurfaces() {
-			if registered.Path == path && registered.Method == method {
-				return path, method, registered.AcceptsAccountHeader
-			}
-		}
-		return path, method, straddleacct.FallbackAcceptsHeader(path)
+		return path, method, acceptsAccountHeader(path, method)
 	}
 	if cmd.Name() != "api" || len(args) != 2 {
 		return path, method, false
@@ -95,6 +100,18 @@ func straddleAccountPolicyTarget(cmd *cobra.Command, args []string) (string, str
 	}
 	path = rawAPIPathForPolicy(args[1])
 	return path, rawMethod, straddleacct.FallbackAcceptsHeader(path)
+}
+
+// acceptsAccountHeader reports the contract's header capability for an
+// operation, falling back to the legacy resource-level capability for
+// operations without a registered surface.
+func acceptsAccountHeader(path, method string) bool {
+	for _, registered := range registeredSurfaces() {
+		if registered.Path == path && registered.Method == method {
+			return registered.AcceptsAccountHeader
+		}
+	}
+	return straddleacct.FallbackAcceptsHeader(path)
 }
 
 func rawAPIPathForPolicy(path string) string {

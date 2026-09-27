@@ -19,7 +19,7 @@ func TestOpen_PrivateFilesystemPermissions(t *testing.T) {
 	}
 
 	dbPath := filepath.Join(t.TempDir(), "nested", "data.db")
-	store, err := Open(dbPath)
+	store, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}

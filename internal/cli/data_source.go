@@ -46,22 +46,24 @@ func isNetworkError(err error) bool {
 		strings.Contains(msg, "TLS handshake timeout")
 }
 
-// openStoreForRead opens the local SQLite store for reading.
-// Returns nil, nil if the database file does not exist (no sync has been run).
+// openStoreForRead opens the local SQLite store for reading in the
+// command's scope. Returns nil, nil if the database file does not exist
+// (no sync has been run).
 func openStoreForRead(ctx context.Context, cliName string) (*store.Store, error) {
 	dbPath := defaultDBPath(cliName)
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
 		return nil, nil
 	}
-	return store.OpenWithContext(ctx, dbPath)
+	return openScopedStore(ctx, dbPath)
 }
 
 // localProvenance builds a DataProvenance for local data reads.
 func localProvenance(db *store.Store, resourceType, reason string) DataProvenance {
 	prov := DataProvenance{
-		Source:       "local",
-		Reason:       reason,
-		ResourceType: resourceType,
+		Source:              "local",
+		Reason:              reason,
+		ResourceType:        resourceType,
+		HiddenLegacyRecords: hiddenLegacyRecords(db),
 	}
 	_, lastSynced, _, err := db.GetSyncState(resourceType)
 	if err == nil && !lastSynced.IsZero() {
@@ -78,6 +80,7 @@ func attachFreshness(prov DataProvenance, flags *rootFlags) DataProvenance {
 }
 
 func resolveReadWithValues(ctx context.Context, c *client.Client, flags *rootFlags, resourceType string, isList bool, path string, params url.Values, headers map[string]string) (json.RawMessage, DataProvenance, error) {
+	ctx = scopeLiveRead(ctx, c, headers)
 	return resolveReadRequest(ctx, flags, resourceType, isList, path, firstQueryValues(params), func() (json.RawMessage, error) {
 		if queryHasRepeatedValues(params) {
 			return c.GetWithValues(path, params, headers)
@@ -114,6 +117,7 @@ func resolveReadRequest(ctx context.Context, flags *rootFlags, resourceType stri
 }
 
 func resolvePaginatedReadWithValues(ctx context.Context, c *client.Client, flags *rootFlags, resourceType string, path string, params url.Values, headers map[string]string, fetchAll bool, cursorParam, nextCursorPath, hasMoreField string) (json.RawMessage, DataProvenance, error) {
+	ctx = scopeLiveRead(ctx, c, headers)
 	return resolvePaginatedReadRequest(ctx, flags, resourceType, path, firstQueryValues(params), func() (json.RawMessage, error) {
 		return paginatedGetWithValues(c, path, params, headers, fetchAll, cursorParam, nextCursorPath, hasMoreField)
 	})
@@ -218,7 +222,7 @@ func writeThroughCache(ctx context.Context, resourceType string, data json.RawMe
 		return
 	}
 
-	db, err := store.OpenWithContext(ctx, defaultDBPath("straddle"))
+	db, err := openScopedStore(ctx, defaultDBPath("straddle"))
 	if err != nil {
 		return
 	}

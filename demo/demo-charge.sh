@@ -13,5 +13,8 @@ cd "$(dirname "$0")/.."
   --currency USD \
   --payment-date "$(date +%F)" \
   --consent-type internet \
+  --config-balance-check enabled \
+  --device-ip-address 0.0.0.0 \
+  --external-id demo \
   --description demo \
   --dry-run --human-friendly

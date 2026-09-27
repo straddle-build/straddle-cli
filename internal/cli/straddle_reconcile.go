@@ -173,7 +173,7 @@ func newReconcileCmd(flags *rootFlags) *cobra.Command {
 	cmd.Flags().StringVar(&dbPath, "db", "", "Database path")
 	cmd.Flags().StringVar(&fundingEvent, "funding-event", "", "Show only payments tied to this funding event id")
 	cmd.Flags().BoolVar(&outstanding, "outstanding", false, "Show only payments not yet tied to a funding event")
-	return cmd
+	return markStoreScoped(cmd)
 }
 
 func printReconcileGroup(cmd *cobra.Command, g reconcileGroup) {

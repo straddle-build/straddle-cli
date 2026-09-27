@@ -218,7 +218,7 @@ Charges represent attempts to debit money from a customer's bank account using a
 
 Customers represent the end users who send or receive payments through your integration. Each customer undergoes automatic identity verification and fraud screening upon creation. Use customers to track payment history, manage bank account connections, and maintain a secure record of all transactions associated with a user. Customers can be either individuals or businesses with appropriate compliance checks for each type.
 
-- **`straddle customers create`** - Creates a new customer record and automatically initiates identity, fraud, and risk assessment scores. This endpoint allows you to create a customer profile and associate it with paykeys and payments.
+- **`straddle customers create`** - Creates a new customer record and automatically initiates identity, fraud, and risk assessment scores. This endpoint allows you to create a customer profile and associate it with paykeys and payments. Pass structured flags like `--compliance-profile` and `--metadata` as JSON objects (for example `--compliance-profile '{"ein":"12-3456789","legal_business_name":"Acme Corp LLC"}'`). Non-object inputs fail locally before sending a request.
 - **`straddle customers delete`** - Permanently removes a customer record from Straddle. This action cannot be undone and should only be used to satisfy regulatory requirements or for privacy compliance.
 - **`straddle customers get`** - Retrieves the details of an existing customer. Supply the unique customer ID that was returned from your 'create customer' request, and Straddle will return the corresponding customer information.
 - **`straddle customers list`** - Lists or searches customers connected to your account. All supported query parameters are optional. If none are provided, the response will include all customers connected to your account. This endpoint supports advanced sorting and filtering options.
@@ -242,7 +242,7 @@ Funding events represent all money movement between Straddle and an Account's ex
 
 Linked bank accounts connect your platform users' external bank accounts to Straddle for settlements and payment funding. Each linked account undergoes automated verification and continuous monitoring. Use linked accounts to manage where clients receive deposits, fund payouts, and track settlement preferences.
 
-- **`straddle linked-bank-accounts create`** - Creates a new linked bank account associated with a Straddle account. This endpoint allows you to associate external bank accounts with a Straddle account for various payment operations such as payment deposits, payout withdrawals, and more.
+- **`straddle linked-bank-accounts create`** - Creates a new linked bank account associated with a Straddle account. This endpoint allows you to associate external bank accounts with a Straddle account for various payment operations such as payment deposits, payout withdrawals, and more. Pass `--purposes` as a JSON array of `charges`, `payouts`, or `billing`, for example `--purposes '["charges","payouts"]'`. The CLI rejects comma-separated values before sending a request.
 - **`straddle linked-bank-accounts get`** - Retrieves the details of a linked bank account that has previously been created. Supply the unique linked bank account `id`, and Straddle will return the corresponding information. The response includes masked account details for security purposes.
 - **`straddle linked-bank-accounts list`** - Returns a list of bank accounts associated with a specific Straddle account. The linked bank accounts are returned sorted by creation date, with the most recently created appearing first. This endpoint supports pagination to handle accounts with multiple linked bank accounts.
 - **`straddle linked-bank-accounts update`** - Updates an existing linked bank account's information. This can be used to update account details during onboarding or to update metadata associated with the linked account. The linked bank account must be in 'created' or 'onboarding' status.
@@ -323,7 +323,7 @@ This CLI is designed for AI agent consumption:
 - **Non-interactive** - never prompts, every input is a flag
 - **Pipeable** - `--json` output to stdout, errors to stderr
 - **Filterable** - `--select id,name` returns only fields you need
-- **Previewable** - `--dry-run` shows the request without sending
+- **Previewable** - `--dry-run` validates required inputs and previews the request without sending
 - **Explicit retries** - add `--idempotent` to create retries and `--ignore-missing` to delete retries when a no-op success is acceptable
 - **Confirmable** - `--yes` for explicit confirmation of destructive actions
 - **Piped input** - write commands can accept structured input when their help lists `--stdin`
@@ -347,7 +347,7 @@ Base URL: `https://{environment}.straddle.com`
 straddle doctor
 ```
 
-Verifies configuration, credentials, and connectivity to the API.
+Verifies configuration, credentials, connectivity to the API, and local store health.
 
 ## Configuration
 
@@ -379,7 +379,7 @@ Environment variables:
 - **Calls hit the wrong environment** - Set `STRADDLE_ENVIRONMENT=sandbox` or `STRADDLE_ENVIRONMENT=production` (default is sandbox); the base URL switches between sandbox.straddle.com and production.straddle.com.
 - **A charge cannot be cancelled or held** — Once a payment reaches pending it is locked; run pipeline --cancelable to see which payments are still in created/scheduled/on_hold and can be acted on.
 - **Charges fail with an expired paykey** — Run expiring to list paykeys near expires_at, then refresh or re-bridge the bank account before retrying.
-- **search or reconcile returns nothing** — Run sync first; the local store is empty until you populate it.
+- **search or reconcile returns nothing**: Run sync first; the local store is empty until you populate it. Local data is kept per API environment and acting account, so after `use-account` or `--account` changes, sync again in the new context.
 - **Platform calls return the wrong account's data or 403** - Run `straddle setup --type saas|marketplace`, set the acting account with `straddle use-account acct_...`, or pass `--account acct_...` for one command. SaaS platforms scope customer, paykey, bridge, payment, review, and funding-event calls; marketplaces scope payment and funding-event calls; direct accounts omit it.
 
 ---

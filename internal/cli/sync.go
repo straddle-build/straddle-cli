@@ -153,7 +153,19 @@ Resource scoping:
 				dbPath = defaultDBPath("straddle")
 			}
 
-			db, err := store.OpenWithContext(cmd.Context(), dbPath)
+			var templateVars map[string]string
+			if c.Config != nil {
+				templateVars = c.Config.TemplateVars
+			}
+			scope, err := storeScopeFor(cmd.Context(), c.BaseURL, templateVars)
+			if err != nil {
+				return err
+			}
+			getter, err := newSyncGetter(cmd.Context(), c, scope)
+			if err != nil {
+				return err
+			}
+			db, err := store.OpenWithContext(cmd.Context(), dbPath, scope)
 			if err != nil {
 				return fmt.Errorf("opening local database: %w", err)
 			}
@@ -245,7 +257,7 @@ Resource scoping:
 				go func() {
 					defer wg.Done()
 					for resource := range work {
-						res := syncResource(c, db, resource, sinceTS, full, maxPages, effectiveLatestOnly, userParams)
+						res := syncResource(getter, db, resource, sinceTS, full, maxPages, effectiveLatestOnly, userParams)
 						results <- res
 					}
 				}()
@@ -305,7 +317,7 @@ Resource scoping:
 				}
 			}
 			// Sync dependent (parent-child) resources sequentially after flat resources.
-			depResults := syncDependentResources(c, db, sinceTS, full, maxPages, effectiveLatestOnly, parentFilter, userParams)
+			depResults := syncDependentResources(getter, db, sinceTS, full, maxPages, effectiveLatestOnly, parentFilter, userParams)
 			for _, res := range depResults {
 				if res.Err != nil {
 					if humanFriendly {
@@ -393,7 +405,7 @@ Resource scoping:
 	cmd.Flags().StringArrayVar(&globalParamFlags, "global-param", nil, "Extra query param to inject into every sync request including dependent path-scoped calls (repeatable, key=value). Use when an API requires a scope on every call regardless of path nesting.")
 	cmd.Flags().StringArrayVar(&pathContextFlags, "path-context", nil, "Fill a {key} placeholder in BaseURL or request paths from a supplied value (repeatable, key=value). Wins over env-resolved Config.TemplateVars values, so it doubles as a one-off override at the call site. Use it when an env variable already holds a different value, or when the spec did not annotate the placeholder with an env var.")
 
-	return cmd
+	return markStoreScoped(cmd)
 }
 
 // syncResource handles the full paginated sync of a single resource.

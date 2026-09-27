@@ -42,7 +42,7 @@ func TestCashflowOutputHonorsCompactOnTerminal(t *testing.T) {
 				noColor, currentResource = previousColor, previousResource
 			})
 			dbPath := filepath.Join(t.TempDir(), "analytics.db")
-			db, err := store.Open(dbPath)
+			db, err := store.Open(dbPath, testStoreScope(t))
 			if err != nil {
 				t.Fatal(err)
 			}

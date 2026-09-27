@@ -303,6 +303,8 @@ A `saas` or `marketplace` charge or payout with no account set fails fast with a
 
 **Agents:** call the `use-account` tool once to set the acting account; every later endpoint call is scoped to it automatically.
 
+Synced local data follows the same context. The store keeps rows per API environment and acting account, so `sync`, `search`, `sql`, analytics and offline reads only see data captured under the current `use-account` (or `--account`) in the current environment. Marketplace customers and paykeys are fetched without the header but still stay with the account you were acting as. `doctor` and local-read `meta.hidden_legacy_records` report rows stored before scoping; run `straddle sync` to repopulate them in your current context.
+
 ## Agent Mode
 
 Add `--agent` to any command. See [Output Formats](README.md#output-formats) for its defaults and explicit override rules.
@@ -313,7 +315,7 @@ Add `--agent` to any command. See [Output Formats](README.md#output-formats) for
   ```bash
   straddle accounts list --agent --select id,name,status
   ```
-- **Previewable** — `--dry-run` shows the request without sending
+- **Previewable**: `--dry-run` validates required inputs and previews the request without sending
 - **Offline-friendly** — sync/search commands can use the local SQLite store when available
 - **Non-interactive** — never prompts, every input is a flag
 - **Explicit retries** — use `--idempotent` only when an already-existing create should count as success, and `--ignore-missing` only when a missing delete target should count as success
@@ -369,7 +371,7 @@ straddle profile show briefing
 straddle profile delete briefing --yes
 ```
 
-Explicit flags always win over profile values; profile values win over defaults. For live generated commands that do not use `--stdin`, a schema default on a required flag does not count as input: pass the flag or save it in the profile, including when the intended value equals the default or is `false`. Profiles never save or apply `--agent` or `--yes`, so pass either flag explicitly when needed. `agent-context` lists all available profiles under `available_profiles` so introspecting agents discover them at runtime.
+Explicit flags always win over profile values; profile values win over defaults. For generated commands that do not use `--stdin`, including `--dry-run` previews, a schema default on a required flag does not count as input: pass the flag or save it in the profile, including when the intended value equals the default or is `false`. Profiles never save or apply `--agent` or `--yes`, so pass either flag explicitly when needed. `agent-context` lists all available profiles under `available_profiles` so introspecting agents discover them at runtime.
 
 ## Exit Codes
 

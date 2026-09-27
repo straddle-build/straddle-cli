@@ -18,7 +18,7 @@ Flags:
       --external-id string                Unique identifier for the payout in your database. This value must be unique across all payouts.
   -h, --help                              help for create
       --idempotency-key string            Optional client-generated key for an idempotent request.
-      --metadata string                   Up to 20 additional user-defined key-value pairs. Useful for storing additional information about the payout in a...
+      --metadata string                   Up to 20 additional user-defined key-value pairs. Useful for storing additional information about the payout in a. JSON object. Example: --metadata '{"key":"value"}'
       --paykey paykey                     Value of the paykey used for the payout.
       --payment-date string               The desired date on which the payout should be occur. For payouts, this means the date you want the funds to be sent...
       --request-id string                 Optional client-generated identifier for tracing one request.

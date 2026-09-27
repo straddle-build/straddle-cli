@@ -7,6 +7,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -162,13 +163,32 @@ func newSQLCmd(flags *rootFlags) *cobra.Command {
 			if dbPath == "" {
 				dbPath = defaultDBPath("straddle")
 			}
-			db, err := store.OpenReadOnly(dbPath)
+			if _, err := os.Stat(dbPath); err != nil {
+				return fmt.Errorf("opening local database: %w\nRun 'straddle sync' first.", err)
+			}
+			scope, err := localStoreScope(cmd.Context())
+			if err != nil {
+				return err
+			}
+			// Opening the store brings an older file to the scoped schema
+			// before the snapshot reads it.
+			migrated, err := store.OpenWithContext(cmd.Context(), dbPath, scope)
 			if err != nil {
 				return fmt.Errorf("opening local database: %w\nRun 'straddle sync' first.", err)
 			}
-			defer db.Close()
+			// Keep the store open while the snapshot loads so the WAL
+			// sidecars exist for the snapshot's read-only attach.
+			snapshot, err := store.OpenSnapshot(cmd.Context(), dbPath, scope)
+			closeErr := migrated.Close()
+			if err != nil {
+				return fmt.Errorf("opening local database: %w", err)
+			}
+			defer snapshot.Close()
+			if closeErr != nil {
+				return closeErr
+			}
 
-			rows, err := db.Query(query)
+			rows, err := snapshot.Query(cmd.Context(), query)
 			if err != nil {
 				return fmt.Errorf("query failed: %w", err)
 			}
@@ -216,5 +236,5 @@ func newSQLCmd(flags *rootFlags) *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&dbPath, "db", "", "Database path")
-	return cmd
+	return markStoreScoped(cmd)
 }

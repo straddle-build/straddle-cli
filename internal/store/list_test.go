@@ -22,7 +22,7 @@ import (
 func TestList_LimitZeroReturnsAllRows(t *testing.T) {
 	t.Parallel()
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestList_LimitZeroReturnsAllRows(t *testing.T) {
 func TestList_NegativeLimitReturnsAllRows(t *testing.T) {
 	t.Parallel()
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -123,7 +123,7 @@ func TestList_NegativeLimitReturnsAllRows(t *testing.T) {
 func TestList_ExplicitPositiveLimitHonored(t *testing.T) {
 	t.Parallel()
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -167,7 +167,7 @@ func TestList_ExplicitPositiveLimitHonored(t *testing.T) {
 func TestList_ScopedToSingleResourceType(t *testing.T) {
 	t.Parallel()
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -217,7 +217,7 @@ func TestList_ScopedToSingleResourceType(t *testing.T) {
 func TestList_OrdersByUpdatedAtDesc(t *testing.T) {
 	t.Parallel()
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	s, err := Open(dbPath)
+	s, err := Open(dbPath, testScope)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -232,11 +232,11 @@ func TestList_OrdersByUpdatedAtDesc(t *testing.T) {
 		base.Add(0 * time.Hour), // oldest  → id row_1
 		base.Add(1 * time.Hour), // middle  → id row_2
 	}
-	db := s.DB()
+	db := s.db
 	for i, st := range stamps {
 		if _, err := db.Exec(
-			`INSERT INTO resources (id, resource_type, data, synced_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
-			fmt.Sprintf("row_%d", i), rt,
+			`INSERT INTO resources (scope_environment, scope_account, id, resource_type, data, synced_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			testScope.Environment, testScope.Account, fmt.Sprintf("row_%d", i), rt,
 			json.RawMessage(fmt.Sprintf(`{"id":"row_%d"}`, i)),
 			st, st,
 		); err != nil {

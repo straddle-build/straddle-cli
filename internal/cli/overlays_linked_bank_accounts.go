@@ -21,7 +21,6 @@ func init() {
 			{name: "description", usage: "Optional description for the bank account."},
 			{name: "metadata", usage: "Up to 20 additional user-defined key-value pairs. Useful for storing additional information about the linked bank..."},
 			{name: "platform-id", usage: "The unique identifier of the Straddle Platform to associate this bank account with."},
-			{name: "purposes", usage: "The purposes for the linked bank account."},
 			{name: "stdin", usage: "Read request body as JSON from stdin"},
 		},
 		resource: "linked-bank-accounts",

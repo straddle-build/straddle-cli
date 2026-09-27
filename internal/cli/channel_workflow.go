@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/straddle-build/straddle-cli/internal/store"
 )
 
 func newWorkflowCmd(flags *rootFlags) *cobra.Command {
@@ -52,7 +51,16 @@ stored before a resource failed.`,
 			if dbPath == "" {
 				dbPath = defaultDBPath("straddle")
 			}
-			s, err := store.OpenWithContext(cmd.Context(), dbPath)
+			// Scope follows the archive client's origin, not a later config read.
+			ctx, scope, err := withRequestScope(cmd.Context(), c)
+			if err != nil {
+				return err
+			}
+			getter, err := newSyncGetter(ctx, c, scope)
+			if err != nil {
+				return err
+			}
+			s, err := openScopedStore(ctx, dbPath)
 			if err != nil {
 				return fmt.Errorf("opening store: %w", err)
 			}
@@ -86,7 +94,7 @@ stored before a resource failed.`,
 			defer func() { humanFriendly = prevHumanFriendly }()
 
 			for _, resource := range resources {
-				res := syncResource(c, s, resource, "", full, 100, false, nil)
+				res := syncResource(getter, s, resource, "", full, 100, false, nil)
 				totalSynced += res.Count
 				if res.Err != nil {
 					resourceErrors = append(resourceErrors, res.Err)
@@ -126,7 +134,7 @@ stored before a resource failed.`,
 	cmd.Flags().StringVar(&dbPath, "db", "", "Database path (default: ~/.local/share/straddle/data.db)")
 	cmd.Flags().BoolVar(&full, "full", false, "Full re-archive (ignore previous sync state)")
 
-	return cmd
+	return markStoreScoped(cmd)
 }
 
 func newWorkflowStatusCmd(flags *rootFlags) *cobra.Command {
@@ -145,7 +153,7 @@ func newWorkflowStatusCmd(flags *rootFlags) *cobra.Command {
 			if dbPath == "" {
 				dbPath = defaultDBPath("straddle")
 			}
-			s, err := store.OpenWithContext(cmd.Context(), dbPath)
+			s, err := openScopedStore(cmd.Context(), dbPath)
 			if err != nil {
 				return fmt.Errorf("opening store: %w", err)
 			}
@@ -181,7 +189,7 @@ func newWorkflowStatusCmd(flags *rootFlags) *cobra.Command {
 
 	cmd.Flags().StringVar(&dbPath, "db", "", "Database path")
 
-	return cmd
+	return markStoreScoped(cmd)
 }
 
 // defaultDBPath is defined in helpers.go

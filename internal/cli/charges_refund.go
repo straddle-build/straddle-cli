@@ -67,6 +67,7 @@ func init() {
 				In:          surface.InBody,
 				Key:         "/metadata",
 				Kind:        surface.KindJSON,
+				Object:      true,
 				Description: "User-defined string key-value pairs for the refund payout.",
 			},
 			{
@@ -144,6 +145,7 @@ func newChargesRefundCmd(flags *rootFlags) *cobra.Command {
 				In:          surface.InBody,
 				Key:         "/metadata",
 				Kind:        surface.KindJSON,
+				Object:      true,
 				Description: "User-defined string key-value pairs for the refund payout.",
 			},
 			{
@@ -171,7 +173,7 @@ func newChargesRefundCmd(flags *rootFlags) *cobra.Command {
 			"straddle:path":         "/v1/charges/{id}/refund",
 		},
 	}
-	bind := bindSurface(cmd, flags, s)
+	bind := bindSurface(cmd, s)
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		req, err := bind(args)
 		if err != nil {

@@ -32,7 +32,7 @@ Flags:
       --external-id string                               Unique identifier for the account in your database, used for cross-referencing between Straddle and your systems.
   -h, --help                                             help for create
       --idempotency-key string                           Optional client-generated key for an idempotent request.
-      --metadata string                                  Up to 20 additional user-defined key-value pairs. Useful for storing additional information about the account in a...
+      --metadata string                                  Up to 20 additional user-defined key-value pairs. Useful for storing additional information about the account in a. JSON object. Example: --metadata '{"key":"value"}'
       --organization-id string                           The unique identifier of the organization related to this account.
       --request-id string                                Optional client-generated identifier for tracing one request.
       --stdin                                            Read request body as JSON from stdin

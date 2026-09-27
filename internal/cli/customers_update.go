@@ -76,10 +76,11 @@ func init() {
 				Description: "ZIP or postal code.",
 			},
 			{
-				Name: "compliance-profile",
-				In:   surface.InBody,
-				Key:  "/compliance_profile",
-				Kind: surface.KindJSON,
+				Name:   "compliance-profile",
+				In:     surface.InBody,
+				Key:    "/compliance_profile",
+				Kind:   surface.KindJSON,
+				Object: true,
 			},
 			{
 				Name:        "device-ip-address",
@@ -111,6 +112,7 @@ func init() {
 				In:          surface.InBody,
 				Key:         "/metadata",
 				Kind:        surface.KindJSON,
+				Object:      true,
 				Description: "Up to 20 user-defined key-value pairs associated with the customer.",
 			},
 			{
@@ -214,10 +216,11 @@ func newCustomersUpdateCmd(flags *rootFlags) *cobra.Command {
 				Description: "ZIP or postal code.",
 			},
 			{
-				Name: "compliance-profile",
-				In:   surface.InBody,
-				Key:  "/compliance_profile",
-				Kind: surface.KindJSON,
+				Name:   "compliance-profile",
+				In:     surface.InBody,
+				Key:    "/compliance_profile",
+				Kind:   surface.KindJSON,
+				Object: true,
 			},
 			{
 				Name:        "device-ip-address",
@@ -249,6 +252,7 @@ func newCustomersUpdateCmd(flags *rootFlags) *cobra.Command {
 				In:          surface.InBody,
 				Key:         "/metadata",
 				Kind:        surface.KindJSON,
+				Object:      true,
 				Description: "Up to 20 user-defined key-value pairs associated with the customer.",
 			},
 			{
@@ -293,7 +297,7 @@ func newCustomersUpdateCmd(flags *rootFlags) *cobra.Command {
 			"straddle:path":         "/v1/customers/{id}",
 		},
 	}
-	bind := bindSurface(cmd, flags, s)
+	bind := bindSurface(cmd, s)
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		req, err := bind(args)
 		if err != nil {

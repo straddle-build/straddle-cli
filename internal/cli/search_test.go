@@ -14,7 +14,7 @@ import (
 
 func TestSearchLocalCustomTypeFiltersResults(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data.db")
-	db, err := store.OpenWithContext(context.Background(), dbPath)
+	db, err := store.OpenWithContext(context.Background(), dbPath, testStoreScope(t))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -41,11 +41,27 @@ func IsUUID(s string) bool {
 // shape — adding columns, dropping indexes, changing FTS5 tokenizers —
 // so an older binary refuses to open a newer database rather than silently
 // producing wrong results against a schema it cannot read.
-const StoreSchemaVersion = 2
+const StoreSchemaVersion = 3
 
 const resourcesFTSCreateSQL = `CREATE VIRTUAL TABLE IF NOT EXISTS resources_fts USING fts5(
 	id, resource_type, content, tokenize='porter unicode61'
 )`
+
+// resourcesFTSScopedCreateSQL is the v3 index: scope columns are stored
+// but not tokenized, so a MATCH is always paired with an exact scope filter.
+const resourcesFTSScopedCreateSQL = `CREATE VIRTUAL TABLE IF NOT EXISTS resources_fts USING fts5(
+	scope_environment UNINDEXED, scope_account UNINDEXED, id, resource_type, content, tokenize='porter unicode61'
+)`
+
+// Scope is the local data context every stored row belongs to: the API
+// environment (the base URL origin) and the selected platform acting
+// account. An empty Account is its own platform-level context, not a
+// wildcard. Rows written before scoping carry an empty Environment and are
+// never readable through a Store because OpenWithContext rejects it.
+type Scope struct {
+	Environment string
+	Account     string
+}
 
 type Store struct {
 	db *sql.DB
@@ -56,45 +72,42 @@ type Store struct {
 	// race-free by construction within a resource.
 	writeMu sync.Mutex
 	path    string
+	// scope is fixed at open; every query and write in this file filters
+	// or stamps it, and the raw *sql.DB is never exposed.
+	scope Scope
+}
+
+func validateScope(scope Scope) error {
+	if strings.TrimSpace(scope.Environment) == "" {
+		return errors.New("local store scope requires an API environment")
+	}
+	return nil
 }
 
 // Open opens or creates the SQLite store at dbPath using the background
 // context. Prefer OpenWithContext from a Cobra command so SIGINT during
 // a slow migration interrupts the open instead of stranding the caller.
-func Open(dbPath string) (*Store, error) {
-	return OpenWithContext(context.Background(), dbPath)
+func Open(dbPath string, scope Scope) (*Store, error) {
+	return OpenWithContext(context.Background(), dbPath, scope)
 }
 
-// OpenReadOnly opens an existing SQLite store at dbPath in read-only mode.
-// mode=ro rejects direct and CTE-wrapped writes (INSERT, UPDATE, DELETE,
-// REPLACE, "WITH x AS (...) INSERT ...") at the driver level. Skips
-// MkdirAll and migrate; the file is expected to exist.
-//
-// The file: URI prefix is load-bearing: modernc.org/sqlite only honors
-// SQLite's URI query parameters (mode, cache, etc.) when the DSN starts
-// with "file:". Without the prefix, "?mode=ro" is silently dropped and
-// the connection opens read-write. Underscore-prefixed driver pragmas
-// (_journal_mode, _busy_timeout, etc.) work either way; they're parsed
-// out of the DSN by the driver before sqlite3_open_v2.
-func OpenReadOnly(dbPath string) (*Store, error) {
-	db, err := sql.Open("sqlite", "file:"+dbPath+"?mode=ro&_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=ON&_temp_store=MEMORY&_mmap_size=268435456")
-	if err != nil {
-		return nil, fmt.Errorf("opening database (read-only): %w", err)
+// OpenWithContext opens or creates the SQLite store at dbPath, bound to
+// one scope for its lifetime. The context is honored by the migration
+// path: cancellation interrupts the retry-on-SQLITE_BUSY loop and
+// propagates ctx.Err() back to the caller instead of waiting out the full
+// migrationLockTimeout.
+func OpenWithContext(ctx context.Context, dbPath string, scope Scope) (*Store, error) {
+	if err := validateScope(scope); err != nil {
+		return nil, err
 	}
-	db.SetMaxOpenConns(2)
-	return &Store{db: db, path: dbPath}, nil
-}
-
-// OpenWithContext opens or creates the SQLite store at dbPath. The
-// context is honored by the migration path: cancellation interrupts the
-// retry-on-SQLITE_BUSY loop and propagates ctx.Err() back to the caller
-// instead of waiting out the full migrationLockTimeout.
-func OpenWithContext(ctx context.Context, dbPath string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0o700); err != nil {
 		return nil, fmt.Errorf("creating db directory: %w", err)
 	}
 
-	db, err := sql.Open("sqlite", dbPath+"?_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=5000&_foreign_keys=ON&_temp_store=MEMORY&_mmap_size=268435456")
+	// modernc.org/sqlite applies connection pragmas only through _pragma;
+	// underscore names such as _journal_mode are silently ignored, which
+	// left the store in rollback-journal mode with no busy timeout.
+	db, err := sql.Open("sqlite", dbPath+"?_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)&_pragma=temp_store(MEMORY)&_pragma=mmap_size(268435456)")
 	if err != nil {
 		return nil, fmt.Errorf("opening database: %w", err)
 	}
@@ -104,7 +117,7 @@ func OpenWithContext(ctx context.Context, dbPath string) (*Store, error) {
 	// iteration). Writes are still serialized by SQLite's WAL lock.
 	db.SetMaxOpenConns(2)
 
-	s := &Store{db: db, path: dbPath}
+	s := &Store{db: db, path: dbPath, scope: scope}
 	if err := s.migrate(ctx); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("running migrations: %w", err)
@@ -130,13 +143,6 @@ func (s *Store) Close() error {
 // Path returns the on-disk path of the backing SQLite file.
 func (s *Store) Path() string {
 	return s.path
-}
-
-// DB exposes the underlying *sql.DB for callers that need to run ad-hoc
-// queries (e.g., doctor's cache inspection, share snapshot import).
-// Callers must not call Close on the returned handle.
-func (s *Store) DB() *sql.DB {
-	return s.db
 }
 
 // SchemaVersion reads PRAGMA user_version, which is stamped by migrate().
@@ -796,6 +802,9 @@ func (s *Store) migrate(ctx context.Context) error {
 				return fmt.Errorf("migration failed: %w", err)
 			}
 		}
+		if err := migrateScopeColumns(ctx, conn); err != nil {
+			return fmt.Errorf("migrating local store scope: %w", err)
+		}
 		// Stamp the schema version. On a fresh DB this writes the current
 		// StoreSchemaVersion; on an already-stamped DB this is a no-op
 		// write of the same value.
@@ -931,6 +940,210 @@ func rebuildResourcesFTS(ctx context.Context, conn *sql.Conn) error {
 	return nil
 }
 
+// scopeColumns lead every scoped table's primary key. Rows that existed
+// before scoping keep empty values, which no Store can open, so they stay
+// in the file but hidden until a resync writes them under a real scope.
+var scopeColumns = []string{"scope_environment", "scope_account"}
+
+// migrateScopeColumns rebuilds every data table that lacks scope columns
+// with (scope_environment, scope_account, <original key>) as its primary
+// key, copying rows in place, then rebuilds the FTS index with the scope.
+// It is idempotent per table, so fresh databases (created in the legacy
+// shape by the migrations slice) and upgraded ones take the same path.
+func migrateScopeColumns(ctx context.Context, conn *sql.Conn) error {
+	rows, err := conn.QueryContext(ctx, `SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'resources_fts%' ORDER BY name`)
+	if err != nil {
+		return fmt.Errorf("listing tables: %w", err)
+	}
+	var tables []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		tables = append(tables, name)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return fmt.Errorf("listing tables: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	for _, table := range tables {
+		columns, err := tableColumns(ctx, conn, "main", table)
+		if err != nil {
+			return err
+		}
+		if hasScopeColumns(columns) {
+			continue
+		}
+		if err := rebuildTableWithScope(ctx, conn, table, columns); err != nil {
+			return fmt.Errorf("scoping %s: %w", table, err)
+		}
+	}
+
+	ftsColumns, err := tableColumns(ctx, conn, "main", "resources_fts")
+	if err != nil {
+		return err
+	}
+	if hasScopeColumns(ftsColumns) {
+		return nil
+	}
+	for _, stmt := range []string{`DROP TABLE IF EXISTS resources_fts`, resourcesFTSScopedCreateSQL} {
+		if _, err := conn.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("recreating resources_fts: %w", err)
+		}
+	}
+	resourceRows, err := conn.QueryContext(ctx, `SELECT scope_environment, scope_account, resource_type, id, data FROM resources`)
+	if err != nil {
+		return fmt.Errorf("reading resources for resources_fts: %w", err)
+	}
+	type indexedRow struct {
+		scope                  Scope
+		resourceType, id, data string
+	}
+	var indexed []indexedRow
+	for resourceRows.Next() {
+		var r indexedRow
+		if err := resourceRows.Scan(&r.scope.Environment, &r.scope.Account, &r.resourceType, &r.id, &r.data); err != nil {
+			_ = resourceRows.Close()
+			return err
+		}
+		indexed = append(indexed, r)
+	}
+	if err := resourceRows.Err(); err != nil {
+		_ = resourceRows.Close()
+		return fmt.Errorf("reading resources for resources_fts: %w", err)
+	}
+	if err := resourceRows.Close(); err != nil {
+		return err
+	}
+	for _, r := range indexed {
+		if _, err := conn.ExecContext(ctx,
+			`INSERT INTO resources_fts (rowid, scope_environment, scope_account, id, resource_type, content) VALUES (?, ?, ?, ?, ?, ?)`,
+			scopedFTSRowID(r.scope, r.resourceType, r.id), r.scope.Environment, r.scope.Account, r.id, r.resourceType, r.data,
+		); err != nil {
+			return fmt.Errorf("rebuilding resources_fts: %w", err)
+		}
+	}
+	return nil
+}
+
+// scopedFTSRowID keys the FTS row by scope as well as resource, so the same
+// resource ID in two scopes never shares (and never deletes) an FTS row.
+func scopedFTSRowID(scope Scope, resourceType, id string) int64 {
+	return ftsRowID(scope.Environment+"\x00"+scope.Account+"\x00"+resourceType, id)
+}
+
+type tableColumn struct {
+	name, declType, defaultValue string
+	notNull                      bool
+	pkOrder                      int
+}
+
+func tableColumns(ctx context.Context, q interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}, schema, table string) ([]tableColumn, error) {
+	rows, err := q.QueryContext(ctx, `SELECT name, type, "notnull", dflt_value, pk FROM pragma_table_info(?, ?) ORDER BY cid`, table, schema)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s.%s columns: %w", schema, table, err)
+	}
+	defer rows.Close()
+	var columns []tableColumn
+	for rows.Next() {
+		var c tableColumn
+		var dflt sql.NullString
+		if err := rows.Scan(&c.name, &c.declType, &c.notNull, &dflt, &c.pkOrder); err != nil {
+			return nil, err
+		}
+		c.defaultValue = dflt.String
+		columns = append(columns, c)
+	}
+	return columns, rows.Err()
+}
+
+func hasScopeColumns(columns []tableColumn) bool {
+	for _, c := range columns {
+		if c.name == scopeColumns[0] {
+			return true
+		}
+	}
+	return false
+}
+
+func quoteIdent(name string) string {
+	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
+}
+
+func rebuildTableWithScope(ctx context.Context, conn *sql.Conn, table string, columns []tableColumn) error {
+	indexRows, err := conn.QueryContext(ctx, `SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = ? AND sql IS NOT NULL`, table)
+	if err != nil {
+		return err
+	}
+	var indexes []string
+	for indexRows.Next() {
+		var ddl string
+		if err := indexRows.Scan(&ddl); err != nil {
+			_ = indexRows.Close()
+			return err
+		}
+		indexes = append(indexes, ddl)
+	}
+	if err := indexRows.Err(); err != nil {
+		_ = indexRows.Close()
+		return err
+	}
+	if err := indexRows.Close(); err != nil {
+		return err
+	}
+
+	defs := []string{`"scope_environment" TEXT NOT NULL DEFAULT ''`, `"scope_account" TEXT NOT NULL DEFAULT ''`}
+	names := make([]string, 0, len(columns))
+	key := []string{quoteIdent(scopeColumns[0]), quoteIdent(scopeColumns[1])}
+	pk := make([]string, len(columns)+1)
+	for _, c := range columns {
+		def := quoteIdent(c.name) + " " + c.declType
+		if c.notNull {
+			def += " NOT NULL"
+		}
+		if c.defaultValue != "" {
+			def += " DEFAULT " + c.defaultValue
+		}
+		defs = append(defs, def)
+		names = append(names, quoteIdent(c.name))
+		if c.pkOrder > 0 {
+			pk[c.pkOrder] = quoteIdent(c.name)
+		}
+	}
+	for _, name := range pk {
+		if name != "" {
+			key = append(key, name)
+		}
+	}
+	defs = append(defs, "PRIMARY KEY ("+strings.Join(key, ", ")+")")
+
+	scoped := table + "__scoped"
+	columnList := strings.Join(names, ", ")
+	for _, stmt := range []string{
+		fmt.Sprintf(`CREATE TABLE %s (%s)`, quoteIdent(scoped), strings.Join(defs, ", ")),
+		fmt.Sprintf(`INSERT INTO %s (%s) SELECT %s FROM %s ORDER BY rowid`, quoteIdent(scoped), columnList, columnList, quoteIdent(table)),
+		fmt.Sprintf(`DROP TABLE %s`, quoteIdent(table)),
+		fmt.Sprintf(`ALTER TABLE %s RENAME TO %s`, quoteIdent(scoped), quoteIdent(table)),
+	} {
+		if _, err := conn.ExecContext(ctx, stmt); err != nil {
+			return err
+		}
+	}
+	for _, ddl := range indexes {
+		if _, err := conn.ExecContext(ctx, ddl); err != nil {
+			return fmt.Errorf("recreating index: %w", err)
+		}
+	}
+	return nil
+}
+
 const (
 	migrationLockTimeout    = 30 * time.Second
 	migrationLockBackoffMin = 5 * time.Millisecond
@@ -1040,16 +1253,16 @@ func isSQLiteBusy(err error) bool {
 
 func (s *Store) upsertGenericResourceTx(tx *sql.Tx, resourceType, id string, data json.RawMessage) error {
 	_, err := tx.Exec(
-		`INSERT INTO resources (id, resource_type, data, synced_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?)
-		 ON CONFLICT(resource_type, id) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at, updated_at = excluded.updated_at`,
-		id, resourceType, string(data), time.Now(), time.Now(),
+		`INSERT INTO resources (scope_environment, scope_account, id, resource_type, data, synced_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT(scope_environment, scope_account, resource_type, id) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at, updated_at = excluded.updated_at`,
+		s.scope.Environment, s.scope.Account, id, resourceType, string(data), time.Now(), time.Now(),
 	)
 	if err != nil {
 		return err
 	}
 
-	ftsRowid := ftsRowID(resourceType, id)
+	ftsRowid := scopedFTSRowID(s.scope, resourceType, id)
 	// Use explicit rowid for FTS5 compatibility with modernc.org/sqlite.
 	// Standard DELETE WHERE column=? may not work on FTS5 virtual tables.
 	if _, err = tx.Exec(`DELETE FROM resources_fts WHERE rowid = ?`, ftsRowid); err != nil {
@@ -1057,9 +1270,9 @@ func (s *Store) upsertGenericResourceTx(tx *sql.Tx, resourceType, id string, dat
 	}
 
 	if _, err = tx.Exec(
-		`INSERT INTO resources_fts (rowid, id, resource_type, content)
-		 VALUES (?, ?, ?, ?)`,
-		ftsRowid, id, resourceType, string(data),
+		`INSERT INTO resources_fts (rowid, scope_environment, scope_account, id, resource_type, content)
+		 VALUES (?, ?, ?, ?, ?, ?)`,
+		ftsRowid, s.scope.Environment, s.scope.Account, id, resourceType, string(data),
 	); err != nil {
 		// FTS insert failure is non-fatal
 		fmt.Fprintf(os.Stderr, "warning: FTS index update failed: %v\n", err)
@@ -1089,8 +1302,8 @@ func (s *Store) Upsert(resourceType, id string, data json.RawMessage) error {
 func (s *Store) Get(resourceType, id string) (json.RawMessage, error) {
 	var data string
 	err := s.db.QueryRow(
-		`SELECT data FROM resources WHERE resource_type = ? AND id = ?`,
-		resourceType, id,
+		`SELECT data FROM resources WHERE scope_environment = ? AND scope_account = ? AND resource_type = ? AND id = ?`,
+		s.scope.Environment, s.scope.Account, resourceType, id,
 	).Scan(&data)
 	if err != nil {
 		return nil, err
@@ -1109,8 +1322,8 @@ func (s *Store) List(resourceType string, limit int) ([]json.RawMessage, error) 
 		limit = -1
 	}
 	rows, err := s.db.Query(
-		`SELECT data FROM resources WHERE resource_type = ? ORDER BY updated_at DESC LIMIT ?`,
-		resourceType, limit,
+		`SELECT data FROM resources WHERE scope_environment = ? AND scope_account = ? AND resource_type = ? ORDER BY updated_at DESC LIMIT ?`,
+		s.scope.Environment, s.scope.Account, resourceType, limit,
 	)
 	if err != nil {
 		return nil, err
@@ -1144,8 +1357,9 @@ func (s *Store) search(query, resourceType string, limit int) ([]json.RawMessage
 	}
 	statement := `SELECT r.data FROM resources r
 		JOIN resources_fts f ON r.id = f.id AND r.resource_type = f.resource_type
-		WHERE resources_fts MATCH ?`
-	args := []any{query}
+			AND r.scope_environment = f.scope_environment AND r.scope_account = f.scope_account
+		WHERE resources_fts MATCH ? AND f.scope_environment = ? AND f.scope_account = ?`
+	args := []any{query, s.scope.Environment, s.scope.Account}
 	if resourceType != "" {
 		statement += ` AND r.resource_type = ?`
 		args = append(args, resourceType)
@@ -1250,9 +1464,11 @@ func lookupFieldValue(obj map[string]any, snakeKey string) any {
 // opening a per-item transaction.
 func (s *Store) upsertAccountsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "accounts" ("id", "data", "synced_at", "response_type", "access_level", "created_at", "external_id", "organization_id", "status", "type", "updated_at")
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "response_type" = excluded."response_type", "access_level" = excluded."access_level", "created_at" = excluded."created_at", "external_id" = excluded."external_id", "organization_id" = excluded."organization_id", "status" = excluded."status", "type" = excluded."type", "updated_at" = excluded."updated_at"`,
+		`INSERT INTO "accounts" ("scope_environment", "scope_account", "id", "data", "synced_at", "response_type", "access_level", "created_at", "external_id", "organization_id", "status", "type", "updated_at")
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "response_type" = excluded."response_type", "access_level" = excluded."access_level", "created_at" = excluded."created_at", "external_id" = excluded."external_id", "organization_id" = excluded."organization_id", "status" = excluded."status", "type" = excluded."type", "updated_at" = excluded."updated_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		string(data),
 		time.Now(),
@@ -1315,9 +1531,11 @@ func (s *Store) upsertCapabilityRequestsTx(tx *sql.Tx, id string, obj map[string
 		accountsID = lookupFieldValue(obj, "parent_id")
 	}
 	if _, err := tx.Exec(
-		`INSERT INTO "capability_requests" ("id", "accounts_id", "data", "synced_at", "parent_id")
-		 VALUES (?, ?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "accounts_id" = excluded."accounts_id", "data" = excluded."data", "synced_at" = excluded."synced_at", "parent_id" = excluded."parent_id"`,
+		`INSERT INTO "capability_requests" ("scope_environment", "scope_account", "id", "accounts_id", "data", "synced_at", "parent_id")
+		 VALUES (?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "accounts_id" = excluded."accounts_id", "data" = excluded."data", "synced_at" = excluded."synced_at", "parent_id" = excluded."parent_id"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		accountsID,
 		string(data),
@@ -1367,9 +1585,11 @@ func (s *Store) UpsertCapabilityRequests(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertOnboardTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "onboard" ("id", "accounts_id", "data", "synced_at")
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "accounts_id" = excluded."accounts_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		`INSERT INTO "onboard" ("scope_environment", "scope_account", "id", "accounts_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "accounts_id" = excluded."accounts_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		lookupFieldValue(obj, "accounts_id"),
 		string(data),
@@ -1418,9 +1638,11 @@ func (s *Store) UpsertOnboard(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertSimulateTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "simulate" ("id", "accounts_id", "data", "synced_at")
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "accounts_id" = excluded."accounts_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		`INSERT INTO "simulate" ("scope_environment", "scope_account", "id", "accounts_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "accounts_id" = excluded."accounts_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		lookupFieldValue(obj, "accounts_id"),
 		string(data),
@@ -1469,9 +1691,11 @@ func (s *Store) UpsertSimulate(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertBridgeTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "bridge" ("id", "data", "synced_at", "response_type")
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "response_type" = excluded."response_type"`,
+		`INSERT INTO "bridge" ("scope_environment", "scope_account", "id", "data", "synced_at", "response_type")
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "response_type" = excluded."response_type"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		string(data),
 		time.Now(),
@@ -1520,9 +1744,11 @@ func (s *Store) UpsertBridge(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertChargesTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "charges" ("id", "data", "synced_at", "response_type")
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "response_type" = excluded."response_type"`,
+		`INSERT INTO "charges" ("scope_environment", "scope_account", "id", "data", "synced_at", "response_type")
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "response_type" = excluded."response_type"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		string(data),
 		time.Now(),
@@ -1571,9 +1797,11 @@ func (s *Store) UpsertCharges(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertChargesCancelTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "charges_cancel" ("id", "charges_id", "data", "synced_at")
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "charges_id" = excluded."charges_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		`INSERT INTO "charges_cancel" ("scope_environment", "scope_account", "id", "charges_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "charges_id" = excluded."charges_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		lookupFieldValue(obj, "charges_id"),
 		string(data),
@@ -1622,9 +1850,11 @@ func (s *Store) UpsertChargesCancel(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertChargesHoldTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "charges_hold" ("id", "charges_id", "data", "synced_at")
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "charges_id" = excluded."charges_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		`INSERT INTO "charges_hold" ("scope_environment", "scope_account", "id", "charges_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "charges_id" = excluded."charges_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		lookupFieldValue(obj, "charges_id"),
 		string(data),
@@ -1673,9 +1903,11 @@ func (s *Store) UpsertChargesHold(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertChargesReleaseTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "charges_release" ("id", "charges_id", "data", "synced_at")
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "charges_id" = excluded."charges_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		`INSERT INTO "charges_release" ("scope_environment", "scope_account", "id", "charges_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "charges_id" = excluded."charges_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		lookupFieldValue(obj, "charges_id"),
 		string(data),
@@ -1724,9 +1956,11 @@ func (s *Store) UpsertChargesRelease(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertChargesResubmitTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "charges_resubmit" ("id", "charges_id", "data", "synced_at")
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "charges_id" = excluded."charges_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		`INSERT INTO "charges_resubmit" ("scope_environment", "scope_account", "id", "charges_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "charges_id" = excluded."charges_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		lookupFieldValue(obj, "charges_id"),
 		string(data),
@@ -1775,9 +2009,11 @@ func (s *Store) UpsertChargesResubmit(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertChargesUnmaskTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "charges_unmask" ("id", "charges_id", "data", "synced_at")
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "charges_id" = excluded."charges_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		`INSERT INTO "charges_unmask" ("scope_environment", "scope_account", "id", "charges_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "charges_id" = excluded."charges_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		lookupFieldValue(obj, "charges_id"),
 		string(data),
@@ -1826,9 +2062,11 @@ func (s *Store) UpsertChargesUnmask(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertCustomersTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "customers" ("id", "data", "synced_at", "response_type", "created_at", "email", "external_id", "name", "phone", "status", "type", "updated_at")
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "response_type" = excluded."response_type", "created_at" = excluded."created_at", "email" = excluded."email", "external_id" = excluded."external_id", "name" = excluded."name", "phone" = excluded."phone", "status" = excluded."status", "type" = excluded."type", "updated_at" = excluded."updated_at"`,
+		`INSERT INTO "customers" ("scope_environment", "scope_account", "id", "data", "synced_at", "response_type", "created_at", "email", "external_id", "name", "phone", "status", "type", "updated_at")
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "response_type" = excluded."response_type", "created_at" = excluded."created_at", "email" = excluded."email", "external_id" = excluded."external_id", "name" = excluded."name", "phone" = excluded."phone", "status" = excluded."status", "type" = excluded."type", "updated_at" = excluded."updated_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		string(data),
 		time.Now(),
@@ -1885,9 +2123,11 @@ func (s *Store) UpsertCustomers(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertCustomersRefreshReviewTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "customers_refresh_review" ("id", "customers_id", "data", "synced_at")
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "customers_id" = excluded."customers_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		`INSERT INTO "customers_refresh_review" ("scope_environment", "scope_account", "id", "customers_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "customers_id" = excluded."customers_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		lookupFieldValue(obj, "customers_id"),
 		string(data),
@@ -1936,9 +2176,11 @@ func (s *Store) UpsertCustomersRefreshReview(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertCustomersReviewTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "customers_review" ("id", "customers_id", "data", "synced_at")
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "customers_id" = excluded."customers_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		`INSERT INTO "customers_review" ("scope_environment", "scope_account", "id", "customers_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "customers_id" = excluded."customers_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		lookupFieldValue(obj, "customers_id"),
 		string(data),
@@ -1987,9 +2229,11 @@ func (s *Store) UpsertCustomersReview(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertCustomersUnmaskedTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "customers_unmasked" ("id", "customers_id", "data", "synced_at")
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "customers_id" = excluded."customers_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		`INSERT INTO "customers_unmasked" ("scope_environment", "scope_account", "id", "customers_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "customers_id" = excluded."customers_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		lookupFieldValue(obj, "customers_id"),
 		string(data),
@@ -2038,9 +2282,11 @@ func (s *Store) UpsertCustomersUnmasked(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertFundingEventPaymentsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "funding_event_payments" ("id", "data", "synced_at", "currency", "external_id", "funding_amount", "payment_amount", "payment_date", "payment_type", "reason", "status")
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "currency" = excluded."currency", "external_id" = excluded."external_id", "funding_amount" = excluded."funding_amount", "payment_amount" = excluded."payment_amount", "payment_date" = excluded."payment_date", "payment_type" = excluded."payment_type", "reason" = excluded."reason", "status" = excluded."status"`,
+		`INSERT INTO "funding_event_payments" ("scope_environment", "scope_account", "id", "data", "synced_at", "currency", "external_id", "funding_amount", "payment_amount", "payment_date", "payment_type", "reason", "status")
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "currency" = excluded."currency", "external_id" = excluded."external_id", "funding_amount" = excluded."funding_amount", "payment_amount" = excluded."payment_amount", "payment_date" = excluded."payment_date", "payment_type" = excluded."payment_type", "reason" = excluded."reason", "status" = excluded."status"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		string(data),
 		time.Now(),
@@ -2096,9 +2342,11 @@ func (s *Store) UpsertFundingEventPayments(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertFundingEventsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "funding_events" ("id", "data", "synced_at", "response_type", "amount", "created_at", "direction", "event_type", "payment_count", "status", "trace_number", "transfer_date", "updated_at")
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "response_type" = excluded."response_type", "amount" = excluded."amount", "created_at" = excluded."created_at", "direction" = excluded."direction", "event_type" = excluded."event_type", "payment_count" = excluded."payment_count", "status" = excluded."status", "trace_number" = excluded."trace_number", "transfer_date" = excluded."transfer_date", "updated_at" = excluded."updated_at"`,
+		`INSERT INTO "funding_events" ("scope_environment", "scope_account", "id", "data", "synced_at", "response_type", "amount", "created_at", "direction", "event_type", "payment_count", "status", "trace_number", "transfer_date", "updated_at")
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "response_type" = excluded."response_type", "amount" = excluded."amount", "created_at" = excluded."created_at", "direction" = excluded."direction", "event_type" = excluded."event_type", "payment_count" = excluded."payment_count", "status" = excluded."status", "trace_number" = excluded."trace_number", "transfer_date" = excluded."transfer_date", "updated_at" = excluded."updated_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		string(data),
 		time.Now(),
@@ -2156,9 +2404,11 @@ func (s *Store) UpsertFundingEvents(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertLinkedBankAccountsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "linked_bank_accounts" ("id", "data", "synced_at", "response_type", "account_id", "created_at", "description", "platform_id", "status", "updated_at")
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "response_type" = excluded."response_type", "account_id" = excluded."account_id", "created_at" = excluded."created_at", "description" = excluded."description", "platform_id" = excluded."platform_id", "status" = excluded."status", "updated_at" = excluded."updated_at"`,
+		`INSERT INTO "linked_bank_accounts" ("scope_environment", "scope_account", "id", "data", "synced_at", "response_type", "account_id", "created_at", "description", "platform_id", "status", "updated_at")
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "response_type" = excluded."response_type", "account_id" = excluded."account_id", "created_at" = excluded."created_at", "description" = excluded."description", "platform_id" = excluded."platform_id", "status" = excluded."status", "updated_at" = excluded."updated_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		string(data),
 		time.Now(),
@@ -2213,9 +2463,11 @@ func (s *Store) UpsertLinkedBankAccounts(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertLinkedBankAccountsCancelTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "linked_bank_accounts_cancel" ("id", "linked_bank_accounts_id", "data", "synced_at")
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "linked_bank_accounts_id" = excluded."linked_bank_accounts_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		`INSERT INTO "linked_bank_accounts_cancel" ("scope_environment", "scope_account", "id", "linked_bank_accounts_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "linked_bank_accounts_id" = excluded."linked_bank_accounts_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		lookupFieldValue(obj, "linked_bank_accounts_id"),
 		string(data),
@@ -2264,9 +2516,11 @@ func (s *Store) UpsertLinkedBankAccountsCancel(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertLinkedBankAccountsUnmaskTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "linked_bank_accounts_unmask" ("id", "linked_bank_accounts_id", "data", "synced_at")
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "linked_bank_accounts_id" = excluded."linked_bank_accounts_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		`INSERT INTO "linked_bank_accounts_unmask" ("scope_environment", "scope_account", "id", "linked_bank_accounts_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "linked_bank_accounts_id" = excluded."linked_bank_accounts_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		lookupFieldValue(obj, "linked_bank_accounts_id"),
 		string(data),
@@ -2315,9 +2569,11 @@ func (s *Store) UpsertLinkedBankAccountsUnmask(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertOrganizationsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "organizations" ("id", "data", "synced_at", "response_type", "created_at", "external_id", "name", "updated_at")
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "response_type" = excluded."response_type", "created_at" = excluded."created_at", "external_id" = excluded."external_id", "name" = excluded."name", "updated_at" = excluded."updated_at"`,
+		`INSERT INTO "organizations" ("scope_environment", "scope_account", "id", "data", "synced_at", "response_type", "created_at", "external_id", "name", "updated_at")
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "response_type" = excluded."response_type", "created_at" = excluded."created_at", "external_id" = excluded."external_id", "name" = excluded."name", "updated_at" = excluded."updated_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		string(data),
 		time.Now(),
@@ -2370,9 +2626,11 @@ func (s *Store) UpsertOrganizations(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertPaykeysTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "paykeys" ("id", "data", "synced_at", "response_type", "created_at", "customer_id", "expires_at", "external_id", "institution_name", "label", "paykey", "source", "status", "unblock_eligible", "updated_at")
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "response_type" = excluded."response_type", "created_at" = excluded."created_at", "customer_id" = excluded."customer_id", "expires_at" = excluded."expires_at", "external_id" = excluded."external_id", "institution_name" = excluded."institution_name", "label" = excluded."label", "paykey" = excluded."paykey", "source" = excluded."source", "status" = excluded."status", "unblock_eligible" = excluded."unblock_eligible", "updated_at" = excluded."updated_at"`,
+		`INSERT INTO "paykeys" ("scope_environment", "scope_account", "id", "data", "synced_at", "response_type", "created_at", "customer_id", "expires_at", "external_id", "institution_name", "label", "paykey", "source", "status", "unblock_eligible", "updated_at")
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "response_type" = excluded."response_type", "created_at" = excluded."created_at", "customer_id" = excluded."customer_id", "expires_at" = excluded."expires_at", "external_id" = excluded."external_id", "institution_name" = excluded."institution_name", "label" = excluded."label", "paykey" = excluded."paykey", "source" = excluded."source", "status" = excluded."status", "unblock_eligible" = excluded."unblock_eligible", "updated_at" = excluded."updated_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		string(data),
 		time.Now(),
@@ -2432,9 +2690,11 @@ func (s *Store) UpsertPaykeys(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertPaykeysCancelTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "paykeys_cancel" ("id", "paykeys_id", "data", "synced_at")
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "paykeys_id" = excluded."paykeys_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		`INSERT INTO "paykeys_cancel" ("scope_environment", "scope_account", "id", "paykeys_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "paykeys_id" = excluded."paykeys_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		lookupFieldValue(obj, "paykeys_id"),
 		string(data),
@@ -2483,9 +2743,11 @@ func (s *Store) UpsertPaykeysCancel(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertRefreshBalanceTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "refresh_balance" ("id", "paykeys_id", "data", "synced_at")
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "paykeys_id" = excluded."paykeys_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		`INSERT INTO "refresh_balance" ("scope_environment", "scope_account", "id", "paykeys_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "paykeys_id" = excluded."paykeys_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		lookupFieldValue(obj, "paykeys_id"),
 		string(data),
@@ -2534,9 +2796,11 @@ func (s *Store) UpsertRefreshBalance(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertPaykeysRefreshReviewTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "paykeys_refresh_review" ("id", "paykeys_id", "data", "synced_at")
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "paykeys_id" = excluded."paykeys_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		`INSERT INTO "paykeys_refresh_review" ("scope_environment", "scope_account", "id", "paykeys_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "paykeys_id" = excluded."paykeys_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		lookupFieldValue(obj, "paykeys_id"),
 		string(data),
@@ -2585,9 +2849,11 @@ func (s *Store) UpsertPaykeysRefreshReview(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertRevealTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "reveal" ("id", "paykeys_id", "data", "synced_at")
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "paykeys_id" = excluded."paykeys_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		`INSERT INTO "reveal" ("scope_environment", "scope_account", "id", "paykeys_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "paykeys_id" = excluded."paykeys_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		lookupFieldValue(obj, "paykeys_id"),
 		string(data),
@@ -2636,9 +2902,11 @@ func (s *Store) UpsertReveal(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertPaykeysReviewTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "paykeys_review" ("id", "paykeys_id", "data", "synced_at")
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "paykeys_id" = excluded."paykeys_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		`INSERT INTO "paykeys_review" ("scope_environment", "scope_account", "id", "paykeys_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "paykeys_id" = excluded."paykeys_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		lookupFieldValue(obj, "paykeys_id"),
 		string(data),
@@ -2687,9 +2955,11 @@ func (s *Store) UpsertPaykeysReview(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertUnblockTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "unblock" ("id", "paykeys_id", "data", "synced_at")
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "paykeys_id" = excluded."paykeys_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		`INSERT INTO "unblock" ("scope_environment", "scope_account", "id", "paykeys_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "paykeys_id" = excluded."paykeys_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		lookupFieldValue(obj, "paykeys_id"),
 		string(data),
@@ -2738,9 +3008,11 @@ func (s *Store) UpsertUnblock(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertPaykeysUnmaskedTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "paykeys_unmasked" ("id", "paykeys_id", "data", "synced_at")
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "paykeys_id" = excluded."paykeys_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		`INSERT INTO "paykeys_unmasked" ("scope_environment", "scope_account", "id", "paykeys_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "paykeys_id" = excluded."paykeys_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		lookupFieldValue(obj, "paykeys_id"),
 		string(data),
@@ -2789,9 +3061,11 @@ func (s *Store) UpsertPaykeysUnmasked(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertPaymentsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "payments" ("id", "data", "synced_at", "amount", "created_at", "currency", "description", "effective_at", "external_id", "funding_id", "paykey", "payment_date", "payment_type", "status", "updated_at")
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "amount" = excluded."amount", "created_at" = excluded."created_at", "currency" = excluded."currency", "description" = excluded."description", "effective_at" = excluded."effective_at", "external_id" = excluded."external_id", "funding_id" = excluded."funding_id", "paykey" = excluded."paykey", "payment_date" = excluded."payment_date", "payment_type" = excluded."payment_type", "status" = excluded."status", "updated_at" = excluded."updated_at"`,
+		`INSERT INTO "payments" ("scope_environment", "scope_account", "id", "data", "synced_at", "amount", "created_at", "currency", "description", "effective_at", "external_id", "funding_id", "paykey", "payment_date", "payment_type", "status", "updated_at")
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "amount" = excluded."amount", "created_at" = excluded."created_at", "currency" = excluded."currency", "description" = excluded."description", "effective_at" = excluded."effective_at", "external_id" = excluded."external_id", "funding_id" = excluded."funding_id", "paykey" = excluded."paykey", "payment_date" = excluded."payment_date", "payment_type" = excluded."payment_type", "status" = excluded."status", "updated_at" = excluded."updated_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		string(data),
 		time.Now(),
@@ -2851,9 +3125,11 @@ func (s *Store) UpsertPayments(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertPayoutsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "payouts" ("id", "data", "synced_at", "response_type")
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "response_type" = excluded."response_type"`,
+		`INSERT INTO "payouts" ("scope_environment", "scope_account", "id", "data", "synced_at", "response_type")
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "response_type" = excluded."response_type"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		string(data),
 		time.Now(),
@@ -2902,9 +3178,11 @@ func (s *Store) UpsertPayouts(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertPayoutsCancelTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "payouts_cancel" ("id", "payouts_id", "data", "synced_at")
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "payouts_id" = excluded."payouts_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		`INSERT INTO "payouts_cancel" ("scope_environment", "scope_account", "id", "payouts_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "payouts_id" = excluded."payouts_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		lookupFieldValue(obj, "payouts_id"),
 		string(data),
@@ -2953,9 +3231,11 @@ func (s *Store) UpsertPayoutsCancel(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertPayoutsHoldTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "payouts_hold" ("id", "payouts_id", "data", "synced_at")
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "payouts_id" = excluded."payouts_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		`INSERT INTO "payouts_hold" ("scope_environment", "scope_account", "id", "payouts_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "payouts_id" = excluded."payouts_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		lookupFieldValue(obj, "payouts_id"),
 		string(data),
@@ -3004,9 +3284,11 @@ func (s *Store) UpsertPayoutsHold(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertPayoutsReleaseTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "payouts_release" ("id", "payouts_id", "data", "synced_at")
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "payouts_id" = excluded."payouts_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		`INSERT INTO "payouts_release" ("scope_environment", "scope_account", "id", "payouts_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "payouts_id" = excluded."payouts_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		lookupFieldValue(obj, "payouts_id"),
 		string(data),
@@ -3055,9 +3337,11 @@ func (s *Store) UpsertPayoutsRelease(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertPayoutsResubmitTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "payouts_resubmit" ("id", "payouts_id", "data", "synced_at")
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "payouts_id" = excluded."payouts_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		`INSERT INTO "payouts_resubmit" ("scope_environment", "scope_account", "id", "payouts_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "payouts_id" = excluded."payouts_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		lookupFieldValue(obj, "payouts_id"),
 		string(data),
@@ -3106,9 +3390,11 @@ func (s *Store) UpsertPayoutsResubmit(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertPayoutsUnmaskTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "payouts_unmask" ("id", "payouts_id", "data", "synced_at")
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "payouts_id" = excluded."payouts_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		`INSERT INTO "payouts_unmask" ("scope_environment", "scope_account", "id", "payouts_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "payouts_id" = excluded."payouts_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		lookupFieldValue(obj, "payouts_id"),
 		string(data),
@@ -3157,9 +3443,11 @@ func (s *Store) UpsertPayoutsUnmask(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertRepresentativesTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "representatives" ("id", "data", "synced_at", "response_type", "account_id", "created_at", "dob", "email", "external_id", "first_name", "last_name", "mobile_number", "name", "phone", "ssn_last4", "status", "updated_at", "user_id")
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "response_type" = excluded."response_type", "account_id" = excluded."account_id", "created_at" = excluded."created_at", "dob" = excluded."dob", "email" = excluded."email", "external_id" = excluded."external_id", "first_name" = excluded."first_name", "last_name" = excluded."last_name", "mobile_number" = excluded."mobile_number", "name" = excluded."name", "phone" = excluded."phone", "ssn_last4" = excluded."ssn_last4", "status" = excluded."status", "updated_at" = excluded."updated_at", "user_id" = excluded."user_id"`,
+		`INSERT INTO "representatives" ("scope_environment", "scope_account", "id", "data", "synced_at", "response_type", "account_id", "created_at", "dob", "email", "external_id", "first_name", "last_name", "mobile_number", "name", "phone", "ssn_last4", "status", "updated_at", "user_id")
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "response_type" = excluded."response_type", "account_id" = excluded."account_id", "created_at" = excluded."created_at", "dob" = excluded."dob", "email" = excluded."email", "external_id" = excluded."external_id", "first_name" = excluded."first_name", "last_name" = excluded."last_name", "mobile_number" = excluded."mobile_number", "name" = excluded."name", "phone" = excluded."phone", "ssn_last4" = excluded."ssn_last4", "status" = excluded."status", "updated_at" = excluded."updated_at", "user_id" = excluded."user_id"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		string(data),
 		time.Now(),
@@ -3222,9 +3510,11 @@ func (s *Store) UpsertRepresentatives(data json.RawMessage) error {
 // opening a per-item transaction.
 func (s *Store) upsertRepresentativesUnmaskTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO "representatives_unmask" ("id", "representatives_id", "data", "synced_at")
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT("id") DO UPDATE SET "representatives_id" = excluded."representatives_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		`INSERT INTO "representatives_unmask" ("scope_environment", "scope_account", "id", "representatives_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("scope_environment", "scope_account", "id") DO UPDATE SET "representatives_id" = excluded."representatives_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		s.scope.Environment,
+		s.scope.Account,
 		id,
 		lookupFieldValue(obj, "representatives_id"),
 		string(data),
@@ -3491,19 +3781,19 @@ func (s *Store) SaveSyncState(resourceType, cursor string, count int) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	_, err := s.db.Exec(
-		`INSERT INTO sync_state (resource_type, last_cursor, last_synced_at, total_count)
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT(resource_type) DO UPDATE SET last_cursor = excluded.last_cursor,
+		`INSERT INTO sync_state (scope_environment, scope_account, resource_type, last_cursor, last_synced_at, total_count)
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT(scope_environment, scope_account, resource_type) DO UPDATE SET last_cursor = excluded.last_cursor,
 		 last_synced_at = excluded.last_synced_at, total_count = excluded.total_count`,
-		resourceType, cursor, time.Now(), count,
+		s.scope.Environment, s.scope.Account, resourceType, cursor, time.Now(), count,
 	)
 	return err
 }
 
 func (s *Store) GetSyncState(resourceType string) (cursor string, lastSynced time.Time, count int, err error) {
 	err = s.db.QueryRow(
-		`SELECT last_cursor, last_synced_at, total_count FROM sync_state WHERE resource_type = ?`,
-		resourceType,
+		`SELECT last_cursor, last_synced_at, total_count FROM sync_state WHERE scope_environment = ? AND scope_account = ? AND resource_type = ?`,
+		s.scope.Environment, s.scope.Account, resourceType,
 	).Scan(&cursor, &lastSynced, &count)
 	if err == sql.ErrNoRows {
 		return "", time.Time{}, 0, nil
@@ -3516,10 +3806,10 @@ func (s *Store) SaveSyncCursor(resourceType, cursor string) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	_, err := s.db.Exec(
-		`INSERT INTO sync_state (resource_type, last_cursor, last_synced_at, total_count)
-		 VALUES (?, ?, CURRENT_TIMESTAMP, 0)
-		 ON CONFLICT(resource_type) DO UPDATE SET last_cursor = ?, last_synced_at = CURRENT_TIMESTAMP`,
-		resourceType, cursor, cursor,
+		`INSERT INTO sync_state (scope_environment, scope_account, resource_type, last_cursor, last_synced_at, total_count)
+		 VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, 0)
+		 ON CONFLICT(scope_environment, scope_account, resource_type) DO UPDATE SET last_cursor = excluded.last_cursor, last_synced_at = CURRENT_TIMESTAMP`,
+		s.scope.Environment, s.scope.Account, resourceType, cursor,
 	)
 	return err
 }
@@ -3527,7 +3817,7 @@ func (s *Store) SaveSyncCursor(resourceType, cursor string) error {
 // GetSyncCursor returns the last pagination cursor for a resource type.
 func (s *Store) GetSyncCursor(resourceType string) string {
 	var cursor sql.NullString
-	_ = s.db.QueryRow("SELECT last_cursor FROM sync_state WHERE resource_type = ?", resourceType).Scan(&cursor)
+	_ = s.db.QueryRow("SELECT last_cursor FROM sync_state WHERE scope_environment = ? AND scope_account = ? AND resource_type = ?", s.scope.Environment, s.scope.Account, resourceType).Scan(&cursor)
 	if cursor.Valid {
 		return cursor.String
 	}
@@ -3548,11 +3838,11 @@ func (s *Store) ListIDs(resourceType string) ([]string, error) {
 	).Scan(&table)
 	var rows *sql.Rows
 	if err == nil && table != "" {
-		rows, err = s.db.Query(fmt.Sprintf(`SELECT id FROM "%s"`, strings.ReplaceAll(table, `"`, `""`)))
+		rows, err = s.db.Query(fmt.Sprintf(`SELECT id FROM "%s" WHERE scope_environment = ? AND scope_account = ?`, strings.ReplaceAll(table, `"`, `""`)), s.scope.Environment, s.scope.Account)
 	}
 	if err != nil || table == "" {
 		// Fall back to generic resources table
-		rows, err = s.db.Query("SELECT id FROM resources WHERE resource_type = ?", resourceType)
+		rows, err = s.db.Query("SELECT id FROM resources WHERE scope_environment = ? AND scope_account = ? AND resource_type = ?", s.scope.Environment, s.scope.Account, resourceType)
 		if err != nil {
 			return nil, err
 		}
@@ -3610,9 +3900,9 @@ func (s *Store) ListField(resourceType, field string) ([]string, error) {
 			// key_field value (legal for non-PK fields) would otherwise
 			// cause the child endpoint to be fetched once per duplicate row.
 			rows, err = s.db.Query(fmt.Sprintf(
-				`SELECT DISTINCT "%s" FROM "%s" WHERE "%s" IS NOT NULL AND "%s" != ''`,
+				`SELECT DISTINCT "%s" FROM "%s" WHERE scope_environment = ? AND scope_account = ? AND "%s" IS NOT NULL AND "%s" != ''`,
 				qCol, qTable, qCol, qCol,
-			))
+			), s.scope.Environment, s.scope.Account)
 		} else {
 			err = colErr
 		}
@@ -3622,10 +3912,10 @@ func (s *Store) ListField(resourceType, field string) ([]string, error) {
 		// Sprintf'd into the SQL string (matches ResolveByName below).
 		// DISTINCT for the same reason as the typed-column path above.
 		fallback := fmt.Sprintf( //nolint:gosec // field is pinned to identifier shape by validIdentifierRE at entry
-			`SELECT DISTINCT json_extract(data, '$.%s') FROM resources WHERE resource_type = ? AND json_extract(data, '$.%s') IS NOT NULL`,
+			`SELECT DISTINCT json_extract(data, '$.%s') FROM resources WHERE scope_environment = ? AND scope_account = ? AND resource_type = ? AND json_extract(data, '$.%s') IS NOT NULL`,
 			field, field,
 		)
-		rows, err = s.db.Query(fallback, resourceType)
+		rows, err = s.db.Query(fallback, s.scope.Environment, s.scope.Account, resourceType)
 		if err != nil {
 			return nil, err
 		}
@@ -3645,7 +3935,7 @@ func (s *Store) ListField(resourceType, field string) ([]string, error) {
 // GetLastSyncedAt returns the last sync timestamp for a resource type.
 func (s *Store) GetLastSyncedAt(resourceType string) string {
 	var ts sql.NullString
-	_ = s.db.QueryRow("SELECT last_synced_at FROM sync_state WHERE resource_type = ?", resourceType).Scan(&ts)
+	_ = s.db.QueryRow("SELECT last_synced_at FROM sync_state WHERE scope_environment = ? AND scope_account = ? AND resource_type = ?", s.scope.Environment, s.scope.Account, resourceType).Scan(&ts)
 	if ts.Valid {
 		return ts.String
 	}
@@ -3656,28 +3946,23 @@ func (s *Store) GetLastSyncedAt(resourceType string) string {
 func (s *Store) ClearSyncCursors() error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	_, err := s.db.Exec("DELETE FROM sync_state")
+	_, err := s.db.Exec("DELETE FROM sync_state WHERE scope_environment = ? AND scope_account = ?", s.scope.Environment, s.scope.Account)
 	return err
-}
-
-// Query executes a raw SQL query and returns the rows.
-// Used by workflow commands that need custom queries against the local store.
-func (s *Store) Query(query string, args ...any) (*sql.Rows, error) {
-	return s.db.Query(query, args...)
 }
 
 func (s *Store) Count(resourceType string) (int, error) {
 	var count int
 	err := s.db.QueryRow(
-		`SELECT COUNT(*) FROM resources WHERE resource_type = ?`,
-		resourceType,
+		`SELECT COUNT(*) FROM resources WHERE scope_environment = ? AND scope_account = ? AND resource_type = ?`,
+		s.scope.Environment, s.scope.Account, resourceType,
 	).Scan(&count)
 	return count, err
 }
 
 func (s *Store) Status() (map[string]int, error) {
 	rows, err := s.db.Query(
-		`SELECT resource_type, COUNT(*) FROM resources GROUP BY resource_type ORDER BY resource_type`,
+		`SELECT resource_type, COUNT(*) FROM resources WHERE scope_environment = ? AND scope_account = ? GROUP BY resource_type ORDER BY resource_type`,
+		s.scope.Environment, s.scope.Account,
 	)
 	if err != nil {
 		return nil, err
@@ -3714,10 +3999,10 @@ func (s *Store) ResolveByName(resourceType string, input string, matchFields ...
 			continue
 		}
 		query := fmt.Sprintf( //nolint:gosec // field is gated by validIdentifierRE in this loop
-			`SELECT id FROM resources WHERE resource_type = ? AND LOWER(json_extract(data, '$.%s')) = LOWER(?)`,
+			`SELECT id FROM resources WHERE scope_environment = ? AND scope_account = ? AND resource_type = ? AND LOWER(json_extract(data, '$.%s')) = LOWER(?)`,
 			field,
 		)
-		rows, err := s.db.Query(query, resourceType, input)
+		rows, err := s.db.Query(query, s.scope.Environment, s.scope.Account, resourceType, input)
 		if err != nil {
 			continue
 		}
@@ -3754,4 +4039,67 @@ func (s *Store) ResolveByName(resourceType string, input string, matchFields ...
 		}
 		return "", fmt.Errorf("ambiguous: %q matches %d %s entries (%s). Use the exact UUID instead", input, len(matches), resourceType, hint)
 	}
+}
+
+// HiddenLegacyCount reports resources stored before local scoping. They
+// stay in the file but belong to no scope, so no read can return them.
+func (s *Store) HiddenLegacyCount() (int, error) {
+	var count int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM resources WHERE scope_environment = ''`).Scan(&count)
+	return count, err
+}
+
+// SyncState is one resource's sync checkpoint in the store's scope.
+type SyncState struct {
+	ResourceType string
+	TotalCount   int
+	LastSyncedAt sql.NullTime
+}
+
+// SyncStates lists the sync checkpoints recorded in the store's scope.
+func (s *Store) SyncStates() ([]SyncState, error) {
+	rows, err := s.db.Query(
+		`SELECT resource_type, COALESCE(total_count, 0), last_synced_at FROM sync_state WHERE scope_environment = ? AND scope_account = ? ORDER BY resource_type`,
+		s.scope.Environment, s.scope.Account,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var states []SyncState
+	for rows.Next() {
+		var state SyncState
+		if err := rows.Scan(&state.ResourceType, &state.TotalCount, &state.LastSyncedAt); err != nil {
+			return nil, err
+		}
+		states = append(states, state)
+	}
+	return states, rows.Err()
+}
+
+// ScanTable streams the id and data of every row in a typed table within
+// the store's scope. table must name an existing scoped table; it is
+// resolved through sqlite_master before being quoted into the query.
+func (s *Store) ScanTable(ctx context.Context, table string, fn func(id string, data []byte)) error {
+	var name string
+	if err := s.db.QueryRowContext(ctx, `SELECT name FROM sqlite_master WHERE type = 'table' AND name = ? AND name NOT LIKE 'resources_fts%'`, table).Scan(&name); err != nil {
+		return fmt.Errorf("unknown local table %q: %w", table, err)
+	}
+	rows, err := s.db.QueryContext(ctx,
+		fmt.Sprintf(`SELECT id, data FROM %s WHERE scope_environment = ? AND scope_account = ?`, quoteIdent(name)),
+		s.scope.Environment, s.scope.Account,
+	)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		var data []byte
+		if err := rows.Scan(&id, &data); err != nil {
+			continue
+		}
+		fn(id, data)
+	}
+	return rows.Err()
 }

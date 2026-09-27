@@ -12,7 +12,7 @@ Flags:
       --address-city string               City, district, suburb, town, or village.
       --address-state string              Two-letter state code.
       --address-zip string                Zip or postal code.
-      --compliance-profile string         An object containing the customer's compliance profile. **This is optional.** If all required fields must be present...
+      --compliance-profile string         An object containing the customer's compliance profile. **This is optional.** If all required fields must be present... Example: --compliance-profile '{"ein":"12-3456789","legal_business_name":"Acme Corp LLC"}'
       --config-processing-method string   Processing method
       --config-sandbox-outcome string     Sandbox outcome
       --correlation-id string             Optional client-generated identifier for tracing a series of related requests.
@@ -21,7 +21,7 @@ Flags:
       --external-id string                Unique identifier for the customer in your database, used for cross-referencing between Straddle and your systems.
   -h, --help                              help for create
       --idempotency-key string            Optional client-generated key for an idempotent request.
-      --metadata string                   Up to 20 additional user-defined key-value pairs. Useful for storing additional information about the customer in a...
+      --metadata string                   Up to 20 additional user-defined key-value pairs. Useful for storing additional information about the customer in a. JSON object. Example: --metadata '{"key":"value"}'
       --name string                       Full name of the individual or business name.
       --phone string                      The customer's phone number in E.164 format. Mobile number is preferred.
       --request-id string                 Optional client-generated identifier for tracing one request.

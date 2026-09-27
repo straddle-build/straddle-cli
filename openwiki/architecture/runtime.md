@@ -51,7 +51,8 @@ The API sync workflow regenerates every supported contract-derived endpoint comm
 - `Straddle-Account-Id` scoping is centralized in `internal/straddleacct` for every request path.
 - Endpoint annotations use `straddle:endpoint`, `straddle:method`, and `straddle:path`; `agent-context` schema version 4 exposes those keys.
 - Output formatting must stay stable for agent/JSON use cases.
-- The local store is expected by search, SQL, and analytics workflows.
+- The local store is scoped by environment and acting account, and is expected by search, SQL, and analytics workflows.
+* Generated endpoint commands enforce required flags and validate structured JSON values (arrays and objects) locally in both live and dry-run modes before sending any HTTP request.
 
 ## Where to look next
 

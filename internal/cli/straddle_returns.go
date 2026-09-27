@@ -193,5 +193,5 @@ func newReturnsCmd(flags *rootFlags) *cobra.Command {
 	cmd.Flags().StringVar(&dbPath, "db", "", "Database path")
 	cmd.Flags().IntVar(&days, "days", 30, "Only include returns created within this many days (0 = all)")
 	cmd.Flags().BoolVar(&repeatOffenders, "repeat-offenders", false, "Rank paykeys/customers with more than one return")
-	return cmd
+	return markStoreScoped(cmd)
 }

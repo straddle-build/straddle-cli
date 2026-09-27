@@ -380,7 +380,7 @@ func {{ .FuncName }}(flags *rootFlags) *cobra.Command {
 			{{- end }}
 		},
 	}
-	bind := bindSurface(cmd, flags, s)
+	bind := bindSurface(cmd, s)
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		req, err := bind(args)
 		if err != nil {
@@ -420,6 +420,9 @@ func renderSurfaceLiteral(commandSurface surface.Surface) string {
 		}
 		if flag.Array {
 			b.WriteString("\t\t\tArray: true,\n")
+		}
+		if flag.Object {
+			b.WriteString("\t\t\tObject: true,\n")
 		}
 		if flag.Style != "" {
 			fmt.Fprintf(&b, "\t\t\tStyle: %s,\n", surfaceStyleLiteral(flag.Style))

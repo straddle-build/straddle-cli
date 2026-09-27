@@ -4,8 +4,10 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/straddle-build/straddle-cli/internal/surface"
 )
 
 var endpointOverlays = map[string]func(*cobra.Command){}
@@ -47,6 +49,10 @@ func registerCommandOverlay(endpoint string, overlay commandOverlay) {
 			if flag == nil {
 				panic(fmt.Sprintf("endpoint overlay %q references missing flag --%s", endpoint, change.name))
 			}
+			if definition, ok := surfaceFlagDefinition(endpoint, change.name); ok && !strings.Contains(change.usage, "Example: --"+change.name) {
+				definition.Description = change.usage
+				change.usage = surfaceFlagUsage(definition)
+			}
 			flag.Usage = change.usage
 			if change.defaultSet {
 				if err := flag.Value.Set(change.defaultVal); err != nil {
@@ -85,6 +91,20 @@ func registerCommandOverlay(endpoint string, overlay commandOverlay) {
 			cmd.Annotations["straddle:unwrap-response"] = "true"
 		}
 	}
+}
+
+func surfaceFlagDefinition(endpoint, name string) (surface.Flag, bool) {
+	for _, s := range commandSurfaces {
+		if s.Endpoint != endpoint {
+			continue
+		}
+		for _, definition := range s.Flags {
+			if definition.Name == name {
+				return definition, true
+			}
+		}
+	}
+	return surface.Flag{}, false
 }
 
 func applyOverlay(endpoint string, cmd *cobra.Command) {
