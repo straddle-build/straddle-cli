@@ -421,6 +421,9 @@ func renderSurfaceLiteral(commandSurface surface.Surface) string {
 		if flag.Array {
 			b.WriteString("\t\t\tArray: true,\n")
 		}
+		if flag.Object {
+			b.WriteString("\t\t\tObject: true,\n")
+		}
 		if flag.Style != "" {
 			fmt.Fprintf(&b, "\t\t\tStyle: %s,\n", surfaceStyleLiteral(flag.Style))
 		}

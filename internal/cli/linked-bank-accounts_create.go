@@ -84,6 +84,7 @@ func init() {
 				In:          surface.InBody,
 				Key:         "/metadata",
 				Kind:        surface.KindJSON,
+				Object:      true,
 				Description: "Up to 20 user-defined key-value pairs.",
 			},
 			{
@@ -187,6 +188,7 @@ func newLinkedBankAccountsCreateCmd(flags *rootFlags) *cobra.Command {
 				In:          surface.InBody,
 				Key:         "/metadata",
 				Kind:        surface.KindJSON,
+				Object:      true,
 				Description: "Up to 20 user-defined key-value pairs.",
 			},
 			{

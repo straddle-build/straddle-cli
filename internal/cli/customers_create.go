@@ -80,6 +80,7 @@ func init() {
 				In:          surface.InBody,
 				Key:         "/compliance_profile",
 				Kind:        surface.KindJSON,
+				Object:      true,
 				Description: "Customer compliance profile.",
 			},
 			{
@@ -126,6 +127,7 @@ func init() {
 				In:          surface.InBody,
 				Key:         "/metadata",
 				Kind:        surface.KindJSON,
+				Object:      true,
 				Description: "Up to 20 user-defined key-value pairs associated with the customer.",
 			},
 			{
@@ -232,6 +234,7 @@ func newCustomersCreateCmd(flags *rootFlags) *cobra.Command {
 				In:          surface.InBody,
 				Key:         "/compliance_profile",
 				Kind:        surface.KindJSON,
+				Object:      true,
 				Description: "Customer compliance profile.",
 			},
 			{
@@ -278,6 +281,7 @@ func newCustomersCreateCmd(flags *rootFlags) *cobra.Command {
 				In:          surface.InBody,
 				Key:         "/metadata",
 				Kind:        surface.KindJSON,
+				Object:      true,
 				Description: "Up to 20 user-defined key-value pairs associated with the customer.",
 			},
 			{

@@ -75,6 +75,7 @@ func init() {
 				In:          surface.InBody,
 				Key:         "/metadata",
 				Kind:        surface.KindJSON,
+				Object:      true,
 				Description: "Up to 20 user-defined key-value pairs associated with the paykey.",
 			},
 			{
@@ -160,6 +161,7 @@ func newBridgeCreatePlaidPaykeyCmd(flags *rootFlags) *cobra.Command {
 				In:          surface.InBody,
 				Key:         "/metadata",
 				Kind:        surface.KindJSON,
+				Object:      true,
 				Description: "Up to 20 user-defined key-value pairs associated with the paykey.",
 			},
 			{

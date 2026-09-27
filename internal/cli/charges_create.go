@@ -129,6 +129,7 @@ func init() {
 				In:          surface.InBody,
 				Key:         "/metadata",
 				Kind:        surface.KindJSON,
+				Object:      true,
 				Description: "Up to 20 user-defined string key-value pairs.",
 			},
 			{
@@ -277,6 +278,7 @@ func newChargesCreateCmd(flags *rootFlags) *cobra.Command {
 				In:          surface.InBody,
 				Key:         "/metadata",
 				Kind:        surface.KindJSON,
+				Object:      true,
 				Description: "Up to 20 user-defined string key-value pairs.",
 			},
 			{

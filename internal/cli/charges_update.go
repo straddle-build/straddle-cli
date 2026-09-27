@@ -62,6 +62,7 @@ func init() {
 				In:          surface.InBody,
 				Key:         "/metadata",
 				Kind:        surface.KindJSON,
+				Object:      true,
 				Description: "Replacement metadata for the charge.",
 			},
 			{
@@ -135,6 +136,7 @@ func newChargesUpdateCmd(flags *rootFlags) *cobra.Command {
 				In:          surface.InBody,
 				Key:         "/metadata",
 				Kind:        surface.KindJSON,
+				Object:      true,
 				Description: "Replacement metadata for the charge.",
 			},
 			{

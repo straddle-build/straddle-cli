@@ -76,10 +76,11 @@ func init() {
 				Description: "ZIP or postal code.",
 			},
 			{
-				Name: "compliance-profile",
-				In:   surface.InBody,
-				Key:  "/compliance_profile",
-				Kind: surface.KindJSON,
+				Name:   "compliance-profile",
+				In:     surface.InBody,
+				Key:    "/compliance_profile",
+				Kind:   surface.KindJSON,
+				Object: true,
 			},
 			{
 				Name:        "device-ip-address",
@@ -111,6 +112,7 @@ func init() {
 				In:          surface.InBody,
 				Key:         "/metadata",
 				Kind:        surface.KindJSON,
+				Object:      true,
 				Description: "Up to 20 user-defined key-value pairs associated with the customer.",
 			},
 			{
@@ -214,10 +216,11 @@ func newCustomersUpdateCmd(flags *rootFlags) *cobra.Command {
 				Description: "ZIP or postal code.",
 			},
 			{
-				Name: "compliance-profile",
-				In:   surface.InBody,
-				Key:  "/compliance_profile",
-				Kind: surface.KindJSON,
+				Name:   "compliance-profile",
+				In:     surface.InBody,
+				Key:    "/compliance_profile",
+				Kind:   surface.KindJSON,
+				Object: true,
 			},
 			{
 				Name:        "device-ip-address",
@@ -249,6 +252,7 @@ func newCustomersUpdateCmd(flags *rootFlags) *cobra.Command {
 				In:          surface.InBody,
 				Key:         "/metadata",
 				Kind:        surface.KindJSON,
+				Object:      true,
 				Description: "Up to 20 user-defined key-value pairs associated with the customer.",
 			},
 			{

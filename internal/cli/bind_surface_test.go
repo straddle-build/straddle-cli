@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/straddle-build/straddle-cli/internal/apisync"
 	"github.com/straddle-build/straddle-cli/internal/surface"
 )
 
@@ -537,7 +539,7 @@ func TestGeneratedKindJSONObjectFlagHelpShowsShape(t *testing.T) {
 	checked := 0
 	for _, s := range registeredSurfaces() {
 		for _, definition := range s.Flags {
-			if definition.Kind != surface.KindJSON || definition.Array {
+			if definition.Kind != surface.KindJSON || !definition.Object {
 				continue
 			}
 			flag := commands[s.Endpoint].Flags().Lookup(definition.Name)
@@ -552,6 +554,124 @@ func TestGeneratedKindJSONObjectFlagHelpShowsShape(t *testing.T) {
 	if checked == 0 {
 		t.Fatal("no generated KindJSON object flags found")
 	}
+}
+
+// Contract-derived KindJSON flags cover raw arrays and mixed unions as well as
+// objects; only schemas that are objects may reject non-object JSON.
+func TestDerivedKindJSONFlagsKeepSchemaShape(t *testing.T) {
+	specPath := filepath.Join(t.TempDir(), "spec.yaml")
+	if err := os.WriteFile(specPath, []byte(`openapi: 3.1.0
+paths:
+  /v1/widgets:
+    post:
+      operationId: createWidget
+      tags: [widgets]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                metadata:
+                  type: [object, "null"]
+                  additionalProperties:
+                    type: string
+                owner:
+                  anyOf:
+                    - $ref: "#/components/schemas/Profile"
+                    - type: "null"
+                rules:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                selector:
+                  oneOf:
+                    - type: string
+                    - type: integer
+components:
+  schemas:
+    Profile:
+      type: object
+      properties:
+        ein:
+          type: string
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	surfaces, unsupported, err := apisync.DeriveSurfaces(specPath)
+	if err != nil || len(unsupported) != 0 || len(surfaces) != 1 {
+		t.Fatalf("DeriveSurfaces = %#v, %#v, %v; want one supported surface", surfaces, unsupported, err)
+	}
+	derived := surfaces[0]
+
+	var requests atomic.Int64
+	var body map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		body = nil
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"id":"created"}}`))
+	}))
+	defer server.Close()
+	isolateSurfaceConfig(t, server.URL)
+	t.Setenv("HOME", t.TempDir())
+
+	for _, tc := range []struct{ flag, key, value string }{
+		{"rules", "rules", `[{"name":"daily"}]`},
+		{"selector", "selector", `7`},
+		{"selector", "selector", `"alpha"`},
+		{"metadata", "metadata", `{"key":"value"}`},
+		{"metadata", "metadata", `null`},
+		{"owner", "owner", `{"ein":"12-3456789"}`},
+		{"owner", "owner", `null`},
+	} {
+		t.Run("accepts "+tc.flag+"="+tc.value, func(t *testing.T) {
+			var want any
+			_ = json.Unmarshal([]byte(tc.value), &want)
+			requests.Store(0)
+			if _, _, err := runSurfaceCommand(t, derived, []string{"--dry-run", "--" + tc.flag + "=" + tc.value}, ""); err != nil || requests.Load() != 0 {
+				t.Fatalf("dry-run error = %v, requests = %d; want accepted without HTTP", err, requests.Load())
+			}
+			if _, _, err := runSurfaceCommand(t, derived, []string{"--" + tc.flag + "=" + tc.value}, ""); err != nil || requests.Load() != 1 || !reflect.DeepEqual(body[tc.key], want) {
+				t.Fatalf("live error = %v, requests = %d, body[%s] = %#v; want one request with %#v", err, requests.Load(), tc.key, body[tc.key], want)
+			}
+		})
+	}
+
+	for _, tc := range []struct{ flag, value string }{
+		{"metadata", `["a"]`},
+		{"owner", `"text"`},
+		{"rules", `not-json`},
+		{"selector", `{bad`},
+	} {
+		t.Run("rejects "+tc.flag+"="+tc.value, func(t *testing.T) {
+			requests.Store(0)
+			_, _, err := runSurfaceCommand(t, derived, []string{"--" + tc.flag + "=" + tc.value}, "")
+			if ExitCode(err) != 2 || requests.Load() != 0 {
+				t.Fatalf("error = %v (exit %d), requests = %d; want usage error without HTTP", err, ExitCode(err), requests.Load())
+			}
+			example, ok := copyableFlagExample(err.Error(), tc.flag)
+			if !ok {
+				return
+			}
+			if _, _, err := runSurfaceCommand(t, derived, []string{"--" + tc.flag + "=" + example}, ""); err != nil || requests.Load() != 1 {
+				t.Fatalf("suggested --%s %s: error = %v, requests = %d; want accepted", tc.flag, example, err, requests.Load())
+			}
+		})
+	}
+}
+
+func copyableFlagExample(text, name string) (string, bool) {
+	_, rest, found := strings.Cut(text, "--"+name+" '")
+	if !found {
+		return "", false
+	}
+	example, _, found := strings.Cut(rest, "'")
+	return example, found
 }
 
 func TestBindSurfaceRequiredWithDefault(t *testing.T) {
@@ -668,7 +788,7 @@ func testSurface(method string, requiredPaykey bool) surface.Surface {
 			{Name: "request-id", In: surface.InHeader, Key: "Request-Id", Kind: surface.KindString},
 			{Name: "amount", In: surface.InBody, Key: "/amount", Kind: surface.KindInteger},
 			{Name: "config-auto-hold", In: surface.InBody, Key: "/config/auto_hold", Kind: surface.KindBoolean},
-			{Name: "metadata", In: surface.InBody, Key: "/metadata", Kind: surface.KindJSON},
+			{Name: "metadata", In: surface.InBody, Key: "/metadata", Kind: surface.KindJSON, Object: true},
 			{Name: "paykey", In: surface.InBody, Key: "/paykey", Kind: surface.KindString, Required: requiredPaykey},
 		},
 	}

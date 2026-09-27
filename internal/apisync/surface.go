@@ -315,11 +315,11 @@ func combineAllOfSchemas(base, overlay json.RawMessage) json.RawMessage {
 
 func (d surfaceDeriver) flattenNode(node schemaNode, nameParts, pointerParts []string, required bool, stack map[string]bool) ([]surface.Flag, []string) {
 	pointer := jsonPointer(pointerParts)
-	if len(nameParts) > 0 && strings.EqualFold(nameParts[len(nameParts)-1], "metadata") {
-		return []surface.Flag{bodyFlag(node, nameParts, pointer, required, surface.KindJSON, false)}, nil
-	}
-	if len(node.OneOf) > 0 || len(node.AnyOf) > 0 || allowsAdditionalProperties(node.AdditionalProperties) {
-		return []surface.Flag{bodyFlag(node, nameParts, pointer, required, surface.KindJSON, false)}, nil
+	if (len(nameParts) > 0 && strings.EqualFold(nameParts[len(nameParts)-1], "metadata")) ||
+		len(node.OneOf) > 0 || len(node.AnyOf) > 0 || allowsAdditionalProperties(node.AdditionalProperties) {
+		flag := bodyFlag(node, nameParts, pointer, required, surface.KindJSON, false)
+		flag.Object = d.objectSchema(node, pointer, stack)
+		return []surface.Flag{flag}, nil
 	}
 
 	schemaType, hasType := nodeType(node)
@@ -393,6 +393,35 @@ func (d surfaceDeriver) flattenNode(node schemaNode, nameParts, pointerParts []s
 		return []surface.Flag{flag}, nil
 	}
 	return nil, []string{"schema node at " + pointer + " has no representable kind"}
+}
+
+// objectSchema reports whether every non-null value the schema admits is a
+// JSON object. Unresolvable branches count as non-objects, so the binder falls
+// back to accepting any JSON value rather than rejecting valid input.
+func (d surfaceDeriver) objectSchema(node schemaNode, pointer string, stack map[string]bool) bool {
+	if len(node.Type) > 0 {
+		schemaType, _ := nodeType(node)
+		return schemaType == "object"
+	}
+	branches := append(append([]json.RawMessage(nil), node.OneOf...), node.AnyOf...)
+	if len(branches) == 0 {
+		return len(node.Properties) > 0 || allowsAdditionalProperties(node.AdditionalProperties)
+	}
+	object := false
+	for _, raw := range branches {
+		branch, reasons := d.resolveSchema(raw, pointer, stack)
+		if len(reasons) > 0 {
+			return false
+		}
+		if schemaType, _ := nodeType(branch); schemaType == "null" {
+			continue
+		}
+		if !d.objectSchema(branch, pointer, stack) {
+			return false
+		}
+		object = true
+	}
+	return object
 }
 
 func bodyFlag(node schemaNode, nameParts []string, pointer string, required bool, kind surface.Kind, array bool) surface.Flag {
