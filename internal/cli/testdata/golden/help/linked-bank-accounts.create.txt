@@ -15,7 +15,7 @@ Flags:
       --description string                   Optional description for the bank account.
   -h, --help                                 help for create
       --idempotency-key string               Optional client-generated key for an idempotent request.
-      --metadata string                      Up to 20 additional user-defined key-value pairs. Useful for storing additional information about the linked bank...
+      --metadata string                      Up to 20 additional user-defined key-value pairs. Useful for storing additional information about the linked bank. JSON object. Example: --metadata '{"key":"value"}'
       --platform-id string                   The unique identifier of the Straddle Platform to associate this bank account with.
       --purposes string                      Payment purposes for the linked bank account. JSON array of strings; items one of: charges, payouts, billing. Example: --purposes '["charges","payouts"]'
       --request-id string                    Optional client-generated identifier for tracing one request.

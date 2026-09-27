@@ -15,7 +15,7 @@ Flags:
   -h, --help                                   help for update
       --idempotency-key string                 Optional client-generated key for an idempotent request.
       --last-name string                       The last name of the representative.
-      --metadata string                        Up to 20 additional user-defined key-value pairs. Useful for storing additional information about the represetative...
+      --metadata string                        Up to 20 additional user-defined key-value pairs. Useful for storing additional information about the represetative. JSON object. Example: --metadata '{"key":"value"}'
       --mobile-number string                   The mobile phone number of the representative.
       --relationship-control                   Whether the representative has significant responsibility to control, manage, or direct the organization. One...
       --relationship-owner                     Whether the representative owns any percentage of of the equity interests of the legal entity.

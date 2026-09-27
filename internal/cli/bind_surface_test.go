@@ -197,7 +197,7 @@ func TestBindSurfaceCapturesRequests(t *testing.T) {
 			name:     "malformed JSON flag",
 			required: true,
 			args:     []string{"widget-1", "--paykey", "pk_123", "--metadata", "{"},
-			wantErr:  "parsing --metadata JSON: unexpected end of JSON input",
+			wantErr:  `--metadata expects a JSON object, for example --metadata '{"key":"value"}'`,
 		},
 		{
 			name:        "DELETE with body",
@@ -376,16 +376,6 @@ func TestGeneratedBodyArrayFlagTakesJSONArray(t *testing.T) {
 	}
 }
 
-// copyableFlagExample returns the quoted value in "--name '<value>'".
-func copyableFlagExample(text, name string) (string, bool) {
-	_, rest, found := strings.Cut(text, "--"+name+" '")
-	if !found {
-		return "", false
-	}
-	example, _, found := strings.Cut(rest, "'")
-	return example, found
-}
-
 // Every generated body array flag must keep its JSON shape, accepted values,
 // and example in help, even when an endpoint overlay rewrites flag usage.
 func TestGeneratedBodyArrayFlagHelpShowsShape(t *testing.T) {
@@ -423,6 +413,144 @@ func TestGeneratedBodyArrayFlagHelpShowsShape(t *testing.T) {
 	}
 	if checked == 0 {
 		t.Fatal("no generated body array flags found")
+	}
+}
+
+func TestGeneratedKindJSONObjectFlagTakesJSONObject(t *testing.T) {
+	var requests atomic.Int64
+	var body map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		body = nil
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"id":"created"}}`))
+	}))
+	defer server.Close()
+	isolateSurfaceConfig(t, server.URL)
+	t.Setenv("HOME", t.TempDir())
+	create := append([]string{"--json", "--no-cache", "customers", "create"}, goldenInvocations["customers.create"]...)
+
+	t.Run("JSON object becomes body object", func(t *testing.T) {
+		requests.Store(0)
+		if _, _, err := runRootForAPITest(t, append(create, `--metadata={"key":"value","rank":2}`), ""); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		wantMetadata := map[string]any{"key": "value", "rank": float64(2)}
+		if requests.Load() != 1 || !reflect.DeepEqual(body["metadata"], wantMetadata) {
+			t.Fatalf("requests = %d, metadata = %#v, want one request with %#v", requests.Load(), body["metadata"], wantMetadata)
+		}
+	})
+
+	t.Run("null is preserved for nullable contract", func(t *testing.T) {
+		requests.Store(0)
+		if _, _, err := runRootForAPITest(t, append(create, `--metadata=null`), ""); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if requests.Load() != 1 || body["metadata"] != nil {
+			t.Fatalf("requests = %d, metadata = %#v, want one request with nil metadata", requests.Load(), body["metadata"])
+		}
+	})
+
+	t.Run("compliance-profile valid object", func(t *testing.T) {
+		requests.Store(0)
+		if _, _, err := runRootForAPITest(t, append(create, `--compliance-profile={"ein":"12-3456789","legal_business_name":"Acme Corp LLC"}`), ""); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		wantProfile := map[string]any{"ein": "12-3456789", "legal_business_name": "Acme Corp LLC"}
+		if requests.Load() != 1 || !reflect.DeepEqual(body["compliance_profile"], wantProfile) {
+			t.Fatalf("requests = %d, compliance_profile = %#v, want one request with %#v", requests.Load(), body["compliance_profile"], wantProfile)
+		}
+	})
+
+	t.Run("dry-run previews valid body without HTTP", func(t *testing.T) {
+		requests.Store(0)
+		stdout, _, err := runRootForAPITest(t, append(create, "--dry-run", `--metadata={"key":"value"}`), "")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if requests.Load() != 0 {
+			t.Fatalf("dry-run sent %d HTTP requests, want 0", requests.Load())
+		}
+		if !strings.Contains(stdout, `"dry_run": true`) {
+			t.Fatalf("dry-run stdout = %q, want preview with metadata object", stdout)
+		}
+	})
+
+	t.Run("dry-run rejects invalid object locally without HTTP", func(t *testing.T) {
+		requests.Store(0)
+		_, _, err := runRootForAPITest(t, append(create, "--dry-run", `--metadata=not-json`), "")
+		if err == nil || !strings.Contains(err.Error(), "JSON object") {
+			t.Fatalf("error = %v, want JSON object usage error", err)
+		}
+		if requests.Load() != 0 {
+			t.Fatalf("dry-run sent %d HTTP requests, want 0", requests.Load())
+		}
+	})
+
+	for _, tc := range []struct{ flagName, name, value, wantErr string }{
+		{"metadata", "comma list", "key=value", "JSON object"},
+		{"metadata", "bare value", "foobar", "JSON object"},
+		{"metadata", "array value", `["a","b"]`, "JSON object"},
+		{"metadata", "primitive string", `"text"`, "JSON object"},
+		{"metadata", "primitive int", "42", "JSON object"},
+		{"metadata", "primitive bool", "true", "JSON object"},
+		{"metadata", "broken JSON", "{bad", "JSON object"},
+		{"compliance-profile", "bare value", "foobar", "JSON object"},
+		{"compliance-profile", "array value", `[1,2]`, "JSON object"},
+		{"compliance-profile", "broken JSON", "{bad", "JSON object"},
+	} {
+		t.Run(tc.flagName+" "+tc.name, func(t *testing.T) {
+			requests.Store(0)
+			_, _, err := runRootForAPITest(t, append(create, "--"+tc.flagName+"="+tc.value), "")
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("error = %v, want error mentioning %s", err, tc.wantErr)
+			}
+			if requests.Load() != 0 {
+				t.Fatalf("invalid --%s sent %d HTTP requests", tc.flagName, requests.Load())
+			}
+			example, ok := copyableFlagExample(err.Error(), tc.flagName)
+			if !ok {
+				t.Fatalf("error %q has no copyable --%s example", err, tc.flagName)
+			}
+			requests.Store(0)
+			if _, _, err := runRootForAPITest(t, append(create, "--"+tc.flagName+"="+example), ""); err != nil || requests.Load() != 1 {
+				t.Fatalf("suggested --%s %s: error = %v, requests = %d, want accepted", tc.flagName, example, err, requests.Load())
+			}
+		})
+	}
+}
+
+func TestGeneratedKindJSONObjectFlagHelpShowsShape(t *testing.T) {
+	commands := map[string]*cobra.Command{}
+	var walk func(*cobra.Command)
+	walk = func(cmd *cobra.Command) {
+		if endpoint := cmd.Annotations["straddle:endpoint"]; endpoint != "" {
+			commands[endpoint] = cmd
+		}
+		for _, child := range cmd.Commands() {
+			walk(child)
+		}
+	}
+	walk(RootCmd())
+
+	checked := 0
+	for _, s := range registeredSurfaces() {
+		for _, definition := range s.Flags {
+			if definition.Kind != surface.KindJSON || definition.Array {
+				continue
+			}
+			flag := commands[s.Endpoint].Flags().Lookup(definition.Name)
+			example, ok := copyableFlagExample(flag.Usage, definition.Name)
+			var obj map[string]any
+			if (!strings.Contains(flag.Usage, "JSON object") && !strings.Contains(flag.Usage, "object")) || !ok || json.Unmarshal([]byte(example), &obj) != nil || len(obj) == 0 {
+				t.Errorf("%s --%s usage %q, want JSON object shape and a copyable non-empty object example", s.Endpoint, definition.Name, flag.Usage)
+			}
+			checked++
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no generated KindJSON object flags found")
 	}
 }
 

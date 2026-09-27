@@ -145,9 +145,12 @@ func (b *surfaceFlagBinding) register(cmd *cobra.Command) {
 	}
 
 	switch definition.Kind {
-	case surface.KindString, surface.KindJSON:
+	case surface.KindString:
 		b.stringValue = definition.Default
 		cmd.Flags().StringVar(&b.stringValue, definition.Name, b.stringValue, definition.Description)
+	case surface.KindJSON:
+		b.stringValue = definition.Default
+		cmd.Flags().StringVar(&b.stringValue, definition.Name, b.stringValue, jsonObjectUsage(definition))
 	case surface.KindInteger:
 		b.intValue, _ = strconv.Atoi(definition.Default)
 		cmd.Flags().IntVar(&b.intValue, definition.Name, b.intValue, definition.Description)
@@ -197,14 +200,54 @@ func (b *surfaceFlagBinding) value() (surfaceFlagValue, error) {
 		wire := strconv.FormatBool(b.boolValue)
 		return surfaceFlagValue{body: b.boolValue, wire: []string{wire}}, nil
 	case surface.KindJSON:
-		var parsed any
-		if err := json.Unmarshal([]byte(b.stringValue), &parsed); err != nil {
-			return surfaceFlagValue{}, fmt.Errorf("parsing --%s JSON: %w", b.definition.Name, err)
-		}
-		return surfaceFlagValue{body: parsed, wire: []string{b.stringValue}}, nil
+		return b.jsonValue()
 	default:
 		panic(fmt.Sprintf("unsupported flag kind %q for --%s", b.definition.Kind, b.definition.Name))
 	}
+}
+
+func (b *surfaceFlagBinding) jsonValue() (surfaceFlagValue, error) {
+	definition := b.definition
+	var parsed any
+	if err := json.Unmarshal([]byte(b.stringValue), &parsed); err != nil {
+		return surfaceFlagValue{}, usageErr(fmt.Errorf("--%s expects a JSON object, for example --%s '%s'", definition.Name, definition.Name, jsonObjectExample(definition)))
+	}
+	if parsed == nil {
+		return surfaceFlagValue{body: nil, wire: []string{b.stringValue}}, nil
+	}
+	if _, ok := parsed.(map[string]any); !ok {
+		return surfaceFlagValue{}, usageErr(fmt.Errorf("--%s expects a JSON object, for example --%s '%s'", definition.Name, definition.Name, jsonObjectExample(definition)))
+	}
+	return surfaceFlagValue{body: parsed, wire: []string{b.stringValue}}, nil
+}
+
+func jsonObjectUsage(definition surface.Flag) string {
+	usage := strings.TrimSpace(definition.Description)
+	if usage != "" && !strings.HasSuffix(usage, ".") {
+		usage += "."
+	}
+	if usage == "" {
+		usage = "JSON object."
+	} else if !strings.Contains(strings.ToLower(usage), "json object") && !strings.Contains(strings.ToLower(usage), "an object") {
+		usage += " JSON object."
+	}
+	return fmt.Sprintf("%s Example: --%s '%s'", usage, definition.Name, jsonObjectExample(definition))
+}
+
+func jsonObjectExample(definition surface.Flag) string {
+	if definition.Name == "compliance-profile" {
+		return `{"ein":"12-3456789","legal_business_name":"Acme Corp LLC"}`
+	}
+	return `{"key":"value"}`
+}
+
+func copyableFlagExample(text, name string) (string, bool) {
+	_, rest, found := strings.Cut(text, "--"+name+" '")
+	if !found {
+		return "", false
+	}
+	example, _, found := strings.Cut(rest, "'")
+	return example, found
 }
 
 func (b *surfaceFlagBinding) jsonArrayValue() (surfaceFlagValue, error) {

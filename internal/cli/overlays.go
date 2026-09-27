@@ -4,6 +4,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -46,6 +47,13 @@ func registerCommandOverlay(endpoint string, overlay commandOverlay) {
 			flag := cmd.Flags().Lookup(change.name)
 			if flag == nil {
 				panic(fmt.Sprintf("endpoint overlay %q references missing flag --%s", endpoint, change.name))
+			}
+			if example, ok := copyableFlagExample(flag.Usage, change.name); ok && !strings.Contains(change.usage, "Example: --"+change.name) {
+				text := strings.TrimRight(strings.TrimSpace(change.usage), ".")
+				if !strings.Contains(strings.ToLower(text), "json object") && !strings.Contains(strings.ToLower(text), "an object") && !strings.Contains(strings.ToLower(text), "json array") {
+					text += ". JSON object"
+				}
+				change.usage = fmt.Sprintf("%s. Example: --%s '%s'", text, change.name, example)
 			}
 			flag.Usage = change.usage
 			if change.defaultSet {

@@ -12,14 +12,14 @@ Flags:
       --address-city string         City, district, suburb, town, or village.
       --address-state string        Two-letter state code.
       --address-zip string          Zip or postal code.
-      --compliance-profile string   Compliance profile
+      --compliance-profile string   Customer compliance profile. JSON object. Example: --compliance-profile '{"ein":"12-3456789","legal_business_name":"Acme Corp LLC"}'
       --correlation-id string       Optional client-generated identifier for tracing a series of related requests.
       --device-ip-address 0.0.0.0   The customer's IP address at the time of profile creation. Use 0.0.0.0 to represent an offline customer registration.
       --email string                The customer's email address.
       --external-id string          Unique identifier for the customer in your database, used for cross-referencing between Straddle and your systems.
   -h, --help                        help for update
       --idempotency-key string      Optional client-generated key for an idempotent request.
-      --metadata string             Up to 20 additional user-defined key-value pairs. Useful for storing additional information about the customer in a...
+      --metadata string             Up to 20 additional user-defined key-value pairs. Useful for storing additional information about the customer in a. JSON object. Example: --metadata '{"key":"value"}'
       --name string                 The customer's full name or business name.
       --phone string                The customer's phone number in E.164 format.
       --request-id string           Optional client-generated identifier for tracing one request.
