@@ -141,7 +141,7 @@ func newOrganizationsCreateCmd(flags *rootFlags) *cobra.Command {
 			"straddle:path":         "/v1/organizations",
 		},
 	}
-	bind := bindSurface(cmd, flags, s)
+	bind := bindSurface(cmd, s)
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		req, err := bind(args)
 		if err != nil {

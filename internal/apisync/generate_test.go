@@ -110,7 +110,7 @@ func TestGenerateEndpointFile(t *testing.T) {
 				`"mcp:read-only":`,
 				"Format:",
 				`"uuid"`,
-				"bind := bindSurface(cmd, flags, s)",
+				"bind := bindSurface(cmd, s)",
 				"return executeSurface(cmd, flags, s, req)",
 				`applyOverlay("widgets.list", cmd)`,
 			} {

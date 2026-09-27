@@ -244,7 +244,7 @@ func newFundingEventsListFundingEventPaymentsCmd(flags *rootFlags) *cobra.Comman
 			"mcp:read-only":         "true",
 		},
 	}
-	bind := bindSurface(cmd, flags, s)
+	bind := bindSurface(cmd, s)
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		req, err := bind(args)
 		if err != nil {

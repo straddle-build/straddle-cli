@@ -36,7 +36,7 @@ type surfaceFlagValue struct {
 	wire []string
 }
 
-func bindSurface(cmd *cobra.Command, flags *rootFlags, s surface.Surface) func(args []string) (boundRequest, error) {
+func bindSurface(cmd *cobra.Command, s surface.Surface) func(args []string) (boundRequest, error) {
 	bindings := make([]*surfaceFlagBinding, 0, len(s.Flags))
 	for _, definition := range s.Flags {
 		binding := &surfaceFlagBinding{definition: definition}

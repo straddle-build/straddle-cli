@@ -455,7 +455,7 @@ func runSurfaceCommand(t *testing.T, s surface.Surface, args []string, stdin str
 			"straddle:path":         s.Path,
 		},
 	}
-	bind := bindSurface(cmd, flags, s)
+	bind := bindSurface(cmd, s)
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		req, err := bind(args)
 		if err != nil {
@@ -672,7 +672,7 @@ func TestCustomerReviewRequiredStatusFromProfile(t *testing.T) {
 
 func TestBindSurfaceRequiredProfileFalse(t *testing.T) {
 	cmd := &cobra.Command{Use: "fixture"}
-	bind := bindSurface(cmd, &rootFlags{}, surface.Surface{
+	bind := bindSurface(cmd, surface.Surface{
 		Path:    "/fixture",
 		HasBody: true,
 		Flags: []surface.Flag{
