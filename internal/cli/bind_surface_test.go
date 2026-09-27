@@ -188,11 +188,6 @@ func TestBindSurfaceCapturesRequests(t *testing.T) {
 			wantErr:  `required flag "paykey" not set`,
 		},
 		{
-			name:     "dry run skips required flag",
-			required: true,
-			args:     []string{"widget-1", "--dry-run"},
-		},
-		{
 			name:     "enum violation",
 			required: true,
 			args:     []string{"widget-1", "--paykey", "pk_123", "--mode", "turbo"},
@@ -288,6 +283,44 @@ func TestBindSurfaceCapturesRequests(t *testing.T) {
 	}
 }
 
+func TestGeneratedCreateRequiredFlagsInBothModes(t *testing.T) {
+	var requests atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"id":"created"}}`))
+	}))
+	defer server.Close()
+	isolateSurfaceConfig(t, server.URL)
+	t.Setenv("HOME", t.TempDir())
+
+	for _, resource := range []string{"charges", "organizations"} {
+		complete := goldenInvocations[resource+".create"]
+		for omitted, argument := range complete {
+			name := strings.SplitN(strings.TrimPrefix(argument, "--"), "=", 2)[0]
+			for _, mode := range []string{"--json", "--agent"} {
+				for _, dryRun := range []bool{false, true} {
+					t.Run(fmt.Sprintf("%s/%s/%s/dry-run=%t", resource, name, mode, dryRun), func(t *testing.T) {
+						args := []string{mode, "--no-cache", resource, "create"}
+						if dryRun {
+							args = append(args, "--dry-run")
+						}
+						args = append(args, complete[:omitted]...)
+						args = append(args, complete[omitted+1:]...)
+						_, _, err := runRootForAPITest(t, args, "")
+						if err == nil || !strings.Contains(err.Error(), fmt.Sprintf(`required flag %q not set`, name)) {
+							t.Errorf("error = %v, want missing required flag %q", err, name)
+						}
+						if got := requests.Load(); got != 0 {
+							t.Fatalf("incomplete create sent %d HTTP requests", got)
+						}
+					})
+				}
+			}
+		}
+	}
+}
+
 func TestBindSurfaceRequiredWithDefault(t *testing.T) {
 	surfaceWithRequiredDefault := surface.Surface{
 		Endpoint:    "widgets.update",
@@ -368,16 +401,6 @@ func TestBindSurfaceRequiredWithDefault(t *testing.T) {
 		}
 		if req != nil {
 			t.Fatalf("invalid enum reached the API; body=%#v", req.body)
-		}
-	})
-
-	t.Run("dry run skips the required guard and sends nothing", func(t *testing.T) {
-		_, _, req, err := run(t, []string{"widget-1", "--name", "example", "--dry-run"}, "")
-		if err != nil {
-			t.Fatalf("dry-run with omitted --status returned error: %v", err)
-		}
-		if req != nil {
-			t.Fatalf("dry-run reached the API; body=%#v", req.body)
 		}
 	})
 
