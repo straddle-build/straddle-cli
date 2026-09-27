@@ -323,7 +323,7 @@ This CLI is designed for AI agent consumption:
 - **Non-interactive** - never prompts, every input is a flag
 - **Pipeable** - `--json` output to stdout, errors to stderr
 - **Filterable** - `--select id,name` returns only fields you need
-- **Previewable** - `--dry-run` shows the request without sending
+- **Previewable** - `--dry-run` validates required inputs and previews the request without sending
 - **Explicit retries** - add `--idempotent` to create retries and `--ignore-missing` to delete retries when a no-op success is acceptable
 - **Confirmable** - `--yes` for explicit confirmation of destructive actions
 - **Piped input** - write commands can accept structured input when their help lists `--stdin`
@@ -347,7 +347,7 @@ Base URL: `https://{environment}.straddle.com`
 straddle doctor
 ```
 
-Verifies configuration, credentials, and connectivity to the API.
+Verifies configuration, credentials, connectivity to the API, and local store health.
 
 ## Configuration
 
