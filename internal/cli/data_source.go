@@ -60,9 +60,10 @@ func openStoreForRead(ctx context.Context, cliName string) (*store.Store, error)
 // localProvenance builds a DataProvenance for local data reads.
 func localProvenance(db *store.Store, resourceType, reason string) DataProvenance {
 	prov := DataProvenance{
-		Source:       "local",
-		Reason:       reason,
-		ResourceType: resourceType,
+		Source:              "local",
+		Reason:              reason,
+		ResourceType:        resourceType,
+		HiddenLegacyRecords: hiddenLegacyRecords(db),
 	}
 	_, lastSynced, _, err := db.GetSyncState(resourceType)
 	if err == nil && !lastSynced.IsZero() {

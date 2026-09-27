@@ -1652,6 +1652,9 @@ type DataProvenance struct {
 	Reason       string     `json:"reason,omitempty"`        // why local was used: "user_requested", "api_unreachable", "no_search_endpoint"
 	ResourceType string     `json:"resource_type,omitempty"` // which resource type was queried
 	Freshness    any        `json:"freshness,omitempty"`     // optional machine-owned freshness metadata for covered command paths
+	// HiddenLegacyRecords counts stored resources that predate local
+	// scoping and no scope can read; omitted when there are none.
+	HiddenLegacyRecords int `json:"hidden_legacy_records,omitempty"`
 }
 
 // printProvenance writes a one-line provenance message to stderr for TTY users.
@@ -1744,6 +1747,9 @@ func wrapWithProvenance(data json.RawMessage, prov DataProvenance) (json.RawMess
 	}
 	if prov.Freshness != nil {
 		meta["freshness"] = prov.Freshness
+	}
+	if prov.HiddenLegacyRecords > 0 {
+		meta["hidden_legacy_records"] = prov.HiddenLegacyRecords
 	}
 	var results any
 	if json.Valid(data) {

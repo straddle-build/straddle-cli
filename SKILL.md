@@ -303,7 +303,7 @@ A `saas` or `marketplace` charge or payout with no account set fails fast with a
 
 **Agents:** call the `use-account` tool once to set the acting account; every later endpoint call is scoped to it automatically.
 
-Synced local data follows the same context. The store keeps rows per API environment and acting account, so `sync`, `search`, `sql`, analytics and offline reads only see data captured under the current `use-account` (or `--account`) in the current environment. Marketplace customers and paykeys are fetched without the header but still stay with the account you were acting as. `doctor` reports `hidden_legacy_records` for rows stored before scoping; run `straddle sync` to repopulate them in your current context.
+Synced local data follows the same context. The store keeps rows per API environment and acting account, so `sync`, `search`, `sql`, analytics and offline reads only see data captured under the current `use-account` (or `--account`) in the current environment. Marketplace customers and paykeys are fetched without the header but still stay with the account you were acting as. `doctor` and local-read `meta.hidden_legacy_records` report rows stored before scoping; run `straddle sync` to repopulate them in your current context.
 
 ## Agent Mode
 

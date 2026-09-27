@@ -4,6 +4,7 @@ package cli
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -281,5 +282,45 @@ func TestSQLReadsOnlyTheActingAccount(t *testing.T) {
 	useAccount(t, straddleacct.TypeMarketplace, "acct_b")
 	if got := sqlIDs(t, dbPath, "SELECT id FROM customers UNION ALL SELECT id FROM resources"); len(got) != 0 {
 		t.Fatalf("acct_b sql = %v, want nothing from acct_a", got)
+	}
+}
+
+func localListMeta(t *testing.T) map[string]any {
+	t.Helper()
+	stdout, _, err := runRootForAPITest(t, []string{"--json", "--data-source", "local", "customers", "list"}, "")
+	if err != nil {
+		t.Fatalf("local customers list: %v", err)
+	}
+	var envelope struct {
+		Meta map[string]any `json:"meta"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatalf("decode local list: %v\n%s", err, stdout)
+	}
+	return envelope.Meta
+}
+
+func TestLocalProvenanceReportsHiddenLegacyRecords(t *testing.T) {
+	server, _ := newListAPI(t, map[string]string{"/v1/customers": `{"data":[{"id":"cus_now","name":"scoped"}]}`})
+	isolateStoreScopeEnv(t, server.URL)
+	useAccount(t, straddleacct.TypeMarketplace, "acct_a")
+	if _, _, err := runRootForAPITest(t, []string{"--json", "sync", "--resources", "customers"}, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, present := localListMeta(t)["hidden_legacy_records"]; present {
+		t.Fatal("hidden_legacy_records present without legacy rows")
+	}
+
+	raw, err := sql.Open("sqlite", defaultDBPath("straddle"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer raw.Close()
+	if _, err := raw.Exec(`INSERT INTO resources (id, resource_type, data) VALUES ('cus_old1', 'customers', '{}'), ('cus_old2', 'customers', '{}')`); err != nil {
+		t.Fatal(err)
+	}
+	meta := localListMeta(t)
+	if meta["hidden_legacy_records"] != float64(2) {
+		t.Fatalf("meta = %v, want hidden_legacy_records 2", meta)
 	}
 }

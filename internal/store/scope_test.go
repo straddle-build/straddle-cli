@@ -340,3 +340,33 @@ func TestSnapshotIsConsistentDuringConcurrentWrites(t *testing.T) {
 		t.Fatalf("writer committed %d rows, %v; want writes during the snapshots", written, err)
 	}
 }
+
+// TestWriteSucceedsWhileAReaderHoldsATransaction covers sync writing while
+// a snapshot or another reader is mid-transaction on the same file.
+func TestWriteSucceedsWhileAReaderHoldsATransaction(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "data.db")
+	writer := openScoped(t, dbPath, testScope)
+	if err := writer.Upsert("charges", "ch_before", []byte(`{"id":"ch_before"}`)); err != nil {
+		t.Fatal(err)
+	}
+
+	reader, err := rawDB(t, dbPath).Conn(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	if _, err := reader.ExecContext(context.Background(), `BEGIN`); err != nil {
+		t.Fatal(err)
+	}
+	var seen int
+	if err := reader.QueryRowContext(context.Background(), `SELECT count(*) FROM resources`).Scan(&seen); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, _, err := writer.UpsertBatch("charges", []json.RawMessage{json.RawMessage(`{"id":"ch_during"}`)}); err != nil {
+		t.Fatalf("write while a reader holds a transaction: %v", err)
+	}
+	if _, err := reader.ExecContext(context.Background(), `COMMIT`); err != nil {
+		t.Fatal(err)
+	}
+}
