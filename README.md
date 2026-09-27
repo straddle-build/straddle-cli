@@ -33,7 +33,7 @@ Requires Node.js 18 or newer. The npm package downloads the matching Go binary f
 
 ### Pre-built binaries
 
-Download an archive for your platform from the [releases page](https://github.com/straddle-build/straddle-cli/releases). On macOS, clear the Gatekeeper quarantine: `xattr -d com.apple.quarantine <binary>`. On Unix, mark it executable: `chmod +x <binary>`.
+Download an archive for your platform from the [releases page](https://github.com/straddle-build/straddle-cli/releases). macOS binaries from v1.0.3 onward are Developer ID signed and notarized, so Gatekeeper accepts them on first run with a network connection; for earlier releases, clear the quarantine with `xattr -d com.apple.quarantine <binary>`. On Unix, mark it executable: `chmod +x <binary>`.
 
 ### Go
 

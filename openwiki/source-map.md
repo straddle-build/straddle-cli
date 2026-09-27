@@ -159,6 +159,7 @@ These are the command families that make this repo more than a direct API wrappe
 ## Supporting directories
 
 - `demo/` — demo recordings and scripts.
+- `scripts/` — release packaging and macOS signing/notarization scripts.
 - `build/` — build/release-related assets.
 - `spec.yaml`: exact OpenAPI artifact retrieved from the pinned Scalar release.
 - `contract.lock.json`: Scalar release version, Registry reference, and exact byte digest.
