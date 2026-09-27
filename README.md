@@ -379,7 +379,7 @@ Environment variables:
 - **Calls hit the wrong environment** - Set `STRADDLE_ENVIRONMENT=sandbox` or `STRADDLE_ENVIRONMENT=production` (default is sandbox); the base URL switches between sandbox.straddle.com and production.straddle.com.
 - **A charge cannot be cancelled or held** — Once a payment reaches pending it is locked; run pipeline --cancelable to see which payments are still in created/scheduled/on_hold and can be acted on.
 - **Charges fail with an expired paykey** — Run expiring to list paykeys near expires_at, then refresh or re-bridge the bank account before retrying.
-- **search or reconcile returns nothing** — Run sync first; the local store is empty until you populate it.
+- **search or reconcile returns nothing** — Run sync first; the local store is empty until you populate it. Local data is kept per API environment and acting account, so after `use-account` or `--account` changes, sync again in the new context.
 - **Platform calls return the wrong account's data or 403** - Run `straddle setup --type saas|marketplace`, set the acting account with `straddle use-account acct_...`, or pass `--account acct_...` for one command. SaaS platforms scope customer, paykey, bridge, payment, review, and funding-event calls; marketplaces scope payment and funding-event calls; direct accounts omit it.
 
 ---

@@ -20,10 +20,20 @@ The local database supports:
 Key implementation details from `internal/store/store.go`:
 
 - it uses `modernc.org/sqlite`, so the repo stays pure Go and cross-compilable
-- the database runs in WAL mode
+- the database runs in WAL mode with a 5 second busy timeout, set through the driver's `_pragma` DSN parameters
 - write access is serialized with a mutex
 - a `resources_fts` FTS5 virtual table provides full-text search
 - the schema version is tracked with `PRAGMA user_version`
+
+## Scope
+
+Every row belongs to one scope: the API environment (the lowercase origin of the resolved base URL, so sandbox, production and a local server never mix) and the selected platform acting account (`--account`, else `use-account`; direct accounts always use none). An empty account is its own platform-level context, not a wildcard. The scope is fixed when a `Store` opens and every read, search, sync cursor and write filters or stamps it; the raw database handle is not exposed.
+
+Local scope is separate from the `Straddle-Account-Id` header. A marketplace fetches customers without the header, but rows captured while acting as one account stay under that account. Sync applies the header policy per request and sends the acting account only where the operation accepts it. Live reads skip the HTTP response cache when the header sent differs from the local account, so a cached response never crosses acting accounts.
+
+Schema version 3 rebuilds each table in place with `scope_environment` and `scope_account` leading its primary key, so the same resource ID coexists across scopes. Rows written before scoping keep an empty environment; they stay in the file, no scope can read them, and `doctor` reports them as `hidden_legacy_records` until a resync writes fresh rows.
+
+`straddle sql` runs on an in-memory snapshot of the current scope, copied in one read transaction with the unscoped column order, rowids, plain column indexes and the FTS index, then detached from the file and set `query_only`. Its cost grows with the current scope's row count.
 
 ## Schema evolution
 
