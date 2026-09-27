@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/straddle-build/straddle-cli/internal/store"
 	"github.com/straddle-build/straddle-cli/internal/straddleacct"
@@ -331,13 +332,18 @@ func TestLocalProvenanceReportsHiddenLegacyRecords(t *testing.T) {
 func TestWriteThroughKeepsTheScopeTheRequestWasMadeIn(t *testing.T) {
 	seen := make(chan string, 1)
 	release := make(chan struct{})
+	var releaseOnce sync.Once
+	unblock := func() { releaseOnce.Do(func() { close(release) }) }
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seen <- r.Header.Get(straddleacct.Header)
 		<-release
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"meta":{"api_request_id":"req"},"response_type":"object","data":{"id":"` + goldenUUID + `","name":"account_a_only"}}`))
 	}))
+	// Cleanups run last-in first-out: the handler is released before
+	// server.Close waits for it, on every exit path.
 	t.Cleanup(server.Close)
+	t.Cleanup(unblock)
 	isolateStoreScopeEnv(t, server.URL)
 	useAccount(t, straddleacct.TypeSaaS, "acct_a")
 
@@ -346,13 +352,26 @@ func TestWriteThroughKeepsTheScopeTheRequestWasMadeIn(t *testing.T) {
 		_, _, err := runRootForAPITest(t, []string{"--json", "customers", "get", goldenUUID}, "")
 		done <- err
 	}()
-	if header := <-seen; header != "acct_a" {
-		t.Fatalf("request header = %q, want acct_a", header)
+	select {
+	case header := <-seen:
+		if header != "acct_a" {
+			unblock()
+			t.Fatalf("request header = %q, want acct_a (command error: %v)", header, <-done)
+		}
+	case err := <-done:
+		t.Fatalf("live get finished before reaching the server: %v", err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("live get did not reach the server within 10s")
 	}
 	useAccount(t, straddleacct.TypeSaaS, "acct_b")
-	close(release)
-	if err := <-done; err != nil {
-		t.Fatalf("live get: %v", err)
+	unblock()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("live get: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("live get did not finish within 10s of the response")
 	}
 
 	stdout, _, err := runRootForAPITest(t, []string{"--json", "--data-source", "local", "customers", "get", goldenUUID, "--account", "acct_a"}, "")
