@@ -315,7 +315,7 @@ Add `--agent` to any command. See [Output Formats](README.md#output-formats) for
   ```bash
   straddle accounts list --agent --select id,name,status
   ```
-- **Previewable** — `--dry-run` validates required inputs and previews the request without sending
+- **Previewable**: `--dry-run` validates required inputs and previews the request without sending
 - **Offline-friendly** — sync/search commands can use the local SQLite store when available
 - **Non-interactive** — never prompts, every input is a flag
 - **Explicit retries** — use `--idempotent` only when an already-existing create should count as success, and `--ignore-missing` only when a missing delete target should count as success

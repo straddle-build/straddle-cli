@@ -63,8 +63,8 @@ The write-through path never stores unmasked or revealed responses because those
 ## Where to start in code
 
 - `internal/store/store.go`
-- `internal/store/snapshot.go`
-- `internal/cli/store_scope.go`
+* `internal/store/snapshot.go`
+* `internal/cli/store_scope.go`
 - `internal/cli/sync.go`
 - `internal/cli/search.go`
 - `internal/cli/straddle_reconcile.go`

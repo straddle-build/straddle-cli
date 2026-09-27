@@ -10,10 +10,10 @@ This page is the fastest way to find the code behind a command.
 - `internal/cli/straddle_setup.go` — persisted integration type (`account`, `saas`, `marketplace`) and current embedded account helpers.
 - `internal/cli/straddle_*.go` — hand-authored analytics, workflow, and reference commands that extend the Straddle API command surface.
 - `internal/cli/generated_registry.go` - self-registration hook for generated endpoint command files.
-- `internal/cli/bind_surface.go` — generated flag binding, live and dry-run required input validation, and structured JSON shape validation.
+* `internal/cli/bind_surface.go`: generated flag binding, live and dry-run required input validation, and structured JSON shape validation.
 - `internal/apisync/` - OpenAPI loading, repo inventory, coverage checks, drift classification, and generic endpoint generation.
-- `internal/store/` — SQLite store, migrations, FTS, schema versioning (`store.go`), and in-memory query snapshots (`snapshot.go`).
-- `internal/cli/store_scope.go` — local store scope resolution (`--account`, `use-account`, API environment) and request-pinned write-through context.
+- `internal/store/`: SQLite store, migrations, FTS, schema versioning (`store.go`), and in-memory query snapshots (`snapshot.go`).
+* `internal/cli/store_scope.go`: local store scope resolution (`--account`, `use-account`, API environment) and request-pinned write-through context.
 - `internal/straddleacct/policy.go` — `Straddle-Account-Id` decision engine.
 - `internal/client/` — HTTP client and response handling.
 - `internal/config/` — config loading/saving.
