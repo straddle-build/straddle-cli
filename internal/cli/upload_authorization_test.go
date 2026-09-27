@@ -78,6 +78,10 @@ func newUploadServer(t *testing.T, statuses ...int) *uploadServer {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(status)
+		if status >= http.StatusBadRequest {
+			_, _ = w.Write([]byte(`{"error":{"title":"File signature does not match its extension"}}`))
+			return
+		}
 		_, _ = w.Write([]byte(`{"meta":{"api_request_id":"r1"},"response_type":"object","data":{"id":"` + uploadTestID + `","status":"created"}}`))
 	}))
 	t.Cleanup(server.Close)
@@ -139,7 +143,7 @@ func TestUploadAuthorizationProofStreamsFileToResource(t *testing.T) {
 
 func TestUploadAuthorizationProofRetryResendsWholeFile(t *testing.T) {
 	server := newUploadServer(t, http.StatusServiceUnavailable)
-	path := writeUpload(t, "proof.png", uploadProof)
+	path := writeUpload(t, "proof.pdf", uploadProof)
 
 	var err error
 	stderr := captureStderr(t, func() {
@@ -152,9 +156,31 @@ func TestUploadAuthorizationProofRetryResendsWholeFile(t *testing.T) {
 		t.Fatalf("requests = %d, want the 503 attempt and one retry", len(server.received))
 	}
 	for i, got := range server.received {
-		if !bytes.Equal(got.body, uploadProof) || got.contentType != "image/png" {
-			t.Fatalf("attempt %d sent %q as %q, want the whole file as image/png", i+1, got.body, got.contentType)
+		if !bytes.Equal(got.body, uploadProof) || got.contentType != "application/pdf" {
+			t.Fatalf("attempt %d sent %q as %q, want the whole file as application/pdf", i+1, got.body, got.contentType)
 		}
+	}
+}
+
+// The API, not the CLI, checks that the bytes match the extension. A PDF
+// named .png passes local checks, and the server's rejection must surface
+// as an API error without a retry or a success envelope.
+func TestUploadAuthorizationProofSurfacesServerSignatureRejection(t *testing.T) {
+	server := newUploadServer(t, http.StatusBadRequest)
+	path := writeUpload(t, "proof.png", uploadProof)
+
+	stdout, _, err := runRootForAPITest(t, []string{"--agent", "charges", "upload-authorization-proof", uploadTestID, "--file", path}, "")
+	if err == nil {
+		t.Fatalf("rejected upload succeeded: %s", stdout)
+	}
+	if ExitCode(err) != 5 || !strings.Contains(err.Error(), "HTTP 400") || !strings.Contains(err.Error(), "File signature does not match its extension") {
+		t.Fatalf("error = %v (exit %d), want the API's HTTP 400 message with exit 5", err, ExitCode(err))
+	}
+	if len(server.received) != 1 || server.received[0].contentType != "image/png" {
+		t.Fatalf("requests = %+v, want one attempt sent as image/png", server.received)
+	}
+	if strings.Contains(stdout, `"success"`) {
+		t.Fatalf("rejected upload printed an envelope: %s", stdout)
 	}
 }
 

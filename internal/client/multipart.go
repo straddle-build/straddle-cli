@@ -27,6 +27,10 @@ type MultipartForm struct {
 	Files []FormFile
 }
 
+// openFormFile is os.Open; tests replace it to observe that every opened
+// file is closed.
+var openFormFile = os.Open
+
 var quoteEscaper = strings.NewReplacer("\\", "\\\\", `"`, "\\\"")
 
 // open returns the streamed body with its exact length and Content-Type.
@@ -43,7 +47,7 @@ func (m MultipartForm) open() (io.ReadCloser, int64, string, error) {
 	}
 	var length int64
 	for _, part := range m.Files {
-		file, err := os.Open(part.Path)
+		file, err := openFormFile(part.Path)
 		if err != nil {
 			return fail(err)
 		}
