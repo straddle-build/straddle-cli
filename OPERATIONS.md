@@ -50,14 +50,14 @@ Configure `API_SYNC_BOT_TOKEN` with contents and pull-request write access. It c
 Releases are cut from `main` by tag. A merged version-specific `automation/api-sync-*` PR creates the next patch tag automatically; other releases may still be tagged manually.
 
 1. Push a `vX.Y.Z` tag, or merge the generated contract synchronization PR.
-2. `.github/workflows/release.yml` runs tests on a macOS runner, imports the Developer ID certificate into a temporary keychain, then GoReleaser builds the six os/arch binaries. A build post hook (`scripts/macos-sign-notarize.sh`) signs each darwin binary with hardened runtime and a secure timestamp and requires Apple notarization status `Accepted` before GoReleaser archives, checksums or publishes anything, so `checksums.txt` covers the signed bytes. Any missing credential, signature check or non-Accepted notarization fails the release before publication. GoReleaser then publishes the GitHub release (6 os/arch archives + `checksums.txt`) and the `@straddlecom/cli` npm wrapper publishes using npm trusted publishing. An npm publication failure fails the workflow. GoReleaser publishes the Homebrew cask when `HOMEBREW_TAP_GITHUB_TOKEN` is configured.
+2. `.github/workflows/release.yml` runs tests on a macOS runner, imports the Developer ID certificate into a temporary keychain, then GoReleaser builds the six os/arch binaries. A build post hook (`scripts/macos-sign-notarize.sh`) signs each darwin binary with hardened runtime and a secure timestamp and requires Apple notarization status `Accepted` before GoReleaser archives, checksums or publishes anything, so `checksums.txt` covers the signed bytes. Any missing credential, signature check or non-Accepted notarization fails the release before publication. GoReleaser then publishes the GitHub release (6 os/arch archives + `checksums.txt`) and the `@straddlecom/cli` npm wrapper publishes using npm trusted publishing. An npm publication failure fails the workflow. When `HOMEBREW_TAP_GITHUB_TOKEN` is configured, GoReleaser pushes `Casks/straddle.rb` to a `straddle-<version>` branch of `straddle-build/homebrew-tap` and opens a pull request into its `main`, which accepts changes only through pull requests. The token needs contents and pull-request write access to the tap. A maintainer merges that PR after the tap's CI passes; the generated stanza order does not satisfy the tap's `brew audit --strict`, so apply `brew style --fix` on the PR branch first. A cask step failure happens after the GitHub release is published and stops the workflow before npm, so recover npm as described below.
 3. `install.sh` and `go install github.com/straddle-build/straddle-cli/cmd/straddle@latest` resolve the new release with no further action.
 
 Local dry run: `make release-snapshot` builds everything into `dist/` without publishing. Snapshots skip signing and notarization, so their darwin binaries are unsigned development builds, not release candidates.
 
 ### Apple signing setup
 
-The release job needs these GitHub Actions repository secrets. The workflow runs only on pushed `v*` tags, so pull requests never receive them.
+The release job needs these GitHub Actions repository secrets. The job runs only on pushed `v*` tags, so pull requests and npm recovery dispatches never receive them.
 
 | Secret | Value |
 |---|---|
@@ -83,6 +83,12 @@ Before the first automated CLI release, an npm maintainer must publish `@straddl
 - Environment: leave blank (the release job does not use a GitHub environment)
 
 Allow `npm publish` in that connection. Subsequent CLI releases authenticate through GitHub OIDC without an `NPM_TOKEN`. See [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/). Verify an actual automated publication before treating npm delivery as connected.
+
+### npm-only recovery for a published release
+
+When a tag's GitHub release is published but its npm step did not run, dispatch `release.yml` from `main` with the tag, for example `gh workflow run release.yml --ref main -f tag=v1.0.3`. Only the `npm-recovery` job runs. It refuses a tag that is not `vX.Y.Z`, does not exist, is not on `main`, has no published non-draft, non-prerelease GitHub release, or whose assets are not exactly the six archives plus `checksums.txt`. It then checks out the tag's commit and publishes `npm/` at that version through the same trusted publisher. It never runs GoReleaser, signs, rebuilds or changes release assets. npm rejects a version that is already published. The package's `gitHead` is the tag commit, while its provenance records the dispatching `main` run of `release.yml`.
+
+The Homebrew cask for such a release is added through a pull request to `straddle-build/homebrew-tap` using the published `checksums.txt`.
 
 ## Dependency maintenance
 

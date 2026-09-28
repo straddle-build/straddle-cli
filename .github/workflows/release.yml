@@ -3,6 +3,13 @@ name: Release
 "on":
   push:
     tags: ["v*"]
+  # npm-only recovery for a published release whose npm step did not run.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published release tag to publish to npm, for example v1.0.3
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -10,6 +17,7 @@ permissions:
 
 jobs:
   release:
+    if: github.event_name == 'push'
     # codesign and notarytool exist only on macOS; GoReleaser still
     # cross-compiles all six targets here.
     runs-on: macos-latest
@@ -84,4 +92,64 @@ jobs:
         working-directory: npm
         run: |
           npm version --no-git-tag-version "${GITHUB_REF_NAME#v}"
+          npm publish --access public
+
+  npm-recovery:
+    # Publishes the npm wrapper from an already published release tag. It
+    # never runs GoReleaser, signs, rebuilds or touches release assets, and it
+    # runs only when dispatched from main so the job definition is reviewed.
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify published release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RECOVERY_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*" >&2; exit 1; }
+          [[ "$RECOVERY_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "tag '$RECOVERY_TAG' is not a vX.Y.Z release tag"
+          version=${RECOVERY_TAG#v}
+          commit=$(git rev-parse --verify --quiet "refs/tags/$RECOVERY_TAG^{commit}") || fail "tag $RECOVERY_TAG does not exist"
+          git merge-base --is-ancestor "$commit" HEAD || fail "tag $RECOVERY_TAG ($commit) is not on main"
+          release=$(gh release view "$RECOVERY_TAG" --json isDraft,isPrerelease,assets) || fail "no GitHub release for $RECOVERY_TAG"
+          [ "$(jq -r '.isDraft or .isPrerelease' <<<"$release")" = false ] || fail "release $RECOVERY_TAG is a draft or prerelease"
+          want=$(printf '%s\n' checksums.txt "straddle_${version}_"{darwin,linux}_{amd64,arm64}.tar.gz "straddle_${version}_windows_"{amd64,arm64}.zip | sort)
+          got=$(jq -r '.assets[].name' <<<"$release" | sort)
+          [ "$got" = "$want" ] || fail "release $RECOVERY_TAG assets are not the six archives plus checksums.txt"
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+          echo "commit=$commit" >>"$GITHUB_OUTPUT"
+
+      - name: Check out release source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.release.outputs.commit }}
+          path: release-source
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Use npm with trusted publishing support
+        run: npm install --global npm@11
+
+      - name: Publish npm wrapper
+        working-directory: release-source/npm
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          npm version --no-git-tag-version "$VERSION"
           npm publish --access public
