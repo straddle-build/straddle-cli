@@ -47,10 +47,19 @@ homebrew_casks:
     # credential is configured. Releases remain usable through GitHub and npm
     # while the optional cross-repository credential is absent.
     skip_upload: '{{ if index .Env "HOMEBREW_TAP_GITHUB_TOKEN" }}false{{ else }}true{{ end }}'
+    # The tap's main branch accepts changes only through pull requests, so
+    # push the cask to a per-version branch and open a pull request into main.
     repository:
       owner: straddle-build
       name: homebrew-tap
+      branch: "straddle-{{ .Version }}"
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+      pull_request:
+        enabled: true
+        base:
+          owner: straddle-build
+          name: homebrew-tap
+          branch: main
     homepage: "https://github.com/straddle-build/straddle-cli"
     description: "Human and agent friendly CLI for the Straddle API"
     binaries:

@@ -621,12 +621,13 @@ type workflowJob struct {
 }
 
 type workflowStep struct {
-	Name string            `json:"name"`
-	If   string            `json:"if"`
-	Uses string            `json:"uses"`
-	Run  string            `json:"run"`
-	Env  map[string]string `json:"env"`
-	With map[string]any    `json:"with"`
+	Name             string            `json:"name"`
+	If               string            `json:"if"`
+	Uses             string            `json:"uses"`
+	Run              string            `json:"run"`
+	Env              map[string]string `json:"env"`
+	With             map[string]any    `json:"with"`
+	WorkingDirectory string            `json:"working-directory"`
 }
 
 func readWorkflow(t *testing.T, path string) workflowDocument {
