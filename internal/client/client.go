@@ -676,9 +676,12 @@ func (c *Client) doInternalWithValues(method, path string, params map[string]str
 	return nil, 0, lastErr
 }
 
-// dryRun prints the outgoing request exactly as the live path would send it,
-// using the auth material already resolved in `do()`. Never triggers a network
-// call — the caller is responsible for passing cached auth material only.
+// dryRun prints the outgoing request's method, URL, query, body and the
+// headers the caller controls (Authorization, config headers, per-command
+// overrides), using the auth material already resolved in `do()`. It omits the
+// transport defaults the live path adds (Content-Type, User-Agent, Accept).
+// Never triggers a network call — the caller is responsible for passing cached
+// auth material only.
 func (c *Client) dryRun(method, targetURL, path string, params map[string]string, body []byte, form *MultipartForm, headerOverrides map[string]string, authHeader string) (json.RawMessage, int, error) {
 	fmt.Fprintf(os.Stderr, "%s %s\n", method, targetURL)
 	queryPrinted := false
