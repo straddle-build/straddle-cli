@@ -12,8 +12,6 @@ A full CLI for Straddle's Pay by Bank and Embed APIs that also keeps a local SQL
 brew install straddle-build/tap/straddle
 ```
 
-> Available with the next patch release — the tap's publish credential is being provisioned. Use the shell installer below meanwhile.
-
 ### Shell installer (macOS / Linux)
 
 ```bash
