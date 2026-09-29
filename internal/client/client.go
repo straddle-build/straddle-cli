@@ -676,9 +676,12 @@ func (c *Client) doInternalWithValues(method, path string, params map[string]str
 	return nil, 0, lastErr
 }
 
-// dryRun prints the outgoing request exactly as the live path would send it,
-// using the auth material already resolved in `do()`. Never triggers a network
-// call — the caller is responsible for passing cached auth material only.
+// dryRun prints the outgoing request's method, URL, query, body and the
+// headers the caller controls (Authorization, config headers, per-command
+// overrides), using the auth material already resolved in `do()`. It omits the
+// transport defaults the live path adds (Content-Type, User-Agent, Accept).
+// Never triggers a network call — the caller is responsible for passing cached
+// auth material only.
 func (c *Client) dryRun(method, targetURL, path string, params map[string]string, body []byte, form *MultipartForm, headerOverrides map[string]string, authHeader string) (json.RawMessage, int, error) {
 	fmt.Fprintf(os.Stderr, "%s %s\n", method, targetURL)
 	queryPrinted := false
@@ -712,11 +715,43 @@ func (c *Client) dryRun(method, targetURL, path string, params map[string]string
 	if form != nil {
 		form.describe(os.Stderr)
 	}
+	sent := http.Header{}
 	if authHeader != "" {
-		fmt.Fprintf(os.Stderr, "  %s: %s\n", "Authorization", maskToken(authHeader))
+		sent.Set("Authorization", authHeader)
+	}
+	if c.Config != nil {
+		for k, v := range c.Config.Headers {
+			sent.Set(k, v)
+		}
+	}
+	for k, v := range headerOverrides {
+		sent.Set(k, v)
+	}
+	sent.Del(BinaryResponseHeader)
+	names := make([]string, 0, len(sent))
+	for k := range sent {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	for _, k := range names {
+		v := sent.Get(k)
+		if !dryRunShowsValue[k] {
+			v = maskToken(v)
+		}
+		fmt.Fprintf(os.Stderr, "  %s: %s\n", k, v)
 	}
 	fmt.Fprintf(os.Stderr, "\n(dry run - no request sent)\n")
 	return json.RawMessage(`{"dry_run": true}`), 0, nil
+}
+
+// dryRunShowsValue lists headers whose values a dry run prints in full. They
+// scope or trace a request and carry no credential. Any other header, including
+// custom [headers] from config.toml, is masked like Authorization.
+var dryRunShowsValue = map[string]bool{
+	"Straddle-Account-Id": true,
+	"Idempotency-Key":     true,
+	"Correlation-Id":      true,
+	"Request-Id":          true,
 }
 
 func (c *Client) ConfiguredTimeout() time.Duration {
