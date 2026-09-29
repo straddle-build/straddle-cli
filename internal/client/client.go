@@ -712,11 +712,43 @@ func (c *Client) dryRun(method, targetURL, path string, params map[string]string
 	if form != nil {
 		form.describe(os.Stderr)
 	}
+	sent := http.Header{}
 	if authHeader != "" {
-		fmt.Fprintf(os.Stderr, "  %s: %s\n", "Authorization", maskToken(authHeader))
+		sent.Set("Authorization", authHeader)
+	}
+	if c.Config != nil {
+		for k, v := range c.Config.Headers {
+			sent.Set(k, v)
+		}
+	}
+	for k, v := range headerOverrides {
+		sent.Set(k, v)
+	}
+	sent.Del(BinaryResponseHeader)
+	names := make([]string, 0, len(sent))
+	for k := range sent {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	for _, k := range names {
+		v := sent.Get(k)
+		if !dryRunShowsValue[k] {
+			v = maskToken(v)
+		}
+		fmt.Fprintf(os.Stderr, "  %s: %s\n", k, v)
 	}
 	fmt.Fprintf(os.Stderr, "\n(dry run - no request sent)\n")
 	return json.RawMessage(`{"dry_run": true}`), 0, nil
+}
+
+// dryRunShowsValue lists headers whose values a dry run prints in full. They
+// scope or trace a request and carry no credential. Any other header, including
+// custom [headers] from config.toml, is masked like Authorization.
+var dryRunShowsValue = map[string]bool{
+	"Straddle-Account-Id": true,
+	"Idempotency-Key":     true,
+	"Correlation-Id":      true,
+	"Request-Id":          true,
 }
 
 func (c *Client) ConfiguredTimeout() time.Duration {
