@@ -359,9 +359,18 @@ func (s *Store) backfillColumns(ctx context.Context, conn *sql.Conn) error {
 }
 
 func (s *Store) migrate(ctx context.Context) error {
-	conn, err := s.db.Conn(ctx)
-	if err != nil {
-		return fmt.Errorf("acquiring migration connection: %w", err)
+	// Share the lock's deadline across acquiring the connection, reading
+	// user_version, and running the migration transaction so the total
+	// Open budget stays bounded by migrationLockTimeout.
+	deadline := time.Now().Add(migrationLockTimeout)
+
+	var conn *sql.Conn
+	if err := retryOnBusy(ctx, deadline, "acquiring migration connection", func() error {
+		var err error
+		conn, err = s.db.Conn(ctx)
+		return err
+	}); err != nil {
+		return err
 	}
 	defer conn.Close()
 
@@ -369,7 +378,6 @@ func (s *Store) migrate(ctx context.Context) error {
 	// opening a newer-schema DB rejects immediately. WAL readers don't
 	// normally block on writers, but the fresh-DB WAL-init race can BUSY
 	// a SELECT — share the lock's deadline so total budget stays bounded.
-	deadline := time.Now().Add(migrationLockTimeout)
 	var current int
 	if err := retryOnBusy(ctx, deadline, "reading schema version", func() error {
 		return conn.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&current)
