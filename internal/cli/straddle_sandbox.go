@@ -11,10 +11,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Source: https://docs.straddle.com/guides/resources/sandbox-paybybank
-// These are Straddle's published sandbox simulation contract. Pass the value on
-// a create call's config.sandbox_outcome (e.g. charges/payouts create
-// --config-sandbox-outcome <value>) to force a deterministic result in sandbox.
+// Source: https://docs.straddle.com/guides/resources/sandbox-paybybank, plus the
+// *_not_authorized outcomes (R29 observed in Sandbox), which the docs omit. The
+// value sets must match spec.yaml's Simulated*Outcome enums; a test enforces it.
+// Pass the value on a create call's config.sandbox_outcome (e.g. charges/payouts
+// create --config-sandbox-outcome <value>) to force a deterministic result in sandbox.
 type sandboxOutcome struct {
 	Value       string `json:"value"`
 	Description string `json:"description"`
@@ -52,9 +53,11 @@ func straddleSandboxReference() sandboxReference {
 			{Value: "failed_insufficient_funds", Description: "Fails before funding due to NSF", Code: "R01"},
 			{Value: "failed_customer_dispute", Description: "Fails before funding due to dispute", Code: "R05"},
 			{Value: "failed_closed_bank_account", Description: "Fails before funding due to closed account", Code: "R02"},
+			{Value: "failed_not_authorized", Description: "Fails before funding as not authorized; blocks the paykey", Code: "R29"},
 			{Value: "reversed_insufficient_funds", Description: "Paid then reversed for NSF", Code: "R01"},
 			{Value: "reversed_customer_dispute", Description: "Paid then reversed for dispute", Code: "R05"},
 			{Value: "reversed_closed_bank_account", Description: "Paid then reversed for closed account", Code: "R02"},
+			{Value: "reversed_not_authorized", Description: "Paid then reversed as not authorized", Code: "R29"},
 		},
 		TestBank: map[string]string{
 			"routing_number": "021000021",
