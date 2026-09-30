@@ -1,26 +1,17 @@
 // Copyright 2026 hello-keith. Licensed under Apache-2.0. See LICENSE.
 
+// Package cliutil contains shared helpers used across the Straddle CLI.
+// Helpers live in their own package (not in package cli) to avoid symbol
+// collisions with agent-authored commands in package cli. Callers import as
+// `cliutil` and invoke `cliutil.RetryAfter(...)`,
+// `cliutil.RedactCredentials(...)`, etc.
 package cliutil
 
 import (
-	"html"
 	"regexp"
 	"strings"
 	"time"
 )
-
-// CleanText normalizes scraped text by trimming whitespace and decoding
-// HTML entities. Always use this when extracting strings from HTML or
-// schema.org JSON-LD. Skipping this step is how recipe-goat's
-// "The Food Lab&#39;s" bug shipped: schema.org strings passed through
-// unescaped because the JSON-LD parser didn't normalize.
-//
-// Single unescape pass: "&amp;amp;" -> "&amp;" (matches html.UnescapeString
-// stdlib behavior). If you need multiple passes you almost always have a
-// deeper escaping problem upstream — fix there, not here.
-func CleanText(s string) string {
-	return html.UnescapeString(strings.TrimSpace(s))
-}
 
 // ParseStoredTime parses timestamps read back from SQLite-backed generated
 // stores. modernc.org/sqlite can serialize time.Time using Go's native
