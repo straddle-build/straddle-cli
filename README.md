@@ -152,6 +152,14 @@ These capabilities aren't available in any other tool for this API.
   straddle sandbox outcomes --json
   ```
 
+- **`events tail`** — Print notifications (webhook events) from your polling endpoint in order as they arrive, commit only what was shown, and optionally forward each event to a local handler.
+
+  _Use to confirm a charge or payout changed state (created, paid, returned) from the terminal, or to test a local webhook handler, without deploying a public receiver._
+
+  ```bash
+  straddle events tail --from-now --forward-to http://localhost:3000/webhooks
+  ```
+
 ### Full API coverage
 - **`api`** - Browse hidden API interfaces or call a raw API path with the same auth, account scoping, dry-run, verify, output, and redaction behavior as the friendly commands.
 
@@ -222,6 +230,12 @@ Customers represent the end users who send or receive payments through your inte
 - **`straddle customers get`** - Retrieves the details of an existing customer. Supply the unique customer ID that was returned from your 'create customer' request, and Straddle will return the corresponding customer information.
 - **`straddle customers list`** - Lists or searches customers connected to your account. All supported query parameters are optional. If none are provided, the response will include all customers connected to your account. This endpoint supports advanced sorting and filtering options.
 - **`straddle customers update`** - Updates an existing customer's information. This endpoint allows you to modify the customer's contact details, PII, and metadata. Supply a valid status (`pending`, `review`, `verified`, `inactive`, or `rejected`) with `--status` or a named profile that sets `status`, even with `--dry-run`. When using `--stdin`, include `status` in the JSON body because stdin replaces body flags and does not inherit status from a profile. Read the existing customer first when you intend to preserve its status.
+
+### events
+
+Read the notifications (webhook events) Straddle sends, from the notification polling endpoint shown in the Straddle dashboard.
+
+- **`straddle events tail`** - Print each event in order as it arrives, until stopped. The consumer's position is committed only after an event is shown or forwarded, so a restart resumes after the last event shown with no gaps or duplicates. A new consumer (`--consumer`, default `straddle-cli`; use one per terminal) replays retained history for every account on the endpoint; `--from-now` starts it at the newest event instead. `--account-id` shows one account's events. `--forward-to <url>` POSTs each event's payload to a local handler, in order, before showing it; a failing handler is retried with backoff (from `--interval` up to 30s) and nothing after it is committed. Set `STRADDLE_POLLING_URL` (the URL including `{consumer_id}`, or pass `--polling-url`) and `STRADDLE_POLLING_TOKEN`, or save `polling_url` and `polling_token` in `config.toml`; the token is never printed, and `auth logout` removes a saved one. Output is one line per event in a terminal and NDJSON with `--json`/`--agent` or when piped: `{"offset","timestamp","event_type","payload"}` plus `"forward_status"` when forwarding, where `payload` is the event exactly as a webhook would deliver it.
 
 ### funding-event-payments
 
@@ -356,7 +370,7 @@ Config file: `~/.config/straddle/config.toml`
 Static request headers can be configured under `headers`; per-command header overrides take precedence.
 
 API requests send `User-Agent: straddle-cli/<version>` by default. To replace the default, set `User-Agent` under `headers` or pass a per-command override.
-Webhook deliveries use `straddle-cli/<version> (deliver)`, and feedback submissions use `straddle-cli/<version> (feedback)`.
+Webhook deliveries use `straddle-cli/<version> (deliver)`, feedback submissions use `straddle-cli/<version> (feedback)`, and `events tail` polling and forwarding use `straddle-cli/<version> (events)`.
 
 Environment variables:
 
@@ -364,6 +378,8 @@ Environment variables:
 | --- | --- | --- | --- |
 | `STRADDLE_ENVIRONMENT` | endpoint | No | Resolves `{environment}` in the base URL; defaults to `sandbox`. |
 | `STRADDLE_API_KEY` | per_call | Yes | Set to your API credential. |
+| `STRADDLE_POLLING_URL` | endpoint | For `events tail` | Notification polling endpoint URL including `{consumer_id}`; overrides `polling_url` in `config.toml`. |
+| `STRADDLE_POLLING_TOKEN` | per_call | For `events tail` | Notification polling endpoint token; overrides `polling_token` in `config.toml`. Never printed. |
 
 ## Troubleshooting
 **Authentication errors (exit code 4)**
@@ -381,6 +397,7 @@ Environment variables:
 - **Charges fail with an expired paykey** — Run expiring to list paykeys near expires_at, then refresh or re-bridge the bank account before retrying.
 - **search or reconcile returns nothing**: Run sync first; the local store is empty until you populate it. Local data is kept per API environment and acting account, so after `use-account` or `--account` changes, sync again in the new context.
 - **Platform calls return the wrong account's data or 403** - Run `straddle setup --type saas|marketplace`, set the acting account with `straddle use-account acct_...`, or pass `--account acct_...` for one command. SaaS platforms scope customer, paykey, bridge, payment, review, and funding-event calls; marketplaces scope payment and funding-event calls; direct accounts omit it.
+- **`events tail` warns `HTTP 423`** - The consumer holds a batch that was never committed: another process is using the same `--consumer`, or an earlier run stopped mid-batch. Tail keeps retrying until the lease expires (about five minutes), then resumes after the last event it committed. Give each terminal its own `--consumer`.
 
 ---
 

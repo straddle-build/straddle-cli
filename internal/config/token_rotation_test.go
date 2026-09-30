@@ -170,3 +170,68 @@ func TestRotatedTokenAuthenticatesHTTPRequests(t *testing.T) {
 		}
 	}
 }
+
+// Polling settings: environment overrides the file field by field, saving
+// an API token keeps the file's polling settings without persisting the
+// environment's, and logout removes the stored polling token.
+func TestPollingSettings(t *testing.T) {
+	const file = "polling_url = 'https://file.example/consumer/{consumer_id}'\npolling_token = 'fixture-file-token'\n"
+	cases := []struct {
+		name      string
+		envURL    string
+		envToken  string
+		wantURL   string
+		wantToken string
+	}{
+		{name: "config file", wantURL: "https://file.example/consumer/{consumer_id}", wantToken: "fixture-file-token"},
+		{name: "environment token only", envToken: "fixture-env-token", wantURL: "https://file.example/consumer/{consumer_id}", wantToken: "fixture-env-token"},
+		{name: "environment URL and token", envURL: "https://env.example/consumer/{consumer_id}", envToken: "fixture-env-token", wantURL: "https://env.example/consumer/{consumer_id}", wantToken: "fixture-env-token"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("STRADDLE_API_KEY", "")
+			t.Setenv("STRADDLE_BASE_URL", "https://sandbox.straddle.com")
+			t.Setenv("STRADDLE_POLLING_URL", tc.envURL)
+			t.Setenv("STRADDLE_POLLING_TOKEN", tc.envToken)
+			path := filepath.Join(t.TempDir(), "config.toml")
+			if err := os.WriteFile(path, []byte(file), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			cfg, err := config.Load(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if gotURL, gotToken := cfg.Polling(); gotURL != tc.wantURL || gotToken != tc.wantToken {
+				t.Errorf("Polling() = %q, %q; want %q, %q", gotURL, gotToken, tc.wantURL, tc.wantToken)
+			}
+
+			if err := cfg.SaveTokens("", "", "fixture-api-token", "", time.Time{}); err != nil {
+				t.Fatal(err)
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(data), "file.example") || !strings.Contains(string(data), "fixture-file-token") {
+				t.Errorf("saving an API token dropped the stored polling settings:\n%s", data)
+			}
+			if strings.Contains(string(data), "env.example") || strings.Contains(string(data), "fixture-env-token") {
+				t.Errorf("saving persisted environment-only polling settings:\n%s", data)
+			}
+
+			if err := cfg.ClearTokens(); err != nil {
+				t.Fatal(err)
+			}
+			data, err = os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(data), "fixture-") {
+				t.Errorf("logout left a credential on disk:\n%s", data)
+			}
+			if !strings.Contains(string(data), "file.example") {
+				t.Errorf("logout dropped the polling URL, which is not a credential:\n%s", data)
+			}
+		})
+	}
+}
