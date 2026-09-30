@@ -30,7 +30,6 @@ Hand-authored commands carry most of the operational value in this repo:
 
 The `demo/` directory was recently added to support marketing recordings and scripted demonstrations. The current artifacts include:
 
-- `demo/spec.md`
 - `demo/demo.tape.tmpl`
 - `demo/make-demo.sh`
 - `demo/demo-charge.sh`

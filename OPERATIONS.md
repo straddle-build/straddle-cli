@@ -96,4 +96,4 @@ Dependabot (`.github/dependabot.yml`) runs weekly. Go module minor/patch updates
 
 ## Demo harness
 
-`demo/` holds the VHS demo harness for marketing recordings (`spec.md`, `demo.tape.tmpl`, `make-demo.sh`, `demo-charge.sh`). Demo scripts assume specific CLI output; re-check them when changing output formatting.
+`demo/` holds the VHS demo harness for marketing recordings (`demo.tape.tmpl`, `make-demo.sh`, `demo-charge.sh`). Demo scripts assume specific CLI output; re-check them when changing output formatting.
