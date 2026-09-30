@@ -12,7 +12,7 @@ Flags:
       --config-auto-hold-message string   The reason the payout is being automatically held on creation.
       --config-sandbox-outcome string     Payment will simulate processing if not Standard.
       --correlation-id string             Optional client-generated identifier for tracing a series of related requests.
-      --currency string                   The currency of the payout. Only USD is supported. (default "USD")
+      --currency string                   The currency of the payout. Only USD is supported.
       --description string                An arbitrary description for the payout.
       --device-ip-address 0.0.0.0         The IP address of the device used when the customer authorized the charge or payout. Use 0.0.0.0 to represent an...
       --external-id string                Unique identifier for the payout in your database. This value must be unique across all payouts.

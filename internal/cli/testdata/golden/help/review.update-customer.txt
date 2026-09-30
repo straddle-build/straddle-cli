@@ -14,7 +14,7 @@ Flags:
   -h, --help                     help for update-customer
       --idempotency-key string   Optional client-generated key for an idempotent request.
       --request-id string        Optional client-generated identifier for tracing one request.
-      --status string            The final status of the customer review. (default "verified")
+      --status string            The final status of the customer review.
       --stdin                    Read request body as JSON from stdin
 
 Global Flags:
