@@ -13,5 +13,8 @@
 *.db-wal
 demo/out/
 
+# Developer tool caches
+.impeccable/
+
 # npm wrapper: vendored binary fetched at install time
 /npm/vendor/
