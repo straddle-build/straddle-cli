@@ -453,6 +453,16 @@ command straddle customers update
 command straddle doctor
   --fail-on type=string default="" usage="Exit non-zero when a health level is reached: stale, error. Default is never."
   --help type=bool default="false" usage="help for doctor"
+command straddle events
+  --help type=bool default="false" usage="help for events"
+command straddle events tail
+  --account-id type=string default="" usage="Only show events for this account ID; the consumer still moves past other accounts' events"
+  --consumer type=string default="straddle-cli" usage="Consumer ID that keeps this reader's position; use a different one per terminal or teammate (letters, digits, '.', '_', '-'; at most 64)"
+  --forward-to type=string default="" usage="POST each event's payload to this URL in order before showing it; a failing URL is retried and nothing after it is committed"
+  --from-now type=bool default="false" usage="Start a new consumer at the newest event instead of replaying retained history (a consumer with a position always resumes)"
+  --help type=bool default="false" usage="help for tail"
+  --interval type=duration default="2s" usage="Wait between polls once caught up; failed requests retry after this, doubling up to 30s"
+  --polling-url type=string default="" usage="Polling endpoint URL with {consumer_id} (overrides STRADDLE_POLLING_URL and polling_url in config.toml)"
 command straddle expiring
   --days type=int default="14" usage="Flag paykeys expiring within this many days"
   --db type=string default="" usage="Database path"

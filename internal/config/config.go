@@ -28,6 +28,14 @@ type Config struct {
 	// Keep the environment override separate from legacy file credentials so
 	// saving a token cannot persist a runtime-only key.
 	envAPIKey string
+	// PollingURL and PollingToken locate and authenticate the notification
+	// polling endpoint shown in the Straddle dashboard (`events tail`). The
+	// token authenticates only that endpoint, never the Straddle API.
+	PollingURL   string `toml:"polling_url,omitempty"`
+	PollingToken string `toml:"polling_token,omitempty"`
+	// Environment overrides stay separate so a save never persists them.
+	envPollingURL   string
+	envPollingToken string
 	// TemplateVars holds the runtime values for {placeholder} markers in
 	// BaseURL and the request path (e.g. Shopify's {shop}/{version}). Populated
 	// at Load() time from env vars; consumed by the client's buildURL helper.
@@ -64,6 +72,8 @@ func Load(configPath string) (*Config, error) {
 		cfg.envAPIKey = v
 		cfg.AuthSource = "env:STRADDLE_API_KEY"
 	}
+	cfg.envPollingURL = strings.TrimSpace(os.Getenv("STRADDLE_POLLING_URL"))
+	cfg.envPollingToken = strings.TrimSpace(os.Getenv("STRADDLE_POLLING_TOKEN"))
 
 	// Label config-file-derived credentials so doctor can distinguish
 	// "credentials persisted on disk" from "no credentials at all" — without
@@ -90,7 +100,7 @@ func Load(configPath string) (*Config, error) {
 	// would leak the key on the wire. http stays allowed for loopback hosts
 	// only — Straddle verify mode and tests point STRADDLE_BASE_URL at local
 	// http mock servers.
-	if err := validateBaseURL(cfg.BaseURL); err != nil {
+	if err := RequireSecureURL("STRADDLE_BASE_URL", cfg.BaseURL); err != nil {
 		return nil, err
 	}
 
@@ -115,16 +125,17 @@ func Load(configPath string) (*Config, error) {
 	return cfg, nil
 }
 
-// validateBaseURL enforces the https-only transport rule for the API base
-// URL. http is tolerated solely for loopback hosts (localhost, 127.0.0.1,
-// ::1) so local mock servers and Straddle verify mode keep working. An
-// empty BaseURL passes through: no request can be built from it, so
-// there is no credential to leak, and doctor reports it as unconfigured.
-// The scheme is checked by prefix because a templated BaseURL (e.g.
+// RequireSecureURL enforces the https-only transport rule for a URL that
+// receives a credential (the API base URL, the notification polling URL).
+// http is tolerated solely for loopback hosts (localhost, 127.0.0.1, ::1)
+// so local mock servers and Straddle verify mode keep working. An empty
+// URL passes through: no request can be built from it, so there is no
+// credential to leak, and doctor reports it as unconfigured. The scheme is
+// checked by prefix because a templated BaseURL (e.g.
 // "https://{environment}.straddle.com") does not survive url.Parse; the
 // loopback allowance parses the URL, which is fine because loopback
 // overrides are always concrete host:port values.
-func validateBaseURL(raw string) error {
+func RequireSecureURL(name, raw string) error {
 	if raw == "" {
 		return nil
 	}
@@ -132,7 +143,7 @@ func validateBaseURL(raw string) error {
 	if strings.HasPrefix(lower, "https://") {
 		return nil
 	}
-	err := fmt.Errorf("STRADDLE_BASE_URL must use https (got %q); http is allowed only for loopback hosts", raw)
+	err := fmt.Errorf("%s must use https (got %q); http is allowed only for loopback hosts", name, raw)
 	if !strings.HasPrefix(lower, "http://") {
 		return err
 	}
@@ -187,6 +198,20 @@ func (c *Config) AuthHeader() string {
 	return ""
 }
 
+// Polling returns the notification polling endpoint URL and token.
+// STRADDLE_POLLING_URL and STRADDLE_POLLING_TOKEN override polling_url and
+// polling_token from the config file, field by field.
+func (c *Config) Polling() (endpointURL, token string) {
+	endpointURL, token = c.PollingURL, c.PollingToken
+	if c.envPollingURL != "" {
+		endpointURL = c.envPollingURL
+	}
+	if c.envPollingToken != "" {
+		token = c.envPollingToken
+	}
+	return endpointURL, token
+}
+
 func (c *Config) SaveTokens(clientID, clientSecret, accessToken, refreshToken string, expiry time.Time) error {
 	// Explicit token replacement supersedes older file formats, while the
 	// environment override continues to apply only to this loaded config.
@@ -215,6 +240,8 @@ func (c *Config) ClearTokens() error {
 	c.ClientSecret = ""
 	c.StraddleApiKey = ""
 	c.envAPIKey = ""
+	c.PollingToken = ""
+	c.envPollingToken = ""
 	return c.save()
 }
 
