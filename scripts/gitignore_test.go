@@ -29,4 +29,10 @@ func TestGitIgnoreToolCaches(t *testing.T) {
 	if !strings.Contains(string(out), ".impeccable") {
 		t.Fatalf("expected git check-ignore to match .impeccable pattern, got:\n%s", string(out))
 	}
+
+	nonIgnoredCmd := exec.Command(git, "check-ignore", "-v", "cmd/straddle/main.go")
+	nonIgnoredCmd.Dir = repoRoot
+	if err := nonIgnoredCmd.Run(); err == nil {
+		t.Fatalf("expected cmd/straddle/main.go to NOT be ignored by .gitignore")
+	}
 }

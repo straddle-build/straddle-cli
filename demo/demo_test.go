@@ -55,15 +55,42 @@ func TestDemoChargeScript(t *testing.T) {
 }
 
 func TestDemoTapeTemplate(t *testing.T) {
+	vhs, err := exec.LookPath("vhs")
+	if err != nil {
+		t.Skip("vhs not available on PATH")
+	}
+
+	repoRoot, err := filepath.Abs("..")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	content, err := os.ReadFile("demo.tape.tmpl")
 	if err != nil {
 		t.Fatalf("read demo.tape.tmpl: %v", err)
 	}
+
 	s := string(content)
 	if !strings.Contains(s, "{{CUSTOMER_ID}}") {
 		t.Errorf("demo.tape.tmpl missing {{CUSTOMER_ID}} placeholder")
 	}
 	if !strings.Contains(s, "{{REPO_DIR}}") {
 		t.Errorf("demo.tape.tmpl missing {{REPO_DIR}} placeholder")
+	}
+
+	// Substitute template variables as done by demo/make-demo.sh and validate with real consumer
+	rendered := strings.ReplaceAll(s, "{{CUSTOMER_ID}}", "cust_live_validation_test")
+	rendered = strings.ReplaceAll(rendered, "{{REPO_DIR}}", repoRoot)
+
+	tapeFile := filepath.Join(t.TempDir(), "demo.tape")
+	if err := os.WriteFile(tapeFile, []byte(rendered), 0o600); err != nil {
+		t.Fatalf("write rendered tape: %v", err)
+	}
+
+	cmd := exec.Command(vhs, "validate", tapeFile)
+	cmd.Dir = repoRoot
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("vhs validate failed: %v\noutput:\n%s", err, string(out))
 	}
 }
