@@ -150,6 +150,7 @@ These are the command families that make this repo more than a direct API wrappe
 - `profile` — save, load, list, show, and delete local CLI profiles.
 - `feedback` — collect or list feedback records.
 - `tail` — stream or inspect recent event output.
+- `events tail` — read notifications from the dashboard's polling endpoint (not the Straddle API): print in order, commit only what was shown or forwarded, optionally forward to a local URL (`internal/cli/events_tail.go`).
 - `workflow` / `workflow archive` / `workflow status` — channel/workflow helpers.
 - `api` - inspect API capabilities, browse hidden interfaces, and call raw API paths.
 - `import` — import data snapshots into the local store.

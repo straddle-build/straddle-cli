@@ -93,6 +93,14 @@ These capabilities aren't available in any other tool for this API.
   straddle sandbox outcomes --json
   ```
 
+- **`events tail`** — Print notifications (webhook events) from your polling endpoint in order as they arrive, commit only what was shown, and optionally forward each event to a local handler.
+
+  _Use to confirm a charge or payout changed state (created, paid, returned) from the terminal, or to test a local webhook handler, without deploying a public receiver._
+
+  ```bash
+  straddle events tail --from-now --forward-to http://localhost:3000/webhooks
+  ```
+
 ### Full API coverage
 - **`api`** - Browse hidden API interfaces or call a raw API path with the same auth, account scoping, dry-run, verify, output, and redaction behavior as the friendly commands.
 
@@ -146,6 +154,10 @@ These capabilities aren't available in any other tool for this API.
 - `straddle customers get` — Retrieves the details of an existing customer. Supply the unique customer ID that was returned from your 'create...
 - `straddle customers list` — Lists or searches customers connected to your account. All supported query parameters are optional. If none are...
 - `straddle customers update` — Updates an existing customer's information. See [README.md](README.md#customers) for the required status input and stdin precedence.
+
+**events** — Read the notifications (webhook events) Straddle sends, from the notification polling endpoint shown in the Straddle dashboard.
+
+- `straddle events tail` — Print each event in order until stopped; commits only what was shown or forwarded, so a restart resumes with no gaps or duplicates. Needs `STRADDLE_POLLING_URL` and `STRADDLE_POLLING_TOKEN`. See [README.md](README.md#events).
 
 **funding-event-payments** — Manage funding event payments
 
@@ -250,6 +262,15 @@ straddle sandbox outcomes --json
 ```
 
 Look up the exact sandbox_outcome value to pass on a create call to force paid, failed, or reversed in tests.
+
+### Watch a Sandbox payment's notifications
+
+```bash
+timeout 120 straddle events tail --consumer agent-$(date +%s) --from-now --account-id <account_id> --agent \
+  | jq -c 'select(.payload.data.id == "<charge_id>") | {event_type, status: .payload.data.status}'
+```
+
+Start the tail before creating the charge: a new consumer with `--from-now` begins at the newest event. Each NDJSON line is `{offset, timestamp, event_type, payload}`; `payload` is the webhook body. Stopping with SIGINT or SIGTERM commits what was printed, so rerunning with the same `--consumer` resumes without duplicates.
 
 ### Call a newly published endpoint
 

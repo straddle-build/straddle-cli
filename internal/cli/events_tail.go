@@ -571,11 +571,11 @@ func eventTime(raw string) string {
 }
 
 func (t *eventsTail) printBanner(consumer string) {
-	origin := "replaying retained history"
+	origin := "replays retained history"
 	if t.start == "latest" {
-		origin = "starting from now"
+		origin = "starts from now"
 	}
-	fmt.Fprintf(t.warn, "Tailing events as consumer %q (resumes its position, or starts by %s if new). Ctrl+C to stop.\n", consumer, origin)
+	fmt.Fprintf(t.warn, "Tailing events as consumer %q: it resumes its position, or %s if it is new. Ctrl+C to stop.\n", consumer, origin)
 	if t.accountID != "" {
 		fmt.Fprintf(t.warn, "Showing only account %s.\n", t.accountID)
 	}
