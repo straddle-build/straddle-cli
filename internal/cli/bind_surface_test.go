@@ -786,6 +786,16 @@ func TestBindSurfaceRequiredWithDefault(t *testing.T) {
 			t.Fatalf("status = %#v, want \"review\" from stdin", req.body["status"])
 		}
 	})
+
+	t.Run("help does not advertise a default that is never applied", func(t *testing.T) {
+		stdout, _, _, err := run(t, []string{"--help"}, "")
+		if err != nil {
+			t.Fatalf("help returned error: %v", err)
+		}
+		if strings.Contains(stdout, `(default "verified")`) {
+			t.Fatalf("help for a required flag advertises a default the CLI rejects when omitted:\n%s", stdout)
+		}
+	})
 }
 
 func testSurface(method string, requiredPaykey bool) surface.Surface {

@@ -43,7 +43,12 @@ func bindSurface(cmd *cobra.Command, s surface.Surface) func(args []string) (bou
 		binding := &surfaceFlagBinding{definition: definition}
 		binding.register(cmd)
 		if definition.Required {
-			cmd.Flags().Lookup(definition.Name).Annotations = map[string][]string{"straddle:required": {"true"}}
+			flag := cmd.Flags().Lookup(definition.Name)
+			flag.Annotations = map[string][]string{"straddle:required": {"true"}}
+			// A required flag must be given explicitly, so its spec default is never applied; don't advertise it.
+			if definition.Default != "" {
+				flag.DefValue = ""
+			}
 		}
 		bindings = append(bindings, binding)
 	}
