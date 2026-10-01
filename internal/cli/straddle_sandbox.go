@@ -57,7 +57,7 @@ func straddleSandboxReference() sandboxReference {
 			{Value: "reversed_insufficient_funds", Description: "Paid then reversed for NSF", Code: "R01"},
 			{Value: "reversed_customer_dispute", Description: "Paid then reversed for dispute", Code: "R05"},
 			{Value: "reversed_closed_bank_account", Description: "Paid then reversed for closed account", Code: "R02"},
-			{Value: "reversed_not_authorized", Description: "Paid then reversed as not authorized", Code: "R29"},
+			{Value: "reversed_not_authorized", Description: "Paid then reversed as not authorized; blocks the paykey", Code: "R29"},
 		},
 		TestBank: map[string]string{
 			"routing_number": "021000021",
