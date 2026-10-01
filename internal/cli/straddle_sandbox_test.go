@@ -62,3 +62,49 @@ func TestSandboxOutcomesMatchContractEnums(t *testing.T) {
 		})
 	}
 }
+
+func TestSandboxNotAuthorizedOutcomesNotePaykeyBlock(t *testing.T) {
+	stdout, stderr, err := runRootForAPITest(t, []string{"sandbox", "outcomes", "--json"}, "")
+	if err != nil {
+		t.Fatalf("sandbox outcomes --json: %v\nstderr: %s", err, stderr)
+	}
+	var got map[string][]sandboxOutcome
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("decode output: %v\n%s", err, stdout)
+	}
+
+	tests := []struct {
+		val  string
+		code string
+		desc string
+	}{
+		{
+			val:  "failed_not_authorized",
+			code: "R29",
+			desc: "Fails before funding as not authorized; blocks the paykey",
+		},
+		{
+			val:  "reversed_not_authorized",
+			code: "R29",
+			desc: "Paid then reversed as not authorized; blocks the paykey",
+		},
+	}
+
+	for _, tc := range tests {
+		var found bool
+		for _, o := range got["charges_payouts"] {
+			if o.Value == tc.val {
+				found = true
+				if o.Code != tc.code {
+					t.Errorf("outcome %s code = %q, want %q", tc.val, o.Code, tc.code)
+				}
+				if o.Description != tc.desc {
+					t.Errorf("outcome %s description = %q, want %q", tc.val, o.Description, tc.desc)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("outcome %s not found in charges_payouts", tc.val)
+		}
+	}
+}
