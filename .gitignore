@@ -16,5 +16,5 @@ demo/out/
 # Developer tool caches
 .impeccable/
 
-# npm wrapper: vendored binary fetched at install time
+# npm wrapper: binary the launcher downloads when the platform package is missing
 /npm/vendor/

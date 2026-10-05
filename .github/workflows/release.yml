@@ -86,16 +86,29 @@ jobs:
           package-manager-cache: false
 
       - name: Use npm with trusted publishing support
-        run: npm install --global npm@11
+        run: npm install --global npm@11.21.0
 
-      - name: Publish npm wrapper
-        working-directory: npm
+      - name: Build npm packages
+        run: scripts/npm-platform-packages.sh dist "${GITHUB_REF_NAME#v}" "$RUNNER_TEMP/npm-packages"
+
+      # npm-recovery reuses this exact step through the alias below.
+      - &publish-npm-packages
+        name: Publish npm packages
         run: |
-          npm version --no-git-tag-version "${GITHUB_REF_NAME#v}"
-          npm publish --access public
+          set -euo pipefail
+          # Platform packages first, the wrapper that depends on them last. A
+          # rerun skips what an earlier partial run already published.
+          for dir in "$RUNNER_TEMP"/npm-packages/cli-* "$RUNNER_TEMP/npm-packages/cli"; do
+            spec=$(node -p 'const p = require(process.argv[1]); p.name + "@" + p.version' "$dir/package.json")
+            if [ -n "$(npm view "$spec" version 2>/dev/null)" ]; then
+              echo "$spec is already published"
+              continue
+            fi
+            npm publish "$dir" --provenance --access public
+          done
 
   npm-recovery:
-    # Publishes the npm wrapper from an already published release tag. It
+    # Publishes the npm packages from an already published release tag. It
     # never runs GoReleaser, signs, rebuilds or touches release assets, and it
     # runs only when dispatched from main so the job definition is reviewed.
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
@@ -144,12 +157,16 @@ jobs:
           package-manager-cache: false
 
       - name: Use npm with trusted publishing support
-        run: npm install --global npm@11
+        run: npm install --global npm@11.21.0
 
-      - name: Publish npm wrapper
-        working-directory: release-source/npm
+      - name: Build npm packages
         env:
+          GH_TOKEN: ${{ github.token }}
+          RECOVERY_TAG: ${{ inputs.tag }}
           VERSION: ${{ steps.release.outputs.version }}
         run: |
-          npm version --no-git-tag-version "$VERSION"
-          npm publish --access public
+          set -euo pipefail
+          gh release download "$RECOVERY_TAG" --dir "$RUNNER_TEMP/release-assets"
+          release-source/scripts/npm-platform-packages.sh "$RUNNER_TEMP/release-assets" "$VERSION" "$RUNNER_TEMP/npm-packages"
+
+      - *publish-npm-packages

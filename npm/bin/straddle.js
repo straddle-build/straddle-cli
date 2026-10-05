@@ -1,20 +1,29 @@
 #!/usr/bin/env node
-// Launcher for @straddlecom/cli: executes the vendored straddle binary,
-// installing it first if the postinstall never ran (--ignore-scripts).
+// Launcher for @straddlecom/cli: executes the binary from this platform's
+// @straddlecom/cli-<platform>-<arch> package, downloading it into vendor/
+// first when that optional dependency was not installed.
 'use strict';
 
-const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { binaryPath } = require('../resolve.js');
 
-const bin = process.platform === 'win32' ? 'straddle.exe' : 'straddle';
-const binPath = path.join(__dirname, '..', 'vendor', bin);
+let binPath = binaryPath();
 
-if (!fs.existsSync(binPath)) {
+if (binPath === null) {
+  console.error(
+    `@straddlecom/cli: @straddlecom/cli-${process.platform}-${process.arch} is not installed. ` +
+      'npm skips this optional dependency under --omit=optional, with a lockfile written on ' +
+      'another OS, or on an unsupported platform. Downloading the binary from GitHub Releases instead.'
+  );
   const installer = path.join(__dirname, '..', 'install.js');
   const result = spawnSync(process.execPath, [installer], { stdio: 'inherit' });
-  if (result.status !== 0 || !fs.existsSync(binPath)) {
-    console.error('@straddlecom/cli: binary install failed; see errors above');
+  binPath = binaryPath();
+  if (result.status !== 0 || binPath === null) {
+    console.error(
+      '@straddlecom/cli: binary install failed; see errors above. ' +
+        'Reinstall with optional dependencies (npm install @straddlecom/cli --include=optional).'
+    );
     process.exit(result.status === null || result.status === 0 ? 1 : result.status);
   }
 }
