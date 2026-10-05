@@ -29,8 +29,8 @@ func TestReleaseWorkflowRoutesTagPushesAndNPMRecoverySeparately(t *testing.T) {
 		t.Fatalf("npm recovery condition = %q", recovery.If)
 	}
 
-	// The recovery job verifies, checks out the verified commit and publishes
-	// the wrapper from that checkout; nothing else.
+	// The recovery job verifies, checks out the verified commit, builds the
+	// npm packages with that checkout's script and publishes them; nothing else.
 	var labels []string
 	for _, step := range recovery.Steps {
 		label := step.Name
@@ -45,7 +45,8 @@ func TestReleaseWorkflowRoutesTagPushesAndNPMRecoverySeparately(t *testing.T) {
 		"Check out release source",
 		"actions/setup-node@v6",
 		"Use npm with trusted publishing support",
-		"Publish npm wrapper",
+		"Build npm packages",
+		"Publish npm packages",
 	}
 	if !reflect.DeepEqual(labels, wantSteps) {
 		t.Fatalf("npm recovery steps = %#v, want %#v", labels, wantSteps)
@@ -55,9 +56,12 @@ func TestReleaseWorkflowRoutesTagPushesAndNPMRecoverySeparately(t *testing.T) {
 	if source.With["ref"] != "${{ steps.release.outputs.commit }}" || source.With["path"] != "release-source" {
 		t.Fatalf("release source checkout = %#v, want the verified tag commit in release-source", source.With)
 	}
-	publish := steps["Publish npm wrapper"]
-	if publish.WorkingDirectory != "release-source/npm" || publish.Env["VERSION"] != "${{ steps.release.outputs.version }}" {
-		t.Fatalf("npm publish = dir %q env %#v, want the verified version from release-source/npm", publish.WorkingDirectory, publish.Env)
+	build := steps["Build npm packages"]
+	if !strings.Contains(build.Run, "release-source/scripts/npm-platform-packages.sh") || build.Env["VERSION"] != "${{ steps.release.outputs.version }}" {
+		t.Fatalf("npm build = run %q env %#v, want release-source's script at the verified version", build.Run, build.Env)
+	}
+	if got, want := steps["Publish npm packages"], stepsByName(workflow.Jobs["release"])["Publish npm packages"]; !reflect.DeepEqual(got, want) {
+		t.Fatalf("npm recovery publish = %#v, want the release job's publish step %#v", got, want)
 	}
 }
 

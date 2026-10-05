@@ -11,13 +11,16 @@
   "bin": {
     "straddle": "bin/straddle.js"
   },
+  "exports": {
+    ".": "./resolve.js",
+    "./resolve": "./resolve.js",
+    "./package.json": "./package.json"
+  },
   "files": [
     "bin",
-    "install.js"
+    "install.js",
+    "resolve.js"
   ],
-  "scripts": {
-    "postinstall": "node install.js"
-  },
   "os": [
     "darwin",
     "linux",

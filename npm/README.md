@@ -17,7 +17,7 @@ Or try it without a global installation:
 npx @straddlecom/cli --help
 ```
 
-Requires Node.js 18 or newer and macOS, Linux, or Windows on x64 or ARM64. Installation needs internet access to GitHub Releases, plus `tar` on macOS/Linux or PowerShell on Windows. You do not need Go installed.
+Requires Node.js 18 or newer and macOS, Linux, or Windows on x64 or ARM64. You do not need Go installed.
 
 ## Get started
 
@@ -33,9 +33,9 @@ For authentication, account setup, and available commands, see the [CLI document
 
 ## How installation works
 
-The installer downloads the Go binary for your operating system and architecture from the matching [GitHub release](https://github.com/straddle-build/straddle-cli/releases). It checks the archive's SHA-256 digest against that release's `checksums.txt` before extracting it. The `straddle` command then runs that binary.
+npm installs the Go binary for your operating system and architecture as an optional dependency, `@straddlecom/cli-<platform>-<arch>`. Those packages hold only the binary and run no install scripts, so installation works when npm install scripts are disabled. The `straddle` command runs that binary. Node tools can locate it with `require('@straddlecom/cli').binaryPath()`, which returns `null` when no binary is installed.
 
-If npm install scripts are disabled, the launcher attempts this download the first time you run `straddle`.
+If that package is missing, for example after `npm install --omit=optional` or from a lockfile written on another operating system, the launcher downloads the binary from the matching [GitHub release](https://github.com/straddle-build/straddle-cli/releases) the first time you run `straddle`. It checks the archive's SHA-256 digest against that release's `checksums.txt` before extracting it, which needs `tar` on macOS/Linux or PowerShell on Windows.
 
 ## Links
 

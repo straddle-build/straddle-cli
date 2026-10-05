@@ -27,7 +27,7 @@ npx @straddlecom/cli --help   # try without a global installation
 npm i -g @straddlecom/cli     # install the straddle command globally
 ```
 
-Requires Node.js 18 or newer. The npm package downloads the matching Go binary from GitHub Releases and verifies its SHA-256 checksum. See [npm installation details](npm/README.md).
+Requires Node.js 18 or newer. See [npm installation details](npm/README.md).
 
 ### Pre-built binaries
 

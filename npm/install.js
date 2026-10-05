@@ -1,7 +1,9 @@
 #!/usr/bin/env node
-// Postinstall for @straddlecom/cli: downloads the straddle binary for this
-// platform from GitHub Releases, verifies its sha256 against the release
-// checksums.txt, and unpacks it into vendor/. Node builtins only.
+// Fallback installer for @straddlecom/cli, run by bin/straddle.js when this
+// platform's @straddlecom/cli-<platform>-<arch> package is not installed:
+// downloads the straddle binary from GitHub Releases, verifies its sha256
+// against the release checksums.txt, and unpacks it into vendor/. Node
+// builtins only.
 'use strict';
 
 const crypto = require('node:crypto');
