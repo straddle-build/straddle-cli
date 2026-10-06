@@ -37,6 +37,22 @@ func isNetworkError(err error) bool {
 	if As(err, &dnsErr) {
 		return true
 	}
+	// http.Client.Timeout surfaces as *http.timeoutError, whose message is
+	// "context deadline exceeded (Client.Timeout exceeded while awaiting
+	// headers)". The error satisfies errors.Is(err, context.DeadlineExceeded)
+	// but is neither a *net.OpError (the dialer's "i/o timeout" case, already
+	// handled above) nor matched by the string fallback below. Without this
+	// check the offline fallback never triggers when the API hangs during a
+	// read (or a dial blackhole races at the default --timeout=30s), so the
+	// CLI returns the raw timeout error instead of the local cache.
+	//
+	// context.Canceled is deliberately excluded: read requests are built
+	// with http.NewRequest (context.Background), so a parent cancellation
+	// cannot reach this gate, and classifying a non-network cancellation as
+	// a network error would risk silently serving stale local data.
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
 	// Check for common network error strings
 	msg := err.Error()
 	return strings.Contains(msg, "connection refused") ||
