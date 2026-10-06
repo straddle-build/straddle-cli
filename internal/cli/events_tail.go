@@ -464,9 +464,13 @@ func (t *eventsTail) run(ctx context.Context) error {
 		last, delivered, deliverErr := t.deliver(ctx, msgs)
 		if delivered {
 			// The commit outlives a stop request: an event already shown
-			// must be committed or a restart would show it again.
+			// must be committed or a restart would show it again. The retry
+			// loop watches commitCtx, not the cancellable run ctx, so a stop
+			// that lands on a transiently-failing commit is retried until it
+			// succeeds (or fails permanently) — matching the commit request's
+			// own uncancellable context.
 			commitCtx := context.WithoutCancel(ctx)
-			err := t.retry(ctx, fmt.Sprintf("commit of offset %d", last), isTransientPollingError, func() error {
+			err := t.retry(commitCtx, fmt.Sprintf("commit of offset %d", last), isTransientPollingError, func() error {
 				return t.endpoint.commit(commitCtx, last)
 			})
 			if err != nil {
