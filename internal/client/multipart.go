@@ -31,7 +31,7 @@ type MultipartForm struct {
 // file is closed.
 var openFormFile = os.Open
 
-var quoteEscaper = strings.NewReplacer("\\", "\\\\", `"`, "\\\"")
+var quoteEscaper = strings.NewReplacer("\\", "\\\\", `"`, "\\\"", "\r", "", "\n", "")
 
 // open returns the streamed body with its exact length and Content-Type.
 // Closing the body closes every opened file; net/http closes request bodies
