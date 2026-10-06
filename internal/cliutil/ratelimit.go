@@ -92,8 +92,12 @@ func (l *AdaptiveLimiter) OnSuccess() {
 	l.successes++
 	if l.successes >= l.rampAfter {
 		newRate := l.rate * 1.25
-		if l.ceiling > 0 && newRate > l.ceiling*0.9 {
-			newRate = l.ceiling * 0.9
+		capRate := l.maximum * 0.9
+		if l.ceiling > l.rate {
+			capRate = l.ceiling * 0.9
+		}
+		if newRate > capRate {
+			newRate = capRate
 		}
 		l.rate = min(l.maximum, max(l.rate, newRate))
 		l.successes = 0
