@@ -49,6 +49,9 @@ func formFile(cmd *cobra.Command, definition surface.Flag, path string) (client.
 	case info.Size() == 0:
 		return fail("file is empty")
 	}
+	if strings.ContainsAny(filepath.Base(path), "\r\n") {
+		return fail("filename may not contain newline or carriage-return characters")
+	}
 	if limit := maxUploadBytes(cmd, definition); limit > 0 && info.Size() > limit {
 		return fail("file is %d bytes; the maximum is %d bytes", info.Size(), limit)
 	}
