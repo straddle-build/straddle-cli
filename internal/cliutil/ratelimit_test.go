@@ -165,3 +165,101 @@ func TestAdaptiveLimiter_RateLimitFeedbackExtendsQueuedWait(t *testing.T) {
 		}
 	})
 }
+
+func TestAdaptiveLimiter_RecoversAfterSustainedRateLimits(t *testing.T) {
+	for _, maximum := range []float64{1, 8} {
+		l := NewAdaptiveLimiter(maximum)
+		for range 6 {
+			l.OnRateLimit()
+		}
+		if got := l.Rate(); got != 0.5 {
+			t.Errorf("maximum %v: rate after 6 OnRateLimit = %v, want 0.5 floor", maximum, got)
+		}
+		for range 1000 {
+			l.OnSuccess()
+		}
+		got := l.Rate()
+		if got <= 0.5 {
+			t.Errorf("maximum %v: rate after recovery = %v, want > 0.5 (limiter welded at floor)", maximum, got)
+		}
+		if got > maximum {
+			t.Errorf("maximum %v: recovered rate %v exceeds configured maximum", maximum, got)
+		}
+	}
+}
+
+func TestAdaptiveLimiter_RecoversAfterMultipleRateLimitStorms(t *testing.T) {
+	const maximum = 8.0
+	l := NewAdaptiveLimiter(maximum)
+	const storms = 5
+	recovered := make([]float64, 0, storms)
+	var nearMax bool
+	for storm := 0; storm < storms; storm++ {
+		for range 4 {
+			l.OnRateLimit()
+		}
+		for range 1000 {
+			l.OnSuccess()
+		}
+		r := l.Rate()
+		recovered = append(recovered, r)
+		if r <= 0.5 {
+			t.Fatalf("storm %d: recovered rate %v not above the 0.5 floor; recovered=%v", storm+1, r, recovered)
+		}
+		if r >= maximum/2 {
+			nearMax = true
+		}
+	}
+	t.Logf("recovered rates: %v", recovered)
+	if !nearMax {
+		t.Fatalf("limiter never recovered toward configured maximum across %d storms: %v", storms, recovered)
+	}
+}
+
+func TestAdaptiveLimiter_RecoveryRespectsDiscoveredCeiling(t *testing.T) {
+	const maximum = 8.0
+	l := NewAdaptiveLimiter(maximum)
+	for range 4 {
+		l.OnRateLimit()
+	}
+	if got := l.Rate(); got != 0.5 {
+		t.Fatalf("rate after single storm = %v, want 0.5", got)
+	}
+	for range 1000 {
+		l.OnSuccess()
+	}
+	const ceilingCap = 0.9
+	if got := l.Rate(); got > ceilingCap {
+		t.Fatalf("recovered rate %v exceeds discovered ceiling cap %v; downward adaptation may be removed", got, ceilingCap)
+	}
+	if got := l.Rate(); got <= 0.5 {
+		t.Fatalf("recovered rate = %v, want recovery above the 0.5 floor", got)
+	}
+}
+
+func TestAdaptiveLimiter_PacingResumesAfterStorms(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		const maximum = 8.0
+		l := NewAdaptiveLimiter(maximum)
+		for storm := 0; storm < 2; storm++ {
+			for range 4 {
+				l.OnRateLimit()
+			}
+			for range 1000 {
+				l.OnSuccess()
+			}
+		}
+		l.Wait()
+		start := time.Now()
+		l.Wait()
+		gap := time.Since(start)
+		got := l.Rate()
+		const maxGap = time.Second
+		if gap > maxGap {
+			t.Fatalf("post-recovery pacing gap = %v at rate %v, want <= %v proving recovery persisted through the storms", gap, got, maxGap)
+		}
+		if got <= 0.5 {
+			t.Fatalf("rate after storms = %v, want recovery above 0.5 floor", got)
+		}
+	})
+}
