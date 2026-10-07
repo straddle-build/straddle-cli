@@ -1347,6 +1347,15 @@ func syncDependentResource(c interface {
 	var totalCount int
 	var deniedParents int
 	var firstDenial *accessWarning
+	// hardErrParents tracks parents whose fetch returned a non-access-denial
+	// error (HTTP 500/502/422, network timeout, etc.). When every parent
+	// hard-errors and nothing is synced, the dependent must surface as Err
+	// rather than silent success so the run-level exit-code policy can
+	// classify the all-resource failure as non-zero. Mirrors the all-denied
+	// Warn branch below; uses Err because hard errors are operational
+	// failures, not access-policy decisions.
+	var hardErrParents int
+	var firstHardErr error
 	pageSize := determinePaginationDefaults()
 	depSinceParam := syncResourceSinceParam(dep.Name)
 	depSinceTS := sinceTS
@@ -1410,13 +1419,23 @@ func syncDependentResource(c interface {
 						fmt.Fprintf(os.Stdout, `{"event":"sync_warning","resource":"%s","parent":"%s","status":%d,"reason":"%s","message":"%s"}`+"\n",
 							dep.Name, parentID, w.Status, w.Reason, strings.ReplaceAll(w.Message, `"`, `\"`))
 					}
-				} else if humanFriendly {
-					fmt.Fprintf(os.Stderr, "\n  %s: error for parent %s: %v\n", dep.Name, parentID, err)
 				} else {
-					// Non-warning failures were previously silent in JSON mode —
-					// operators only saw the missing rows. Emit a structured
-					// sync_error so the API body and status are inspectable.
-					fmt.Fprintln(os.Stdout, syncErrorJSON(dep.Name, parentID, err))
+					// Hard (non-access-denial) error: HTTP 500/502/422, network
+					// timeout, etc. Log per-parent (non-fatal) and track the
+					// count so an all-hard-errored dependent surfaces as Err
+					// rather than silent success at the terminal return.
+					hardErrParents++
+					if firstHardErr == nil {
+						firstHardErr = err
+					}
+					if humanFriendly {
+						fmt.Fprintf(os.Stderr, "\n  %s: error for parent %s: %v\n", dep.Name, parentID, err)
+					} else {
+						// Non-warning failures were previously silent in JSON mode —
+						// operators only saw the missing rows. Emit a structured
+						// sync_error so the API body and status are inspectable.
+						fmt.Fprintln(os.Stdout, syncErrorJSON(dep.Name, parentID, err))
+					}
 				}
 				break
 			}
@@ -1554,6 +1573,20 @@ func syncDependentResource(c interface {
 			Resource: dep.Name,
 			Count:    0,
 			Warn:     fmt.Errorf("skipped %s: %s on all %d parents", dep.Name, firstDenial.Reason, len(parentIDs)),
+			Duration: time.Since(started),
+		}
+	}
+	// If every parent hard-errored and nothing was synced, surface as an
+	// error so the run-level summary and exit code reflect the total
+	// failure. Without this guard the dependent returns Err: nil and the
+	// run-level aggregator counts a 100% failure as successCount++, defeating
+	// the "all-resource failure exits non-zero" contract (see --strict help
+	// and the exit-code policy comment in newSyncCmd.RunE).
+	if hardErrParents == len(parentIDs) && totalCount == 0 && firstHardErr != nil {
+		return syncResult{
+			Resource: dep.Name,
+			Count:    0,
+			Err:      fmt.Errorf("fetching %s: all %d parents failed (first: %w)", dep.Name, len(parentIDs), firstHardErr),
 			Duration: time.Since(started),
 		}
 	}
