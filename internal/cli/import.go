@@ -23,7 +23,9 @@ func newImportCmd(flags *rootFlags) *cobra.Command {
 		Short: "Import data from JSONL file via API create/upsert calls",
 		Long: `Import data from a JSONL file by issuing POST requests for each record.
 Each line must be a valid JSON object. Failed records are logged to stderr
-but do not stop the import. Dry-run JSON summaries include dry_run: true.`,
+but do not stop the import. Dry-run JSON summaries include dry_run: true.
+If reading the input fails, the summary of records already processed is
+still printed and the command exits non-zero.`,
 		Example: `  # Import from a JSONL file
   straddle import <resource> --input data.jsonl
 
@@ -82,10 +84,9 @@ but do not stop the import. Dry-run JSON summaries include dry_run: true.`,
 				success++
 			}
 
-			if err := scanner.Err(); err != nil {
-				return fmt.Errorf("reading input: %w", err)
-			}
-
+			// Records before a read error were already sent, so report their
+			// counts before returning the error.
+			readErr := scanner.Err()
 			if flags.asJSON {
 				result := map[string]any{
 					"succeeded": success,
@@ -95,9 +96,15 @@ but do not stop the import. Dry-run JSON summaries include dry_run: true.`,
 				if dryRun {
 					result["dry_run"] = true
 				}
-				return printWriteJSONFiltered(cmd.OutOrStdout(), result, flags)
+				if err := printWriteJSONFiltered(cmd.OutOrStdout(), result, flags); err != nil {
+					return err
+				}
+			} else {
+				fmt.Fprintf(os.Stderr, "Import complete: %d succeeded, %d failed, %d skipped\n", success, failed, skipped)
 			}
-			fmt.Fprintf(os.Stderr, "Import complete: %d succeeded, %d failed, %d skipped\n", success, failed, skipped)
+			if readErr != nil {
+				return fmt.Errorf("reading input: %w", readErr)
+			}
 			return nil
 		},
 	}
