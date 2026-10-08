@@ -1080,6 +1080,64 @@ func TestDriftSpecsRoutesGeneratedParameterCollisionsToUnsupported(t *testing.T)
 	}
 }
 
+// Flags whose wire keys kebab-collapse to one CLI name must still be compared
+// by wire identity, so an unchanged collision reports no drift and a real
+// change names only the flag that changed.
+func TestDriftSpecsComparesKebabCollidingFlagsByWireKey(t *testing.T) {
+	t.Parallel()
+
+	spec := func(underscoreType string) string {
+		return `{
+			"openapi": "3.1.0",
+			"paths": {
+				"/v1/collisions": {
+					"get": {
+						"tags": ["Collisions"],
+						"operationId": "ListCollisions",
+						"summary": "List collisions",
+						"parameters": [
+							{"name": "request-id", "in": "query", "schema": {"type": "string"}},
+							{"name": "request_id", "in": "query", "schema": {"type": "` + underscoreType + `"}}
+						]
+					}
+				}
+			}
+		}`
+	}
+	tests := []struct {
+		name       string
+		headType   string
+		wantFields []apisync.FieldChange
+	}{
+		{name: "identical specs", headType: "string"},
+		{
+			name:       "one colliding flag changes",
+			headType:   "integer",
+			wantFields: []apisync.FieldChange{{Flag: "request-id", Kind: "changed", Detail: "kind: string -> integer"}},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			result, err := apisync.DriftSpecs(writeSpec(t, spec("string")), writeSpec(t, spec(tc.headType)))
+			if err != nil {
+				t.Fatalf("DriftSpecs: %v", err)
+			}
+			if result.NoDrift != (len(tc.wantFields) == 0) {
+				t.Fatalf("NoDrift = %t, want %t; Changes=%#v", result.NoDrift, len(tc.wantFields) == 0, result.Changes)
+			}
+			var gotFields []apisync.FieldChange
+			for _, change := range result.Changes {
+				gotFields = append(gotFields, change.Fields...)
+			}
+			if !reflect.DeepEqual(gotFields, tc.wantFields) {
+				t.Fatalf("changed fields = %#v, want %#v", gotFields, tc.wantFields)
+			}
+		})
+	}
+}
+
 func TestParseSpecAppliesPathLevelParameters(t *testing.T) {
 	t.Parallel()
 
