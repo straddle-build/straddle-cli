@@ -1422,8 +1422,8 @@ func syncDependentResource(c interface {
 				} else {
 					// Hard (non-access-denial) error: HTTP 500/502/422, network
 					// timeout, etc. Log per-parent (non-fatal) and track the
-					// count so an all-hard-errored dependent surfaces as Err
-					// rather than silent success at the terminal return.
+					// count so an all-failed dependent with any hard error
+					// surfaces as Err rather than silent success at the terminal return.
 					hardErrParents++
 					if firstHardErr == nil {
 						firstHardErr = err
