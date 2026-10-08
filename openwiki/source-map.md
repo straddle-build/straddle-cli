@@ -153,7 +153,7 @@ These are the command families that make this repo more than a direct API wrappe
 - `events tail` — read notifications from the dashboard's polling endpoint (not the Straddle API): print in order, commit only what was shown or forwarded, optionally forward to a local URL (`internal/cli/events_tail.go`).
 - `workflow` / `workflow archive` / `workflow status` — channel/workflow helpers.
 - `api` - inspect API capabilities, browse hidden interfaces, and call raw API paths.
-- `import` — import data snapshots into the local store.
+- `import` — import data from a JSONL file via API create/upsert calls.
 - `deliver` — route command output to alternate sinks such as files or webhooks.
 - `analytics` — umbrella entrypoint for analytics-related helpers.
 * `agent-context`: expose CLI metadata and runtime context to agents.
