@@ -437,6 +437,33 @@ paths:
 			},
 		},
 		{
+			name: "multipart upload may own a stdin query parameter",
+			spec: `
+openapi: 3.1.0
+paths:
+  /v1/widgets/proof:
+    post:
+      operationId: uploadWidgetProof
+      tags: [widgets]
+      parameters:
+        - {name: stdin, in: query, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                File: {type: string, format: binary}
+`,
+			want: func(t *testing.T, surfaces []surface.Surface, unsupported []UnsupportedOperation) {
+				t.Helper()
+				got := requireSingleSupportedSurface(t, surfaces, unsupported)
+				requireFlag(t, got, surface.Flag{Name: "stdin", In: surface.InQuery, Key: "stdin", Kind: surface.KindString, Style: surface.StyleForm, Explode: true})
+				requireFlag(t, got, surface.Flag{Name: "file", In: surface.InForm, Key: "File", Kind: surface.KindFile})
+			},
+		},
+		{
 			name: "multipart text property stays unsupported",
 			spec: `
 openapi: 3.1.0

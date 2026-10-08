@@ -102,7 +102,10 @@ func generatedParameterUnsupportedReasons(op Operation) []string {
 	}
 
 	flagOwners := generatedReservedFlagOwners()
-	if op.RequestBodyRequired || len(op.RequestBodyMediaTypes) > 0 {
+	// Derivation prefers a JSON body; only a multipart-only body binds file
+	// flags instead of --stdin.
+	multipartOnly := hasMultipartMediaType(op.RequestBodyMediaTypes) && !hasJSONMediaType(op.RequestBodyMediaTypes)
+	if (op.RequestBodyRequired || len(op.RequestBodyMediaTypes) > 0) && !multipartOnly {
 		flagOwners["stdin"] = "request body stdin flag"
 	}
 	varOwners := map[string]string{}
