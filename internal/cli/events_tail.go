@@ -450,7 +450,8 @@ type eventsTail struct {
 }
 
 // run polls, delivers and commits until ctx ends (Ctrl+C, SIGTERM) or a
-// permanent failure. A requested stop returns nil.
+// permanent failure. A requested stop returns nil once delivered events are
+// committed, or an error if the final commit fails.
 func (t *eventsTail) run(ctx context.Context) error {
 	for {
 		var msgs []polledMessage
