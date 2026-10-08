@@ -127,7 +127,7 @@ For numbered endpoints, `--page-number` selects the starting page and `--page-si
 
 The CLI returns an error if a later request fails or pagination cannot prove that the result is complete. Numbered reads stop at 10,000 pages; narrow the filters or increase the supported page size for larger result sets.
 
-`--rate-limit` sets a requests-per-second maximum shared by concurrent calls. The limiter slows after HTTP `429` responses and recovers toward that maximum. `0` disables the limit. Invalid pacing values fail before a request.
+`--rate-limit` sets a requests-per-second maximum shared by concurrent calls. The limiter slows after HTTP `429` responses and recovers to just below the rate that last drew a 429, never exceeding that maximum. `0` disables the limit. Invalid pacing values fail before a request.
 
 ## Sync and query local data
 

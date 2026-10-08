@@ -216,24 +216,53 @@ func TestAdaptiveLimiter_RecoversAfterMultipleRateLimitStorms(t *testing.T) {
 	}
 }
 
-func TestAdaptiveLimiter_RecoveryRespectsDiscoveredCeiling(t *testing.T) {
+func TestAdaptiveLimiter_ConcurrentBurstRecoversTowardMaximum(t *testing.T) {
 	const maximum = 8.0
 	l := NewAdaptiveLimiter(maximum)
+	// sync's default 4 workers report one 429 episode as 4 back-to-back
+	// rate limits before any request succeeds.
 	for range 4 {
 		l.OnRateLimit()
-	}
-	if got := l.Rate(); got != 0.5 {
-		t.Fatalf("rate after single storm = %v, want 0.5", got)
 	}
 	for range 1000 {
 		l.OnSuccess()
 	}
-	const ceilingCap = 0.9
-	if got := l.Rate(); got > ceilingCap {
-		t.Fatalf("recovered rate %v exceeds discovered ceiling cap %v; downward adaptation may be removed", got, ceilingCap)
+	recovered := l.Rate()
+	if recovered <= maximum/2 {
+		t.Fatalf("rate after a 4-429 burst and sustained successes = %v, want > %v", recovered, maximum/2)
 	}
-	if got := l.Rate(); got <= 0.5 {
-		t.Fatalf("recovered rate = %v, want recovery above the 0.5 floor", got)
+
+	// A 429 at the held, recovered rate is genuine and still lowers the
+	// rate the limiter recovers to.
+	l.OnRateLimit()
+	for range 1000 {
+		l.OnSuccess()
+	}
+	if got := l.Rate(); got >= recovered {
+		t.Fatalf("rate after a 429 at held rate %v recovered to %v, want below %v", recovered, got, recovered)
+	}
+}
+
+func TestAdaptiveLimiter_MoreRateLimitsNeverRecoverFaster(t *testing.T) {
+	const maximum = 8.0
+	const successes = 1000
+	var fewer []float64
+	for n := 1; n <= 6; n++ {
+		l := NewAdaptiveLimiter(maximum)
+		for range n {
+			l.OnRateLimit()
+		}
+		rates := make([]float64, successes)
+		for i := range rates {
+			l.OnSuccess()
+			rates[i] = l.Rate()
+		}
+		for i := range fewer {
+			if rates[i] > fewer[i] {
+				t.Fatalf("after %d successes: %d 429s recovered to %v, faster than %d 429s at %v", i+1, n, rates[i], n-1, fewer[i])
+			}
+		}
+		fewer = rates
 	}
 }
 
