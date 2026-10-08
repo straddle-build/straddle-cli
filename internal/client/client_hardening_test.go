@@ -241,3 +241,34 @@ func TestClient_GETCacheDistinguishesAmbiguousTemplateVars(t *testing.T) {
 		t.Fatalf("requests = %d, want 2 distinct cache entries", requests)
 	}
 }
+
+func TestClient_GETCacheDistinguishesAmbiguousParams(t *testing.T) {
+	t.Parallel()
+
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"query":%q}`, r.URL.RawQuery)
+	}))
+	defer server.Close()
+
+	client := New(&config.Config{BaseURL: server.URL}, time.Second, 0)
+	client.cacheDir = t.TempDir()
+
+	// Naive "k=v" concatenation encodes both maps as "a=bc=d".
+	first, err := client.Get("/cache", map[string]string{"a": "b", "c": "d"})
+	if err != nil {
+		t.Fatalf("first Get: %v", err)
+	}
+	second, err := client.Get("/cache", map[string]string{"a": "bc=d"})
+	if err != nil {
+		t.Fatalf("second Get: %v", err)
+	}
+	if string(first) == string(second) {
+		t.Fatalf("responses share a cache entry: %s", second)
+	}
+	if requests != 2 {
+		t.Fatalf("requests = %d, want 2 distinct cache entries", requests)
+	}
+}

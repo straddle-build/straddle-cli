@@ -191,27 +191,22 @@ func (c *Client) cacheKey(path string, params map[string]string, headers map[str
 		}
 		key += normalizedHeaderKey("config_headers", c.Config.Headers)
 	}
-	paramKeys := make([]string, 0, len(params))
-	for k := range params {
-		paramKeys = append(paramKeys, k)
-	}
-	sort.Strings(paramKeys)
-	for _, k := range paramKeys {
-		key += k + "=" + params[k]
-	}
+	key += "|params=" + stringMapCacheKey(params)
 	// Include resolved template-var values in the cache identity so two
 	// tenants (different SHOPIFY_SHOP) never collide on the same path, and
 	// flipping a value back to unset misses the warm cache and surfaces
 	// the actionable error from buildURL instead of returning stale data.
 	if c.Config != nil {
-		key += "|template_vars=" + templateVarsCacheKey(c.Config.TemplateVars)
+		key += "|template_vars=" + stringMapCacheKey(c.Config.TemplateVars)
 	}
 	key += normalizedHeaderKey("request_headers", headers)
 	h := sha256.Sum256([]byte(key))
 	return hex.EncodeToString(h[:8])
 }
 
-func templateVarsCacheKey(vars map[string]string) string {
+// stringMapCacheKey length-prefixes each name and value so that distinct
+// maps can never encode to the same string (e.g. {a:b, c:d} vs {a:"bc=d"}).
+func stringMapCacheKey(vars map[string]string) string {
 	names := make([]string, 0, len(vars))
 	for name := range vars {
 		names = append(names, name)
