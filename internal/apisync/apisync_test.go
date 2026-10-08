@@ -904,6 +904,52 @@ func TestUnsupportedReasonsRejectsReservedGeneratedFlagNames(t *testing.T) {
 	}
 }
 
+// The binder registers --stdin only for JSON bodies, so a multipart upload may
+// own a parameter named stdin. JSON wins when a body declares both media types.
+func TestUnsupportedReasonsReservesStdinOnlyForJSONBodies(t *testing.T) {
+	t.Parallel()
+
+	const collision = `parameter flag name collision "stdin"`
+	for _, tc := range []struct {
+		name          string
+		mediaTypes    []string
+		param         apisync.Parameter
+		wantCollision bool
+	}{
+		{name: "multipart query", mediaTypes: []string{"multipart/form-data"}, param: apisync.Parameter{Name: "stdin", In: "query"}},
+		{name: "multipart header", mediaTypes: []string{"multipart/form-data; boundary=x"}, param: apisync.Parameter{Name: "stdin", In: "header"}},
+		{name: "json query", mediaTypes: []string{"application/json"}, param: apisync.Parameter{Name: "stdin", In: "query"}, wantCollision: true},
+		{name: "json and multipart query", mediaTypes: []string{"multipart/form-data", "application/json"}, param: apisync.Parameter{Name: "stdin", In: "query"}, wantCollision: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			op := apisync.Operation{
+				OperationID:           "UploadWidgetProof",
+				Method:                "POST",
+				Path:                  "/v1/widgets/proof",
+				RequestBodyRequired:   true,
+				RequestBodyMediaTypes: tc.mediaTypes,
+			}
+			if tc.param.In == "header" {
+				op.HeaderParameters = []apisync.Parameter{tc.param}
+			} else {
+				op.QueryParameters = []apisync.Parameter{tc.param}
+			}
+
+			reasons := apisync.UnsupportedReasons(op)
+			if tc.wantCollision {
+				if !hasReasonContaining(reasons, collision) {
+					t.Fatalf("UnsupportedReasons = %#v, want %s", reasons, collision)
+				}
+				return
+			}
+			if len(reasons) != 0 {
+				t.Fatalf("UnsupportedReasons = %#v, want none", reasons)
+			}
+		})
+	}
+}
+
 func TestUnsupportedReasonsScopesArraySchemaTypeToQuery(t *testing.T) {
 	t.Parallel()
 
