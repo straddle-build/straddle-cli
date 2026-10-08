@@ -363,13 +363,41 @@ func mergeSchemaNodes(base, overlay schemaNode, pointer string) (schemaNode, []s
 	}
 	base.OneOf = append(base.OneOf, overlay.OneOf...)
 	base.AnyOf = append(base.AnyOf, overlay.AnyOf...)
+	// allOf admits only values every member admits, so enums intersect. An
+	// empty intersection admits nothing; report it rather than emit a flag
+	// with no allow-list, which the binder would treat as unbounded.
 	if overlay.Enum != nil {
-		base.Enum = append([]json.RawMessage(nil), overlay.Enum...)
+		if base.Enum == nil {
+			base.Enum = append([]json.RawMessage(nil), overlay.Enum...)
+		} else {
+			base.Enum = intersectEnums(base.Enum, overlay.Enum)
+			if len(base.Enum) == 0 {
+				reasons = append(reasons, fmt.Sprintf("conflicting allOf enums at %s: no value satisfies every member", pointer))
+			}
+		}
 	}
 	if len(overlay.Default) > 0 {
 		base.Default = append(json.RawMessage(nil), overlay.Default...)
 	}
 	return base, reasons
+}
+
+// intersectEnums keeps base's order and returns a non-nil slice, so a
+// disjoint result stays a constraint that later allOf members cannot widen.
+// Raw bytes compare by value because parseDocument re-encodes the whole spec
+// through yaml.YAMLToJSON, giving equal values one canonical spelling.
+func intersectEnums(base, overlay []json.RawMessage) []json.RawMessage {
+	allowed := make(map[string]bool, len(overlay))
+	for _, value := range overlay {
+		allowed[string(value)] = true
+	}
+	shared := make([]json.RawMessage, 0, len(base))
+	for _, value := range base {
+		if allowed[string(value)] {
+			shared = append(shared, value)
+		}
+	}
+	return shared
 }
 
 func combineAllOfSchemas(base, overlay json.RawMessage) json.RawMessage {

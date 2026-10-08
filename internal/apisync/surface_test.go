@@ -461,6 +461,94 @@ paths:
 				}
 			},
 		},
+		{
+			name: "allOf enums intersect regardless of member order",
+			spec: `
+openapi: 3.1.0
+paths:
+  /v1/widgets:
+    post:
+      operationId: createWidget
+      tags: [widgets]
+      parameters:
+        - name: mode
+          in: query
+          schema:
+            allOf:
+              - {type: string, enum: [a, b, c]}
+              - {enum: [b, c, d]}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+                - type: object
+                  properties:
+                    status: {type: string, enum: [a, b, c]}
+                - type: object
+                  properties:
+                    status: {type: string, enum: [b, c, d]}
+                    reverse:
+                      allOf:
+                        - {type: string, enum: [b, c, d]}
+                        - {type: string, enum: [a, b, c]}
+                    tier:
+                      allOf:
+                        - {type: integer, enum: [1, 2]}
+                        - {type: integer, enum: [2.0, 3]}
+`,
+			want: func(t *testing.T, surfaces []surface.Surface, unsupported []UnsupportedOperation) {
+				t.Helper()
+				got := requireSingleSupportedSurface(t, surfaces, unsupported)
+				requireFlag(t, got, surface.Flag{
+					Name:    "mode",
+					In:      surface.InQuery,
+					Key:     "mode",
+					Kind:    surface.KindString,
+					Style:   surface.StyleForm,
+					Explode: true,
+					Enum:    []string{"b", "c"},
+				})
+				requireFlag(t, got, surface.Flag{Name: "status", In: surface.InBody, Key: "/status", Kind: surface.KindString, Enum: []string{"b", "c"}})
+				requireFlag(t, got, surface.Flag{Name: "reverse", In: surface.InBody, Key: "/reverse", Kind: surface.KindString, Enum: []string{"b", "c"}})
+				requireFlag(t, got, surface.Flag{Name: "tier", In: surface.InBody, Key: "/tier", Kind: surface.KindInteger, Enum: []string{"2"}})
+			},
+		},
+		{
+			name: "disjoint allOf enums leave the field unsupported",
+			spec: `
+openapi: 3.1.0
+paths:
+  /v1/widgets:
+    post:
+      operationId: createWidget
+      tags: [widgets]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: {type: string}
+                status:
+                  allOf:
+                    - {type: string, enum: [a, b]}
+                    - {type: string, enum: [c, d]}
+`,
+			want: func(t *testing.T, surfaces []surface.Surface, unsupported []UnsupportedOperation) {
+				t.Helper()
+				if len(surfaces) != 1 || len(unsupported) != 1 {
+					t.Fatalf("surfaces = %#v, unsupported = %#v, want one partial surface reported unsupported", surfaces, unsupported)
+				}
+				if !surfaceReasonContains(unsupported[0].Reasons, "conflicting allOf enums at /status") {
+					t.Fatalf("reasons = %#v, want conflicting allOf enums at /status", unsupported[0].Reasons)
+				}
+				if flag := flagByName(surfaces[0].Flags, "status"); flag != nil {
+					t.Fatalf("status flag = %#v, want no flag for a field no value satisfies", *flag)
+				}
+				requireFlag(t, surfaces[0], surface.Flag{Name: "name", In: surface.InBody, Key: "/name", Kind: surface.KindString})
+			},
+		},
 	}
 
 	for _, test := range tests {

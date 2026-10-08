@@ -39,6 +39,8 @@ go run ./cmd/gen-endpoint drift --base spec.yaml --head <released-spec> --repo .
 go run ./cmd/gen-endpoint generate --spec spec.yaml --repo . --agent
 ```
 
+When `allOf` members (or a `$ref` and its sibling keywords) each declare an `enum`, the derived flag accepts only values every member allows. If no value satisfies every member, the field gets no flag and its operation is reported unsupported with a `conflicting allOf enums` reason, the same treatment as conflicting `allOf` types.
+
 `.github/workflows/api-sync.yml` receives `straddle-contract-published`, accepts an exact version for manual recovery, and checks Scalar daily for a missed event. Discovery may read Scalar's current release, but synchronization always downloads the exact versioned artifact. Publisher-triggered runs verify the publisher-provided digest before drift or generation. Scheduled and manual recovery runs compute the digest from the exact downloaded artifact and require no checksum input.
 
 Every new contract version updates the YAML and lock in a normal human-reviewed PR. The workflow then regenerates every supported contract-derived endpoint file, overwrites existing generated files, and deletes owned generated files for operations that left the contract or became unsupported. Review evidence includes field-level flag additions, removals, and changes, plus counts for generated, deleted, unchanged, and unsupported operations. Repeated events and scheduled runs are green no-ops when the version and bytes already match `main` or the version-specific branch of an open synchronization PR. A stale branch without an open PR does not suppress PR creation. Changed bytes for an already-seen version fail. The workflow never auto-merges.
