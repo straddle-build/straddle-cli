@@ -170,6 +170,9 @@ func parseDocument(data []byte) (*parsedDocument, error) {
 		raw:           rawDoc,
 		rawOperations: make(map[string]parsedOperation),
 	}
+	// Path parameters never reach the surface deriver, so the support gate
+	// sees their schema type only here; resolve $ref like query and header.
+	deriver := surfaceDeriver{doc: doc}
 	for path, item := range rawDoc.Paths {
 		pathParams, err := parseRawParameters(item["parameters"], path, rawDoc.Components.Parameters)
 		if err != nil {
@@ -202,12 +205,14 @@ func parseDocument(data []byte) (*parsedDocument, error) {
 			parameters := mergeRawParameters(pathParams, operationParams)
 			for _, p := range parameters {
 				explode := p.Explode != nil && *p.Explode
+				schema, _ := deriver.resolveSchema(p.Schema, p.In+" parameter "+p.Name, map[string]bool{})
+				schemaType, _ := nodeType(schema)
 				param := Parameter{
 					Name:        p.Name,
 					In:          p.In,
 					Required:    p.Required,
 					Description: p.Description,
-					SchemaType:  rawSchemaType(p.Schema),
+					SchemaType:  schemaType,
 					Style:       p.Style,
 					Explode:     explode,
 				}
@@ -239,32 +244,6 @@ func parseDocument(data []byte) (*parsedDocument, error) {
 	}
 	SortOperations(doc.operations)
 	return doc, nil
-}
-
-func rawSchemaType(raw json.RawMessage) string {
-	var schema struct {
-		Type json.RawMessage `json:"type"`
-	}
-	if err := json.Unmarshal(raw, &schema); err != nil {
-		return ""
-	}
-	var single string
-	if err := json.Unmarshal(schema.Type, &single); err == nil {
-		return single
-	}
-	var multiple []string
-	if err := json.Unmarshal(schema.Type, &multiple); err != nil {
-		return ""
-	}
-	for _, schemaType := range multiple {
-		if schemaType != "null" {
-			if single != "" {
-				return ""
-			}
-			single = schemaType
-		}
-	}
-	return single
 }
 
 func parseRawParameters(raw json.RawMessage, context string, components map[string]rawParameter) ([]rawParameter, error) {
