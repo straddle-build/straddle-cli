@@ -43,7 +43,7 @@ func TestReleaseWorkflowRoutesTagPushesAndNPMRecoverySeparately(t *testing.T) {
 		"actions/checkout@v7",
 		"Verify published release",
 		"Check out release source",
-		"actions/setup-node@v6",
+		"actions/setup-node@v7",
 		"Use npm with trusted publishing support",
 		"Build npm packages",
 		"Publish npm packages",
