@@ -1349,11 +1349,11 @@ func syncDependentResource(c interface {
 	var firstDenial *accessWarning
 	// hardErrParents tracks parents whose fetch returned a non-access-denial
 	// error (HTTP 500/502/422, network timeout, etc.). When every parent
-	// hard-errors and nothing is synced, the dependent must surface as Err
-	// rather than silent success so the run-level exit-code policy can
-	// classify the all-resource failure as non-zero. Mirrors the all-denied
-	// Warn branch below; uses Err because hard errors are operational
-	// failures, not access-policy decisions.
+	// failed (denied or hard-errored) and nothing synced, any hard error
+	// makes the dependent an Err rather than silent success, so the run-level
+	// exit-code policy classifies the failure as non-zero. Err rather than
+	// Warn because hard errors are operational failures, not access-policy
+	// decisions.
 	var hardErrParents int
 	var firstHardErr error
 	pageSize := determinePaginationDefaults()
@@ -1566,27 +1566,25 @@ func syncDependentResource(c interface {
 		}
 	}
 
-	// If every parent was access-denied and nothing was synced, surface as a
-	// warning so the run-level summary and exit code reflect insufficient access.
-	if deniedParents == len(parentIDs) && totalCount == 0 && firstDenial != nil {
+	// Every parent failed and nothing synced. Any hard error makes this an Err
+	// so the run-level aggregator does not count a total failure as success
+	// (the "all-resource failure exits non-zero" contract; see --strict help
+	// and the exit-code policy comment in newSyncCmd.RunE). When every parent
+	// was access-denied, surface a Warn so the summary and exit code reflect
+	// insufficient access.
+	if deniedParents+hardErrParents == len(parentIDs) && totalCount == 0 {
+		if firstHardErr != nil {
+			return syncResult{
+				Resource: dep.Name,
+				Count:    0,
+				Err:      fmt.Errorf("fetching %s: all %d parents failed (first: %w)", dep.Name, len(parentIDs), firstHardErr),
+				Duration: time.Since(started),
+			}
+		}
 		return syncResult{
 			Resource: dep.Name,
 			Count:    0,
 			Warn:     fmt.Errorf("skipped %s: %s on all %d parents", dep.Name, firstDenial.Reason, len(parentIDs)),
-			Duration: time.Since(started),
-		}
-	}
-	// If every parent hard-errored and nothing was synced, surface as an
-	// error so the run-level summary and exit code reflect the total
-	// failure. Without this guard the dependent returns Err: nil and the
-	// run-level aggregator counts a 100% failure as successCount++, defeating
-	// the "all-resource failure exits non-zero" contract (see --strict help
-	// and the exit-code policy comment in newSyncCmd.RunE).
-	if hardErrParents == len(parentIDs) && totalCount == 0 && firstHardErr != nil {
-		return syncResult{
-			Resource: dep.Name,
-			Count:    0,
-			Err:      fmt.Errorf("fetching %s: all %d parents failed (first: %w)", dep.Name, len(parentIDs), firstHardErr),
 			Duration: time.Since(started),
 		}
 	}
