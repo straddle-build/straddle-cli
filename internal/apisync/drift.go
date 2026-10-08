@@ -134,7 +134,7 @@ func changedSurfaceFields(base, head surface.Surface) []FieldChange {
 	baseFlags := flagMap(base.Flags)
 	headFlags := flagMap(head.Flags)
 	for _, flag := range head.Flags {
-		previous, ok := baseFlags[flag.Name]
+		previous, ok := baseFlags[flagIdentity(flag)]
 		switch {
 		case !ok:
 			fields = append(fields, FieldChange{Flag: flag.Name, Kind: "added", Detail: describeFlag(flag)})
@@ -143,7 +143,7 @@ func changedSurfaceFields(base, head surface.Surface) []FieldChange {
 		}
 	}
 	for _, flag := range base.Flags {
-		if _, ok := headFlags[flag.Name]; !ok {
+		if _, ok := headFlags[flagIdentity(flag)]; !ok {
 			fields = append(fields, FieldChange{Flag: flag.Name, Kind: "removed", Detail: describeFlag(flag)})
 		}
 	}
@@ -193,8 +193,6 @@ func describeFlagChanges(base, head surface.Flag) string {
 			changes = append(changes, fmt.Sprintf("%s: %v -> %v", name, before, after))
 		}
 	}
-	appendChange("in", base.In, head.In)
-	appendChange("key", base.Key, head.Key)
 	appendChange("kind", base.Kind, head.Kind)
 	appendChange("array", base.Array, head.Array)
 	appendChange("object", base.Object, head.Object)
@@ -264,9 +262,16 @@ func surfaceMap(surfaces []surface.Surface) map[string]surface.Surface {
 func flagMap(flags []surface.Flag) map[string]surface.Flag {
 	mapped := make(map[string]surface.Flag, len(flags))
 	for _, flag := range flags {
-		mapped[flag.Name] = flag
+		mapped[flagIdentity(flag)] = flag
 	}
 	return mapped
+}
+
+// flagIdentity keys a flag by its wire location and key. Name is the
+// kebab-cased CLI name, which distinct wire keys such as request-id and
+// request_id can share.
+func flagIdentity(flag surface.Flag) string {
+	return string(flag.In) + "\x00" + flag.Key
 }
 
 func unsupportedOperationMap(operations []UnsupportedOperation) map[string]UnsupportedOperation {
