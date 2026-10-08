@@ -127,13 +127,56 @@ func TestSyncDependentAllParentsAccessDeniedStaysWarn(t *testing.T) {
 	}
 }
 
+// TestSyncDependentMixedDeniedAndHardErrorFails covers total failure split
+// across both classifications: one parent access-denied, the other
+// hard-errored, zero rows. Neither all-denied nor all-hard-errored holds on
+// its own, yet nothing synced, so the dependent must surface as Err (a hard
+// error outranks a denial) and the run must exit non-zero.
+func TestSyncDependentMixedDeniedAndHardErrorFails(t *testing.T) {
+	accountsJSON := `[{"id":"acc1"},{"id":"acc2"}]`
+	server := depTestServer(t, accountsJSON, func(parentID string) (int, string) {
+		switch parentID {
+		case "acc1":
+			return http.StatusForbidden, `{"error":"forbidden","reason":"insufficient scope"}`
+		default:
+			return http.StatusUnprocessableEntity, `{"error":"invalid","reason":"server rejected filter"}`
+		}
+	})
+	defer server.Close()
+
+	dbPath := filepath.Join(t.TempDir(), "data.db")
+	seedAccountsSync(t, dbPath, server.URL)
+
+	res := runSyncCommand(t, dbPath, server.URL, "--resources", "capability_requests")
+
+	if res.exitCode == 0 {
+		t.Errorf("exitCode = 0, want non-zero: every parent failed (one denied, one hard error) and nothing synced\nstdout: %s\nstderr: %s", res.stdout, res.stderr)
+	}
+	summary := parseSyncSummary(t, res.stdout)
+	if summary.Errored != 1 {
+		t.Errorf("sync_summary errored = %d, want 1 (a hard error among all-failed parents must surface as Err)\nstdout: %s", summary.Errored, res.stdout)
+	}
+	if summary.Success != 0 {
+		t.Errorf("sync_summary success = %d, want 0 (all-failed dependent must not be counted as success)\nstdout: %s", summary.Success, res.stdout)
+	}
+	if summary.Warned != 0 {
+		t.Errorf("sync_summary warned = %d, want 0 (a hard error outranks the denial)\nstdout: %s", summary.Warned, res.stdout)
+	}
+	if !bytes.Contains(res.stdout, []byte(`"event":"sync_warning"`)) {
+		t.Errorf("stdout should contain a per-parent sync_warning for the denied parent\nstdout: %s", res.stdout)
+	}
+	if !bytes.Contains(res.stdout, []byte(`"event":"sync_error"`)) {
+		t.Errorf("stdout should contain a per-parent sync_error for the hard-errored parent\nstdout: %s", res.stdout)
+	}
+}
+
 // TestSyncDependentPartialHardErrorStaysSuccess pins the per-parent
 // resilience boundary: when only SOME parents hard-error (and at least one
 // parent call succeeds, even with zero rows), the dependent still returns
-// Err: nil and is counted as success. The fix only fires when every parent
-// hard-errored; this test guards against a future change that makes the
-// all-hard-errored guard fire too broadly and breaks the intentional
-// per-parent resilience (which the all-denied pattern also relies on).
+// Err: nil and is counted as success. The guard only fires when every parent
+// failed; this test guards against a future change that makes the
+// all-failed guard fire too broadly and breaks the intentional per-parent
+// resilience (which the all-denied pattern also relies on).
 func TestSyncDependentPartialHardErrorStaysSuccess(t *testing.T) {
 	accountsJSON := `[{"id":"acc1"},{"id":"acc2"}]`
 	server := depTestServer(t, accountsJSON, func(parentID string) (int, string) {
