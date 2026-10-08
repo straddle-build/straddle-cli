@@ -52,7 +52,7 @@ The API sync workflow regenerates every supported contract-derived endpoint comm
 - Endpoint annotations use `straddle:endpoint`, `straddle:method`, and `straddle:path`; `agent-context` schema version 4 exposes those keys.
 - Output formatting must stay stable for agent/JSON use cases.
 - The local store is scoped by environment and acting account, and is expected by search, SQL, and analytics workflows.
-* Generated endpoint commands enforce required flags (omitting spec defaults from help and agent context since required flags must be provided explicitly), validate structured JSON values (arrays and objects), and validate multipart upload files locally in both live and dry-run modes before sending any HTTP request.
+* Endpoint commands (both generated and hand-authored) enforce required flags locally in both live and dry-run modes before sending any HTTP request. Generated endpoint commands also omit spec defaults from help and agent context since required flags must be provided explicitly, validate structured JSON values (arrays and objects), and validate multipart upload files.
 * `doctor` and `agent-context` report selected `runtime_context` (environment, integration type, acting account) without opening the local store.
 
 ## Where to look next
