@@ -13,14 +13,15 @@ import (
 )
 
 // AdaptiveLimiter shares one request pace across callers. It backs off on 429
-// and recovers after consecutive successes, never exceeding the configured rate.
-// Per-session only, not persisted. Methods are safe to call on a nil receiver.
+// and recovers after consecutive successes to just below the rate that last
+// drew a 429, never exceeding the configured rate. Per-session only, not
+// persisted. Methods are safe to call on a nil receiver.
 type AdaptiveLimiter struct {
 	admission   chan struct{} // serialize admissions without blocking rate feedback
 	mu          sync.Mutex
 	rate        float64
-	maximum     float64
-	ceiling     float64
+	ceiling     float64 // configured rate, lowered to the held rate that drew each 429 episode
+	backedOff   bool    // rate not yet held since a 429: further 429s join that episode
 	successes   int
 	rampAfter   int
 	lastRequest time.Time // zero-value: first Wait() returns immediately
@@ -36,7 +37,7 @@ func NewAdaptiveLimiter(ratePerSec float64) *AdaptiveLimiter {
 	return &AdaptiveLimiter{
 		admission: make(chan struct{}, 1),
 		rate:      ratePerSec,
-		maximum:   ratePerSec,
+		ceiling:   ratePerSec,
 		rampAfter: 10,
 	}
 }
@@ -91,16 +92,9 @@ func (l *AdaptiveLimiter) OnSuccess() {
 	defer l.mu.Unlock()
 	l.successes++
 	if l.successes >= l.rampAfter {
-		newRate := l.rate * 1.25
-		capRate := l.maximum * 0.9
-		if l.ceiling > l.rate {
-			capRate = l.ceiling * 0.9
-		}
-		if newRate > capRate {
-			newRate = capRate
-		}
-		l.rate = min(l.maximum, max(l.rate, newRate))
+		l.rate = max(l.rate, min(l.rate*1.25, l.ceiling*0.9))
 		l.successes = 0
+		l.backedOff = false
 	}
 }
 
@@ -110,7 +104,12 @@ func (l *AdaptiveLimiter) OnRateLimit() {
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.ceiling = l.rate
+	// Concurrent requests report one episode as back-to-back 429s at
+	// already-halved rates; only the first reflects a rate that was held.
+	if !l.backedOff {
+		l.ceiling = l.rate
+		l.backedOff = true
+	}
 	l.rate = min(l.rate, max(0.5, l.rate/2))
 	l.successes = 0
 }
