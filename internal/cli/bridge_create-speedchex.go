@@ -27,10 +27,10 @@ func newBridgeCreateSpeedchexCmd(flags *rootFlags) *cobra.Command {
 		Annotations: map[string]string{"straddle:endpoint": "bridge.create-speedchex", "straddle:method": "POST", "straddle:path": "/v1/bridge/speedchex", "straddle:contract": "internal"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !stdinBody {
-				if !cmd.Flags().Changed("customer-id") && !flags.dryRun {
+				if !cmd.Flags().Changed("customer-id") {
 					return fmt.Errorf("required flag \"%s\" not set", "customer-id")
 				}
-				if !cmd.Flags().Changed("speedchex-token") && !flags.dryRun {
+				if !cmd.Flags().Changed("speedchex-token") {
 					return fmt.Errorf("required flag \"%s\" not set", "speedchex-token")
 				}
 			}
