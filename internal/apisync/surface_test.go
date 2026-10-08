@@ -362,6 +362,49 @@ paths:
 			},
 		},
 		{
+			name: "referenced array and object path parameters are unsupported",
+			spec: `
+openapi: 3.1.0
+paths:
+  /v1/widgets/{tags}:
+    get:
+      operationId: listWidgetsByTags
+      tags: [widgets]
+      parameters:
+        - {name: tags, in: path, required: true, schema: {$ref: "#/components/schemas/TagList"}}
+  /v1/widgets/by-filter/{filter}:
+    get:
+      operationId: listWidgetsByFilter
+      tags: [widgets]
+      parameters:
+        - {name: filter, in: path, required: true, schema: {$ref: "#/components/schemas/Filter"}}
+components:
+  schemas:
+    TagList:
+      type: array
+      items: {type: string}
+    Filter:
+      type: object
+      properties:
+        status: {type: string}
+`,
+			want: func(t *testing.T, surfaces []surface.Surface, unsupported []UnsupportedOperation) {
+				t.Helper()
+				want := map[string]string{
+					"GET /v1/widgets/by-filter/{filter}": `path parameter "filter" uses unsupported schema type object`,
+					"GET /v1/widgets/{tags}":             `path parameter "tags" uses unsupported schema type array`,
+				}
+				if len(unsupported) != len(want) {
+					t.Fatalf("unsupported = %#v, want both referenced path parameters rejected", unsupported)
+				}
+				for _, op := range unsupported {
+					if !surfaceReasonContains(op.Reasons, want[op.Operation.Key]) {
+						t.Fatalf("%s reasons = %#v, want %q", op.Operation.Key, op.Reasons, want[op.Operation.Key])
+					}
+				}
+			},
+		},
+		{
 			name: "array query parameter remains supported end to end",
 			spec: `
 openapi: 3.1.0
