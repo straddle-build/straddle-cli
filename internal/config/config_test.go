@@ -3,6 +3,7 @@
 package config
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -69,4 +70,80 @@ func TestLoad_BaseURLTransportPolicy(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestAuthSourceMatchesSentCredential pins AuthSource to the credential
+// AuthHeader sends, from Load onward. The response cache key reads the label
+// before the first request; auth status and doctor read it after.
+func TestAuthSourceMatchesSentCredential(t *testing.T) {
+	cases := []struct {
+		name       string
+		file       string
+		env        string
+		wantHeader string
+		wantSource string
+	}{
+		{
+			name:       "file auth_header shadows exported env key",
+			file:       "auth_header = 'Bearer fixture-file-header'\napi_key = 'fixture-file-key'\naccess_token = 'fixture-file-token'\n",
+			env:        "fixture-env",
+			wantHeader: "Bearer fixture-file-header",
+			wantSource: "config",
+		},
+		{
+			name:       "env key shadows file api_key and access_token",
+			file:       "api_key = 'fixture-file-key'\naccess_token = 'fixture-file-token'\n",
+			env:        "fixture-env",
+			wantHeader: "Bearer fixture-env",
+			wantSource: "env:STRADDLE_API_KEY",
+		},
+		{
+			name:       "file api_key shadows access_token",
+			file:       "api_key = 'fixture-file-key'\naccess_token = 'fixture-file-token'\n",
+			wantHeader: "Bearer fixture-file-key",
+			wantSource: "config",
+		},
+		{
+			name:       "access_token alone",
+			file:       "access_token = 'fixture-file-token'\n",
+			wantHeader: "Bearer fixture-file-token",
+			wantSource: "oauth2",
+		},
+		{
+			name: "no credential",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("STRADDLE_API_KEY", tc.env)
+			t.Setenv("STRADDLE_BASE_URL", "")
+			path := filepath.Join(t.TempDir(), "config.toml")
+			if err := os.WriteFile(path, []byte(tc.file), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			cfg, err := Load(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.AuthSource != tc.wantSource {
+				t.Errorf("AuthSource after Load = %q, want %q", cfg.AuthSource, tc.wantSource)
+			}
+			if got := cfg.AuthHeader(); got != tc.wantHeader {
+				t.Errorf("AuthHeader() = %q, want %q", got, tc.wantHeader)
+			}
+			if cfg.AuthSource != tc.wantSource {
+				t.Errorf("AuthSource after AuthHeader = %q, want %q", cfg.AuthSource, tc.wantSource)
+			}
+		})
+	}
+
+	t.Run("constructed config with auth_header", func(t *testing.T) {
+		cfg := &Config{AuthHeaderVal: "Bearer fixture-header"}
+		if got := cfg.AuthHeader(); got != "Bearer fixture-header" {
+			t.Fatalf("AuthHeader() = %q, want %q", got, "Bearer fixture-header")
+		}
+		if cfg.AuthSource != "config" {
+			t.Fatalf("AuthSource = %q, want %q", cfg.AuthSource, "config")
+		}
+	})
 }
