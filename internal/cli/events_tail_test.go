@@ -492,6 +492,62 @@ func TestEventsTailRestartResumesWithoutGapsOrDuplicates(t *testing.T) {
 	}
 }
 
+// brokenStdout is stdout piped to a reader that goes away, like
+// `straddle events tail | head -n 1`: it accepts writes, then fails.
+type brokenStdout struct{ writes int }
+
+func (w *brokenStdout) Write(p []byte) (int, error) {
+	if w.writes == 0 {
+		return 0, io.ErrClosedPipe
+	}
+	w.writes--
+	return len(p), nil
+}
+
+// An event the local handler accepted is delivered even when printing it
+// fails, so a restart does not forward it a second time.
+func TestEventsTailForwardedEventIsNotForwardedAgainAfterStdoutBreaks(t *testing.T) {
+	poller := newFakePoller(tailEvents(0, 2, tailTestAccountA))
+	poller.expireOnLocked = true
+	server := httptest.NewServer(poller)
+	defer server.Close()
+	isolateEventsTail(t, server)
+	handler := &fakeHandler{failFirst: map[string]int{}}
+	local := httptest.NewServer(handler)
+	defer local.Close()
+	args := []string{"--consumer", "broken-stdout", "--forward-to", local.URL}
+
+	// First run: stdout breaks after event 0 is printed, so event 1 is
+	// forwarded but cannot be printed.
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	poller.stop = cancel
+	cmd := RootCmd()
+	var stderr bytes.Buffer
+	cmd.SetOut(&brokenStdout{writes: 1})
+	cmd.SetErr(&stderr)
+	cmd.SetArgs(append([]string{"events", "tail", "--interval", "1ms"}, args...))
+	if err := cmd.ExecuteContext(ctx); err == nil || !strings.Contains(err.Error(), "writing event at offset 1") {
+		t.Fatalf("first run error = %v, want the failed write of offset 1\n%s", err, stderr.String())
+	}
+
+	// Second run with the same consumer and a working stdout.
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel2()
+	poller.mu.Lock()
+	poller.stop = cancel2
+	poller.mu.Unlock()
+	if _, stderr2, err := runEventsTail(t, ctx2, args...); err != nil {
+		t.Fatalf("second run: %v\n%s", err, stderr2)
+	}
+	if !poller.stopped {
+		t.Fatalf("second run never caught up; commits %v", poller.commits)
+	}
+	if fmt.Sprint(handler.delivered) != fmt.Sprint(poller.events) {
+		t.Errorf("local handler accepted %v, want each event once in order %v", handler.delivered, poller.events)
+	}
+}
+
 // Permanent failures exit with the CLI's exit codes, commit nothing past
 // what was shown, and never print the polling token, even when the endpoint
 // echoes it back.

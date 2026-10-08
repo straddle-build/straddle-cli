@@ -492,8 +492,10 @@ func (t *eventsTail) run(ctx context.Context) error {
 
 // deliver shows (and forwards) messages in order and returns the offset of
 // the last one handled. Events filtered out by --account-id count as handled
-// so the consumer moves past them. Delivery stops at the first event that
-// cannot be delivered, so nothing after it is committed.
+// so the consumer moves past them, and so does a forwarded event whose
+// printing then fails, since committing it is what stops a restart from
+// forwarding it again. Delivery stops at the first event that cannot be
+// delivered, so nothing after it is committed.
 func (t *eventsTail) deliver(ctx context.Context, msgs []polledMessage) (last int64, handled bool, err error) {
 	for _, m := range msgs {
 		if t.accountID != "" && !strings.EqualFold(m.accountID, t.accountID) {
@@ -512,6 +514,7 @@ func (t *eventsTail) deliver(ctx context.Context, msgs []polledMessage) (last in
 				// Forwarding retries until it succeeds or the tail stops.
 				return last, handled, nil
 			}
+			last, handled = m.offset, true
 		}
 		if err := t.show(m, status); err != nil {
 			return last, handled, fmt.Errorf("writing event at offset %d: %w", m.offset, err)
