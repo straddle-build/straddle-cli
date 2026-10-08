@@ -275,6 +275,34 @@ func TestDoctorFailOnErrorExitsZeroWhenReachable(t *testing.T) {
 	}
 }
 
+// TestAuthSourceNamesSentCredential checks that auth status and doctor name
+// the config file, not STRADDLE_API_KEY, when a file auth_header shadows the
+// exported key: the label must match the credential on the wire.
+func TestAuthSourceNamesSentCredential(t *testing.T) {
+	doctorSetup(t, "base_url = \"\"\nauth_header = \"Bearer fixture-file-header\"\n")
+	t.Setenv("STRADDLE_API_KEY", "fixture-env")
+
+	for _, tc := range []struct {
+		args []string
+		key  string
+	}{
+		{args: []string{"auth", "status", "--json"}, key: "source"},
+		{args: []string{"doctor", "--json"}, key: "auth_source"},
+	} {
+		stdout, stderr, err := runDoctor(t, tc.args)
+		if err != nil {
+			t.Fatalf("%v: %v\nstderr: %s", tc.args, err, stderr)
+		}
+		var out map[string]any
+		if err := json.Unmarshal([]byte(stdout), &out); err != nil {
+			t.Fatalf("%v: decode %v in:\n%s", tc.args, err, stdout)
+		}
+		if out[tc.key] != "config" {
+			t.Errorf("%v %s = %v, want config", tc.args, tc.key, out[tc.key])
+		}
+	}
+}
+
 // runtimeContextOf runs a command and decodes the runtime_context it reports.
 func runtimeContextOf(t *testing.T, args ...string) runtimeContext {
 	t.Helper()

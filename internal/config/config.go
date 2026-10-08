@@ -70,25 +70,14 @@ func Load(configPath string) (*Config, error) {
 	// Env var overrides
 	if v := os.Getenv("STRADDLE_API_KEY"); v != "" {
 		cfg.envAPIKey = v
-		cfg.AuthSource = "env:STRADDLE_API_KEY"
 	}
 	cfg.envPollingURL = strings.TrimSpace(os.Getenv("STRADDLE_POLLING_URL"))
 	cfg.envPollingToken = strings.TrimSpace(os.Getenv("STRADDLE_POLLING_TOKEN"))
 
-	// Label config-file-derived credentials so doctor can distinguish
-	// "credentials persisted on disk" from "no credentials at all" — without
-	// this, users who saved via set-token without an env var see a blank
-	// auth_source and can't tell whether their config is being picked up.
-	// The label is the literal "config" rather than "config:<path>"; the
-	// config file path is exposed separately as report["config_path"], and
-	// embedding it in auth_source leaks the user's home directory through
-	// doctor's JSON envelope.
-	if cfg.AuthSource == "" && (cfg.AuthHeaderVal != "" || cfg.AccessToken != "") {
-		cfg.AuthSource = "config"
-	}
-	if cfg.AuthSource == "" && cfg.StraddleApiKey != "" {
-		cfg.AuthSource = "config"
-	}
+	// Stamp AuthSource from the credential AuthHeader will send. Readers that
+	// run before the first request (the response cache key) must see the same
+	// label auth status and doctor report after it.
+	cfg.AuthHeader()
 
 	// Base URL override (used by Straddle verify mode to point at mock/test servers)
 	if v := os.Getenv("STRADDLE_BASE_URL"); v != "" {
@@ -178,8 +167,14 @@ func normalizeEndpointTemplateValue(v string) string {
 	return strings.TrimRight(v, "/")
 }
 
+// AuthHeader returns the Authorization value requests send and sets
+// AuthSource to where that credential came from. The file label is the
+// literal "config" rather than "config:<path>": doctor reports the path
+// separately as config_path, and embedding it in auth_source would leak the
+// user's home directory through doctor's JSON envelope.
 func (c *Config) AuthHeader() string {
 	if c.AuthHeaderVal != "" {
+		c.AuthSource = "config"
 		return c.AuthHeaderVal
 	}
 	// Env-var token wins over file-stored AccessToken (env > config convention).
