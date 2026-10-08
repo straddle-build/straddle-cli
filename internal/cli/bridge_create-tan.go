@@ -29,16 +29,16 @@ func newBridgeCreateTanCmd(flags *rootFlags) *cobra.Command {
 		Annotations: map[string]string{"straddle:endpoint": "bridge.create-tan", "straddle:method": "POST", "straddle:path": "/v1/bridge/tan", "straddle:contract": "internal"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !stdinBody {
-				if !cmd.Flags().Changed("account-type") && !flags.dryRun {
+				if !cmd.Flags().Changed("account-type") {
 					return fmt.Errorf("required flag \"%s\" not set", "account-type")
 				}
-				if !cmd.Flags().Changed("customer-id") && !flags.dryRun {
+				if !cmd.Flags().Changed("customer-id") {
 					return fmt.Errorf("required flag \"%s\" not set", "customer-id")
 				}
-				if !cmd.Flags().Changed("routing-number") && !flags.dryRun {
+				if !cmd.Flags().Changed("routing-number") {
 					return fmt.Errorf("required flag \"%s\" not set", "routing-number")
 				}
-				if !cmd.Flags().Changed("tan") && !flags.dryRun {
+				if !cmd.Flags().Changed("tan") {
 					return fmt.Errorf("required flag \"%s\" not set", "tan")
 				}
 			}
