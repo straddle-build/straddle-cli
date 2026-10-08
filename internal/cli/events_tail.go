@@ -55,6 +55,11 @@ const (
 	eventsMaxRetryDelay  = 30 * time.Second
 )
 
+// eventsStopCommitTimeout bounds how long a commit keeps retrying after a
+// stop request, so a failing commit endpoint cannot hold the first Ctrl+C
+// open. It is a var so tests can shorten it.
+var eventsStopCommitTimeout = time.Minute
+
 // consumerIDPattern is the endpoint's own rule for consumer IDs.
 var consumerIDPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,64}$`)
 
@@ -146,8 +151,9 @@ webhook would deliver it.`,
 
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
-			// After the first signal the final commit still runs; restoring
-			// default handling lets a second Ctrl+C exit at once.
+			// After the first signal the final commit still runs, for at most
+			// eventsStopCommitTimeout; restoring default handling lets a
+			// second Ctrl+C exit at once.
 			context.AfterFunc(ctx, stop)
 			if !tail.asJSON {
 				tail.printBanner(opts.consumer)
@@ -463,17 +469,7 @@ func (t *eventsTail) run(ctx context.Context) error {
 
 		last, delivered, deliverErr := t.deliver(ctx, msgs)
 		if delivered {
-			// The commit outlives a stop request: an event already shown
-			// must be committed or a restart would show it again. The retry
-			// loop watches commitCtx, not the cancellable run ctx, so a stop
-			// that lands on a transiently-failing commit is retried until it
-			// succeeds (or fails permanently) — matching the commit request's
-			// own uncancellable context.
-			commitCtx := context.WithoutCancel(ctx)
-			err := t.retry(commitCtx, fmt.Sprintf("commit of offset %d", last), isTransientPollingError, func() error {
-				return t.endpoint.commit(commitCtx, last)
-			})
-			if err != nil {
+			if err := t.commit(ctx, last); err != nil {
 				return pollingFailure(fmt.Sprintf("commit of offset %d", last), fmt.Errorf("%w\nhint: events shown since the last commit will be shown again on the next run", err))
 			}
 		}
@@ -488,6 +484,24 @@ func (t *eventsTail) run(ctx context.Context) error {
 			return nil
 		}
 	}
+}
+
+// commit moves the consumer's position to last, retrying transient
+// failures. It outlives a stop request, since an event already shown must be
+// committed or a restart would show it again, but once ctx ends retries stop
+// after eventsStopCommitTimeout. Each request stays uncancellable (bounded by
+// --timeout), so the error returned is the endpoint's own failure.
+func (t *eventsTail) commit(ctx context.Context, last int64) error {
+	requestCtx := context.WithoutCancel(ctx)
+	retryCtx, cancel := context.WithCancel(requestCtx)
+	defer cancel()
+	defer context.AfterFunc(ctx, func() {
+		sleepCtx(retryCtx, eventsStopCommitTimeout)
+		cancel()
+	})()
+	return t.retry(retryCtx, fmt.Sprintf("commit of offset %d", last), isTransientPollingError, func() error {
+		return t.endpoint.commit(requestCtx, last)
+	})
 }
 
 // deliver shows (and forwards) messages in order and returns the offset of
