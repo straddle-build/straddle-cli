@@ -172,11 +172,6 @@ func (c *Client) DoWithValues(method, path string, query url.Values, body any, h
 	return c.doInternalWithValues(method, path, nil, query, body, headers, false)
 }
 
-func (c *Client) ProbeGet(path string) (int, error) {
-	_, status, err := c.do("GET", path, nil, nil, nil)
-	return status, err
-}
-
 func (c *Client) cacheKey(path string, params map[string]string, headers map[string]string) string {
 	key := path
 	key += "|base_url=" + c.BaseURL
@@ -300,10 +295,6 @@ func (c *Client) PostWithParams(path string, params map[string]string, body any)
 	return c.do("POST", path, params, body, nil)
 }
 
-func (c *Client) PostWithHeaders(path string, body any, headers map[string]string) (json.RawMessage, int, error) {
-	return c.do("POST", path, nil, body, headers)
-}
-
 func (c *Client) PostWithParamsAndHeaders(path string, params map[string]string, body any, headers map[string]string) (json.RawMessage, int, error) {
 	return c.do("POST", path, params, body, headers)
 }
@@ -324,48 +315,12 @@ func (c *Client) PostQueryWithParamsAndHeaders(path string, params map[string]st
 	return c.doRead("POST", path, params, body, headers)
 }
 
-func (c *Client) Delete(path string) (json.RawMessage, int, error) {
-	return c.do("DELETE", path, nil, nil, nil)
-}
-
-func (c *Client) DeleteWithParams(path string, params map[string]string) (json.RawMessage, int, error) {
-	return c.do("DELETE", path, params, nil, nil)
-}
-
-func (c *Client) DeleteWithHeaders(path string, headers map[string]string) (json.RawMessage, int, error) {
-	return c.do("DELETE", path, nil, nil, headers)
-}
-
 func (c *Client) DeleteWithParamsAndHeaders(path string, params map[string]string, headers map[string]string) (json.RawMessage, int, error) {
 	return c.do("DELETE", path, params, nil, headers)
 }
 
-func (c *Client) Put(path string, body any) (json.RawMessage, int, error) {
-	return c.do("PUT", path, nil, body, nil)
-}
-
-func (c *Client) PutWithParams(path string, params map[string]string, body any) (json.RawMessage, int, error) {
-	return c.do("PUT", path, params, body, nil)
-}
-
-func (c *Client) PutWithHeaders(path string, body any, headers map[string]string) (json.RawMessage, int, error) {
-	return c.do("PUT", path, nil, body, headers)
-}
-
 func (c *Client) PutWithParamsAndHeaders(path string, params map[string]string, body any, headers map[string]string) (json.RawMessage, int, error) {
 	return c.do("PUT", path, params, body, headers)
-}
-
-func (c *Client) Patch(path string, body any) (json.RawMessage, int, error) {
-	return c.do("PATCH", path, nil, body, nil)
-}
-
-func (c *Client) PatchWithParams(path string, params map[string]string, body any) (json.RawMessage, int, error) {
-	return c.do("PATCH", path, params, body, nil)
-}
-
-func (c *Client) PatchWithHeaders(path string, body any, headers map[string]string) (json.RawMessage, int, error) {
-	return c.do("PATCH", path, nil, body, headers)
 }
 
 func (c *Client) PatchWithParamsAndHeaders(path string, params map[string]string, body any, headers map[string]string) (json.RawMessage, int, error) {
@@ -723,13 +678,6 @@ var dryRunShowsValue = map[string]bool{
 	"Idempotency-Key":     true,
 	"Correlation-Id":      true,
 	"Request-Id":          true,
-}
-
-func (c *Client) ConfiguredTimeout() time.Duration {
-	if c.HTTPClient != nil && c.HTTPClient.Timeout > 0 {
-		return c.HTTPClient.Timeout
-	}
-	return 30 * time.Second
 }
 
 func (c *Client) authHeader() (string, error) {
