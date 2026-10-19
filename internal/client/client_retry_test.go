@@ -17,7 +17,8 @@ import (
 // retryRecorder answers every request with the same failure and records the
 // Idempotency-Key each attempt carried.
 type retryRecorder struct {
-	keys []string
+	keys       []string
+	keyValues [][]string
 	// status is the HTTP status to answer with; zero answers with a
 	// network error instead.
 	status int
@@ -33,6 +34,7 @@ func (r *retryRecorder) client(t *testing.T, cfg *config.Config) *Client {
 	c.NoCache = true
 	c.HTTPClient.Transport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		r.keys = append(r.keys, req.Header.Get("Idempotency-Key"))
+		r.keyValues = append(r.keyValues, append([]string(nil), req.Header.Values("Idempotency-Key")...))
 		if r.status == 0 {
 			return nil, errors.New("connection reset by peer")
 		}
@@ -42,6 +44,97 @@ func (r *retryRecorder) client(t *testing.T, cfg *config.Config) *Client {
 		}, nil
 	})
 	return c
+}
+
+func TestClient_RetriedWriteNormalizesIdenticalIdempotencyKeys(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     *config.Config
+		headers map[string]string
+	}{
+		{
+			name: "per-request and config headers",
+			cfg: &config.Config{Headers: map[string]string{
+				"IDEMPOTENCY-KEY": "caller-key-0001",
+			}},
+			headers: map[string]string{
+				"Idempotency-Key": "caller-key-0001",
+				"idempotency-key": "caller-key-0001",
+			},
+		},
+		{
+			name: "config headers",
+			cfg: &config.Config{Headers: map[string]string{
+				"Idempotency-Key": "caller-key-0001",
+				"idempotency-key": "caller-key-0001",
+			}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				rec := &retryRecorder{status: http.StatusServiceUnavailable}
+				c := rec.client(t, tt.cfg)
+
+				_, _, _ = c.PostWithHeaders("/v1/charges", map[string]any{"amount": 100}, tt.headers)
+
+				if len(rec.keys) != 4 {
+					t.Fatalf("attempts = %d, want 4", len(rec.keys))
+				}
+				if key := assertOneKey(t, rec.keys); key != "caller-key-0001" {
+					t.Fatalf("Idempotency-Key = %q, want the caller's key", key)
+				}
+				for attempt, values := range rec.keyValues {
+					if len(values) != 1 || values[0] != "caller-key-0001" {
+						t.Fatalf("attempt %d Idempotency-Key values = %q, want one caller key", attempt+1, values)
+					}
+				}
+				if tt.headers != nil && (len(tt.headers) != 2 || tt.headers["Idempotency-Key"] != "caller-key-0001" || tt.headers["idempotency-key"] != "caller-key-0001") {
+					t.Fatalf("caller headers = %v, want original case-variant values", tt.headers)
+				}
+			})
+		})
+	}
+}
+
+func TestClient_WriteRejectsConflictingIdempotencyKeysBeforeRequest(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     *config.Config
+		headers map[string]string
+	}{
+		{
+			name: "per-request overrides",
+			headers: map[string]string{
+				"Idempotency-Key": "caller-key-0001",
+				"idempotency-key": "caller-key-0002",
+			},
+		},
+		{
+			name: "override and config header",
+			cfg: &config.Config{Headers: map[string]string{
+				"idempotency-key": "caller-key-0001",
+			}},
+			headers: map[string]string{"Idempotency-Key": "caller-key-0002"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				rec := &retryRecorder{status: http.StatusServiceUnavailable}
+				c := rec.client(t, tt.cfg)
+
+				_, _, err := c.PostWithHeaders("/v1/charges", map[string]any{"amount": 100}, tt.headers)
+
+				if err == nil || !strings.Contains(err.Error(), "conflicting Idempotency-Key values") {
+					t.Fatalf("PostWithHeaders() error = %v, want conflicting Idempotency-Key values", err)
+				}
+				if len(rec.keys) != 0 {
+					t.Fatalf("attempts = %d, want none", len(rec.keys))
+				}
+			})
+		})
+	}
 }
 
 // assertOneKey fails unless every attempt carried the same non-empty key.
