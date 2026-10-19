@@ -17,7 +17,7 @@ import (
 // retryRecorder answers every request with the same failure and records the
 // Idempotency-Key each attempt carried.
 type retryRecorder struct {
-	keys       []string
+	keys      []string
 	keyValues [][]string
 	// status is the HTTP status to answer with; zero answers with a
 	// network error instead.
