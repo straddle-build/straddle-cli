@@ -4,6 +4,7 @@ package client
 
 import (
 	"bytes"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -385,6 +386,42 @@ func isMutatingVerb(method string) bool {
 	return false
 }
 
+// idempotencyKeyHeader names the header Straddle uses to replay a write
+// instead of performing it again. Every mutating operation in spec.yaml
+// accepts it, and the API requires a value of 10 to 40 characters.
+const idempotencyKeyHeader = "Idempotency-Key"
+
+// withIdempotencyKey returns headerOverrides carrying an Idempotency-Key.
+// A key the caller already supplied, through a command flag or config.toml
+// [headers], is kept. Otherwise a fresh key is added to a copy, so the
+// caller's map is never mutated. rand.Text yields 26 characters, inside the
+// API's 10 to 40 character limit.
+func (c *Client) withIdempotencyKey(headerOverrides map[string]string) map[string]string {
+	if hasHeader(headerOverrides, idempotencyKeyHeader) {
+		return headerOverrides
+	}
+	if c.Config != nil && hasHeader(c.Config.Headers, idempotencyKeyHeader) {
+		return headerOverrides
+	}
+	withKey := make(map[string]string, len(headerOverrides)+1)
+	for k, v := range headerOverrides {
+		withKey[k] = v
+	}
+	withKey[idempotencyKeyHeader] = rand.Text()
+	return withKey
+}
+
+// hasHeader reports whether headers carries a non-empty value for name,
+// matching the name case-insensitively as http.Header.Set would.
+func hasHeader(headers map[string]string, name string) bool {
+	for k, v := range headers {
+		if strings.EqualFold(k, name) && v != "" {
+			return true
+		}
+	}
+	return false
+}
+
 // verifyShortCircuitEnvelope returns the synthetic JSON body that
 // stands in for a real mutating response when do() short-circuits in
 // verify mode. The __straddle_verify_synthetic__ sentinel is namespace-
@@ -488,6 +525,17 @@ func (c *Client) doInternalWithValues(method, path string, params map[string]str
 			return c.dryRun(method, targetURL, path, nil, bodyBytes, formPreview, headerOverrides, authHeader)
 		}
 		return c.dryRun(method, targetURL, path, params, bodyBytes, formPreview, headerOverrides, authHeader)
+	}
+
+	// Every attempt below may reach the API even when it reports a network
+	// error or a 5xx, so a repeated write could create a second charge.
+	// A live write therefore carries one Idempotency-Key, reused by every
+	// attempt: Straddle replays the first result for a repeated key instead
+	// of performing the write again. Reads, and reads that ride a mutating
+	// verb, retry without one. The key is added after the dry-run branch,
+	// like the other transport defaults, so dry-run output stays stable.
+	if !readOnlyIntent && isMutatingVerb(method) {
+		headerOverrides = c.withIdempotencyKey(headerOverrides)
 	}
 
 	const maxRetries = 3

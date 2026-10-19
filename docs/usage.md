@@ -189,6 +189,8 @@ Human-readable output is the terminal default. Piped output stays JSON, includin
 
 `--dry-run` prints an API request without sending it. Use `--data-source live` for API read previews to skip local-store initialization and write-through. Required inputs and structured values are still validated. Write commands accept JSON through `--stdin` when their help lists it. `--idempotent` handles an already-existing create result as a successful no-op; `--ignore-missing` does the same for a missing delete target.
 
+The CLI retries a request up to three times after a network error, HTTP `429`, or HTTP `5xx`. Each write sends one `Idempotency-Key` on every attempt, so Straddle returns the first result for a retry instead of performing the write again. The CLI generates the key unless you pass `--idempotency-key`. Pass your own key when you might need to run the same write again after the CLI exits.
+
 The CLI uses the following exit codes.
 
 | Code | Meaning |

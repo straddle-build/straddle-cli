@@ -25,6 +25,7 @@ Pointers: `OPERATIONS.md` (local dev commands, release, API sync), `openwiki/qui
 ## Project invariants
 
 - **`Straddle-Account-Id` scoping is business-critical.** `internal/straddleacct/` decides when the header is sent, by integration type (`account`, `saas`, `marketplace`): charges/payouts create require it for `saas`+`marketplace`; customers/paykeys/bridge are scoped for `saas` and send no header for `marketplace`; account-management ops never use the header. The CLI pre-run gates agents and humans identically. Route any new account-scoped behavior through this package.
+- **Never repeat a write without an `Idempotency-Key`.** The `internal/client` retry loop gives every live write one key, reused on each attempt, so a retry cannot duplicate a charge. Keep any new request or retry path inside that loop.
 - **Agent/JSON output must stay byte-stable.** Never change it for cosmetics. The human and agent surfaces are both intentional; preserve both when changing commands, and update tests and docs with the code.
 - `spec.yaml` is the exact Scalar contract named by `contract.lock.json`. Keep endpoint coverage and drift visible via `cmd/gen-endpoint` (see `OPERATIONS.md`).
 - The local SQLite store (`internal/store/`) is part of the product, not a cache detail. Several commands assume it exists after `sync`. Be careful with migration behavior.
@@ -39,3 +40,10 @@ Pointers: `OPERATIONS.md` (local dev commands, release, API sync), `openwiki/qui
 ## Generated code boundary
 
 The API sync workflow regenerates every supported contract-derived endpoint command file wholesale with `cmd/gen-endpoint generate`. Each file self-registers through `internal/cli/generated_registry.go`. Do not hand-edit generated endpoint files. Put per-command customizations in `internal/cli/overlays_*.go`, keyed by endpoint, and tree placement in `internal/cli/command_tree.go`. Raw `straddle api <method> <path>` is the fallback for newly published endpoints before a dedicated command exists.
+
+## Maintaining this file
+
+Keep this file for knowledge useful to almost every future agent session in this project.
+Do not repeat what the codebase already shows; point to the authoritative file or command instead.
+Prefer rewriting or pruning existing entries over appending new ones.
+When updating this file, preserve this bar for all agents and keep entries concise.
