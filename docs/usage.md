@@ -86,7 +86,7 @@ The default base URL is `https://{environment}.straddle.com`. `STRADDLE_ENVIRONM
 
 ### Set request headers
 
-Configure static headers under `headers` in `config.toml`. Command-specific header values take precedence.
+Configure static headers under `headers` in `config.toml`. Command-specific header values take precedence. For a live write, non-empty configured and command `Idempotency-Key` values must match; otherwise the CLI fails before sending the request.
 
 API requests use `User-Agent: straddle-cli/<version>`. Override it through the configured headers or a command-specific header. Notification polling and forwarding add `(events)`, webhook output delivery adds `(deliver)`, and feedback submissions add `(feedback)` to the CLI user agent.
 
@@ -188,6 +188,8 @@ Human-readable output is the terminal default. Piped output stays JSON, includin
 `--agent` sets `--json --compact --no-input --no-color --yes`. Explicit values override these defaults. For example, `--agent --json=false --compact=false` selects human output in a terminal. Commands still accept their inputs through flags or stdin.
 
 `--dry-run` prints an API request without sending it. Use `--data-source live` for API read previews to skip local-store initialization and write-through. Required inputs and structured values are still validated. Write commands accept JSON through `--stdin` when their help lists it. `--idempotent` handles an already-existing create result as a successful no-op; `--ignore-missing` does the same for a missing delete target.
+
+The CLI retries a request up to three times after a network error, HTTP `429`, or HTTP `5xx`. Each write sends one `Idempotency-Key` on every attempt, so Straddle returns the first result for a retry instead of performing the write again. The CLI generates the key unless a command or configured header supplies one. Pass `--idempotency-key` when you might need to run the same write again after the CLI exits.
 
 The CLI uses the following exit codes.
 

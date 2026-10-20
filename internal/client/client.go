@@ -4,6 +4,7 @@ package client
 
 import (
 	"bytes"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -385,6 +386,62 @@ func isMutatingVerb(method string) bool {
 	return false
 }
 
+// idempotencyKeyHeader names the header Straddle uses to replay a write
+// instead of performing it again. Every mutating operation in spec.yaml
+// accepts it, and the API requires a value of 10 to 40 characters.
+const idempotencyKeyHeader = "Idempotency-Key"
+
+// withIdempotencyKey returns a copy of headerOverrides with one canonical
+// Idempotency-Key. It rejects conflicting non-empty values from config.toml
+// [headers] and per-request overrides.
+func (c *Client) withIdempotencyKey(headerOverrides map[string]string) (map[string]string, error) {
+	key, err := c.idempotencyKey(headerOverrides)
+	if err != nil {
+		return nil, err
+	}
+
+	withKey := make(map[string]string, len(headerOverrides)+1)
+	for name, value := range headerOverrides {
+		if !strings.EqualFold(name, idempotencyKeyHeader) {
+			withKey[name] = value
+		}
+	}
+	withKey[idempotencyKeyHeader] = key
+	return withKey, nil
+}
+
+func (c *Client) idempotencyKey(headerOverrides map[string]string) (string, error) {
+	var key string
+	collect := func(headers map[string]string) error {
+		for name, value := range headers {
+			if !strings.EqualFold(name, idempotencyKeyHeader) || value == "" {
+				continue
+			}
+			if key == "" {
+				key = value
+				continue
+			}
+			if value != key {
+				return fmt.Errorf("conflicting %s values", idempotencyKeyHeader)
+			}
+		}
+		return nil
+	}
+
+	if c.Config != nil {
+		if err := collect(c.Config.Headers); err != nil {
+			return "", err
+		}
+	}
+	if err := collect(headerOverrides); err != nil {
+		return "", err
+	}
+	if key == "" {
+		key = rand.Text()
+	}
+	return key, nil
+}
+
 // verifyShortCircuitEnvelope returns the synthetic JSON body that
 // stands in for a real mutating response when do() short-circuits in
 // verify mode. The __straddle_verify_synthetic__ sentinel is namespace-
@@ -490,6 +547,22 @@ func (c *Client) doInternalWithValues(method, path string, params map[string]str
 		return c.dryRun(method, targetURL, path, params, bodyBytes, formPreview, headerOverrides, authHeader)
 	}
 
+	// Every attempt below may reach the API even when it reports a network
+	// error or a 5xx, so a repeated write could create a second charge.
+	// A live write therefore carries one Idempotency-Key, reused by every
+	// attempt: Straddle replays the first result for a repeated key instead
+	// of performing the write again. Reads, and reads that ride a mutating
+	// verb, retry without one. The key is added after the dry-run branch,
+	// like the other transport defaults, so dry-run output stays stable.
+	write := !readOnlyIntent && isMutatingVerb(method)
+	if write {
+		var idempotencyErr error
+		headerOverrides, idempotencyErr = c.withIdempotencyKey(headerOverrides)
+		if idempotencyErr != nil {
+			return nil, 0, idempotencyErr
+		}
+	}
+
 	const maxRetries = 3
 	var lastErr error
 
@@ -542,6 +615,9 @@ func (c *Client) doInternalWithValues(method, path string, params map[string]str
 		}
 		if c.Config != nil {
 			for k, v := range c.Config.Headers {
+				if write && strings.EqualFold(k, idempotencyKeyHeader) {
+					continue
+				}
 				req.Header.Set(k, v)
 			}
 		}
