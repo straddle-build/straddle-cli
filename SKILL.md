@@ -145,7 +145,7 @@ These capabilities aren't available in any other tool for this API.
 - `straddle charges create` — Use charges to collect money from a customer for the sale of goods or services.
 - `straddle charges get` — Retrieves the details of an existing charge. Supply the unique charge `id`, and Straddle will return the...
 - `straddle charges update` — Change the values of parameters associated with a charge prior to processing. The status of the charge must be...
-* `straddle charges upload-authorization-proof`: upload a proof-of-authorization document for a charge. See [README.md](README.md#charges).
+* `straddle charges upload-authorization-proof`: upload a proof-of-authorization document for a charge. See [docs/usage.md](docs/usage.md#supply-structured-values-and-files).
 
 **customers** — Customers represent the end users who send or receive payments through your integration. Each customer undergoes automatic identity verification and fraud screening upon creation. Use customers to track payment history, manage bank account connections, and maintain a secure record of all transactions associated with a user. Customers can be either individuals or businesses with appropriate compliance checks for each type.
 
@@ -153,11 +153,11 @@ These capabilities aren't available in any other tool for this API.
 - `straddle customers delete` — Permanently removes a customer record from Straddle. This action cannot be undone and should only be used to satisfy...
 - `straddle customers get` — Retrieves the details of an existing customer. Supply the unique customer ID that was returned from your 'create...
 - `straddle customers list` — Lists or searches customers connected to your account. All supported query parameters are optional. If none are...
-- `straddle customers update` — Updates an existing customer's information. See [README.md](README.md#customers) for the required status input and stdin precedence.
+- `straddle customers update` — Updates an existing customer's information. See [docs/usage.md](docs/usage.md#supply-structured-values-and-files) for the required status input and stdin precedence.
 
 **events** — Read the notifications (webhook events) Straddle sends, from the notification polling endpoint shown in the Straddle dashboard.
 
-- `straddle events tail` — Print each event in order until stopped; commits only what was shown or forwarded, so a restart resumes with no gaps or duplicates. Needs `STRADDLE_POLLING_URL` and `STRADDLE_POLLING_TOKEN`. See [README.md](README.md#events).
+- `straddle events tail` — Print each event in order until stopped; commits only what was shown or forwarded, so a restart resumes with no gaps or duplicates. Needs `STRADDLE_POLLING_URL` and `STRADDLE_POLLING_TOKEN`. See [docs/usage.md](docs/usage.md#read-and-forward-notification-events).
 
 **funding-event-payments** — Manage funding event payments
 
@@ -196,7 +196,7 @@ These capabilities aren't available in any other tool for this API.
 - `straddle payouts create` — Use payouts to send money to your customers.
 - `straddle payouts get` — Retrieves the details of an existing payout. Supply the unique payout `id` to retrieve the corresponding payout...
 - `straddle payouts update` — Update the details of a payout prior to processing. The status of the payout must be `created`, `scheduled`, or...
-* `straddle payouts upload-authorization-proof`: upload a proof-of-authorization document for a payout. See [README.md](README.md#payouts).
+* `straddle payouts upload-authorization-proof`: upload a proof-of-authorization document for a payout. See [docs/usage.md](docs/usage.md#supply-structured-values-and-files).
 
 **reports** — Manage reports
 
@@ -282,7 +282,7 @@ Use raw `api` passthrough when the API has an endpoint before this CLI has a ded
 
 ### Fetch all pages
 
-Use `--all` on paginated list commands. See the authoritative [pagination behavior and failure guarantees](README.md#pagination) before relying on a complete result set.
+Use `--all` on paginated list commands. See the authoritative [pagination behavior and failure guarantees](docs/usage.md#read-all-pages) before relying on a complete result set.
 
 ## Auth Setup
 
@@ -290,7 +290,7 @@ Straddle uses a Bearer JWT API key. Set `STRADDLE_API_KEY` or save one with `str
 
 Run `straddle doctor` to verify setup.
 
-For credential replacement and precedence behavior, see [Authentication](README.md#authentication).
+For credential replacement and precedence behavior, see [Authentication](docs/usage.md#configure-authentication).
 
 ## Platform scoping (Embed)
 
@@ -338,7 +338,7 @@ To check which context a command will use, read `runtime_context` from `straddle
 
 ## Agent Mode
 
-Add `--agent` to any command. See [Output Formats](README.md#output-formats) for its defaults and explicit override rules.
+Add `--agent` to any command. See [Output Formats](docs/usage.md#choose-output-and-handle-errors) for its defaults and explicit override rules.
 
 - **Pipeable** — JSON on stdout, errors on stderr
 - **Filterable**: `--select` keeps a subset of each returned resource's fields (`id,status,amount`), inside list envelopes and the API's `data` wrapper alike. Dotted paths descend into nested structures; arrays traverse element-wise. CLI envelope paths such as `results.id` or `meta.source` are not selectors; a selector that matches no field exits 2 with the available field names, and after a completed write it prints a warning and the full response instead. Critical for keeping context small on verbose APIs:
@@ -362,7 +362,7 @@ Commands that read from the local store or the API wrap output in a provenance e
 }
 ```
 
-Parse `.results` for data and `.meta.source` to know whether it's live or local. A human-readable `N results (live)` summary is printed to stderr only when stdout is a terminal AND no machine-format flag (`--json`, `--csv`, `--compact`, `--quiet`, `--plain`, `--select`) is set. Piped consumers and effective machine-format runs get pure JSON on stdout; see [Output Formats](README.md#output-formats) for `--agent` override rules.
+Parse `.results` for data and `.meta.source` to know whether it's live or local. A human-readable `N results (live)` summary is printed to stderr only when stdout is a terminal AND no machine-format flag (`--json`, `--csv`, `--compact`, `--quiet`, `--plain`, `--select`) is set. Piped consumers and effective machine-format runs get pure JSON on stdout; see [Output Formats](docs/usage.md#choose-output-and-handle-errors) for `--agent` override rules.
 
 ## Agent Feedback
 
