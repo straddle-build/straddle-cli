@@ -21,6 +21,7 @@ func newBridgeCreateTanCmd(flags *rootFlags) *cobra.Command {
 	var bodyRoutingNumber string
 	var bodyTan string
 	var stdinBody bool
+	hdr := &requestHeaderFlags{}
 
 	cmd := &cobra.Command{
 		Use:         "create-tan",
@@ -97,7 +98,7 @@ func newBridgeCreateTanCmd(flags *rootFlags) *cobra.Command {
 					body["tan"] = bodyTan
 				}
 			}
-			data, statusCode, err := c.PostWithParams(path, params, body)
+			data, statusCode, err := c.PostWithParamsAndHeaders(path, params, body, hdr.headers())
 			if err != nil {
 				return classifyAPIError(err, flags)
 			}
@@ -234,6 +235,7 @@ func newBridgeCreateTanCmd(flags *rootFlags) *cobra.Command {
 	cmd.Flags().StringVar(&bodyRoutingNumber, "routing-number", "", "Bank routing number.")
 	cmd.Flags().StringVar(&bodyTan, "tan", "", "Tokenized account number.")
 	cmd.Flags().BoolVar(&stdinBody, "stdin", false, "Read request body as JSON from stdin")
+	hdr.register(cmd)
 
 	return cmd
 }
