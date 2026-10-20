@@ -103,6 +103,18 @@ func New(cfg *config.Config, timeout time.Duration, rateLimit float64) *Client {
 			// "Moved Permanently" body back to the caller.
 			return errors.New("stopped after 10 redirects")
 		}
+		// A multipart upload whose body is the request payload must never
+		// be silently discarded. net/http follows 301/302/303 by rewriting
+		// a non-GET/HEAD method to a bodyless GET (includeBody=false), so
+		// the file bytes are dropped and the redirect target can answer
+		// 200 to that GET — a 200-masked success with the file never
+		// delivered. GetBody is not consulted for these statuses, so
+		// refuse the hop and surface an error. 307/308 preserve the method
+		// and replay the body through GetBody (set in doInternalWithValues),
+		// so req.Method equals via[0].Method there and this guard is inert.
+		if isMultipartUpload(via[0]) && via[0].Method != http.MethodGet && via[0].Method != http.MethodHead && req.Method == http.MethodGet {
+			return errors.New("refused to follow redirect of multipart upload that rewrites the request to a bodyless GET (file would be dropped)")
+		}
 		// A redirect that downgrades https→http must never carry the
 		// credential: Go's header copier has already run for this hop, and
 		// net/http only considers stripping sensitive headers when the
@@ -126,6 +138,18 @@ func New(cfg *config.Config, timeout time.Duration, rateLimit float64) *Client {
 		return nil
 	}
 	return c
+}
+
+// isMultipartUpload reports whether req carries a multipart/form-data body
+// whose bytes are the request payload that must reach the server (e.g. a
+// proof-of-authorization file). It keys off the Content-Type the multipart
+// path sets via (*multipart.Writer).FormDataContentType().
+func isMultipartUpload(req *http.Request) bool {
+	ct := strings.TrimSpace(req.Header.Get("Content-Type"))
+	if i := strings.IndexByte(ct, ';'); i >= 0 {
+		ct = strings.TrimSpace(ct[:i])
+	}
+	return ct == "multipart/form-data"
 }
 
 // RateLimit returns the current effective rate limit in req/s. Returns 0 if disabled.
@@ -566,6 +590,18 @@ func (c *Client) doInternalWithValues(method, path string, params map[string]str
 	const maxRetries = 3
 	var lastErr error
 
+	// One boundary per request, reused across every (re)open: each retry
+	// attempt, and each 307/308 redirect replay via Request.GetBody, must
+	// produce byte-identical framing so the Content-Type header (which
+	// net/http copies verbatim onto a redirected request) names the same
+	// boundary the replayed body actually uses. A per-open random boundary
+	// would mismatch the copied Content-Type and leave the redirect target
+	// unable to parse the body.
+	formBoundary := ""
+	if isForm {
+		formBoundary = newBoundary()
+	}
+
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		// Proactive rate limiting — wait before sending
 		c.limiter.Wait()
@@ -577,7 +613,7 @@ func (c *Client) doInternalWithValues(method, path string, params map[string]str
 			contentType = "application/json"
 		}
 		if isForm {
-			formReader, length, formType, err := form.open()
+			formReader, length, formType, err := form.openWithBoundary(formBoundary)
 			if err != nil {
 				return nil, 0, fmt.Errorf("opening upload: %w", err)
 			}
@@ -593,6 +629,19 @@ func (c *Client) doInternalWithValues(method, path string, params map[string]str
 		}
 		if isForm {
 			req.ContentLength = contentLength
+			// http.NewRequest only auto-populates GetBody for *bytes.Reader,
+			// *bytes.Buffer, and *strings.Reader; the multipart path streams
+			// from a custom reader, so GetBody stays nil unless we set it
+			// here. Without it, net/http refuses to follow a 307/308 that
+			// requires resending the body (it hands the 3xx back untouched),
+			// and the success branch below would then classify that 3xx as a
+			// successful upload. Each call reopens the files and rebuilds the
+			// same byte-identical framing (one stable boundary per request),
+			// honoring MultipartForm's replay contract.
+			req.GetBody = func() (io.ReadCloser, error) {
+				r, _, _, err := form.openWithBoundary(formBoundary)
+				return r, err
+			}
 		}
 		if contentType != "" {
 			req.Header.Set("Content-Type", contentType)
@@ -663,8 +712,13 @@ func (c *Client) doInternalWithValues(method, path string, params map[string]str
 			return nil, 0, fmt.Errorf("reading response: %w", err)
 		}
 
-		// Success
-		if resp.StatusCode < 400 {
+		// Success: only a genuine 2xx is a completed transaction. A 3xx that
+		// reaches here was not followed (no Location header, a 307/308 whose
+		// body could not be replayed, or CheckRedirect declined) and must not
+		// be classified as a successful upload/mutation — otherwise an
+		// intermediary redirect surfaces as a nil-error success and the
+		// request body (e.g. an authorization-proof file) is silently lost.
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 			c.limiter.OnSuccess()
 			if method != http.MethodGet && !c.DryRun {
 				c.invalidateCache()
