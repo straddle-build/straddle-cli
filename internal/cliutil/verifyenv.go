@@ -31,13 +31,6 @@ const VerifyEnvVar = "STRADDLE_VERIFY"
 // short-circuit from the operator's shell.
 const VerifyLiveHTTPEnvVar = "STRADDLE_VERIFY_LIVE_HTTP"
 
-// DogfoodEnvVar is the env var the Straddle live-dogfood runner sets in
-// every subprocess. Distinct from VerifyEnvVar because dogfood is a
-// real-network matrix: commands may still perform actual API calls, just
-// curtailed (paginate-once, bounded crawl, etc.) so the runner's flat
-// 30s per-command timeout doesn't trip.
-const DogfoodEnvVar = "STRADDLE_DOGFOOD"
-
 // IsVerifyEnv reports whether the current process is running under the
 // Straddle verifier in mock mode. Commands with side effects pair this
 // check with print-by-default + explicit opt-in (--launch, --send,
@@ -72,22 +65,4 @@ func IsVerifyEnv() bool {
 // GraphQL queries, JSON-RPC reads, POST-based search).
 func IsVerifyLiveHTTPEnv() bool {
 	return os.Getenv(VerifyLiveHTTPEnvVar) == "1"
-}
-
-// IsDogfoodEnv reports whether the current process is running under the
-// Straddle live-dogfood matrix. Long-running commands (full sync loops,
-// content crawlers, bulk archive walks) should use this to curtail work
-// so the flat 30s per-command timeout doesn't kill an otherwise healthy
-// happy_path test. Typical pattern: paginate once, fetch a bounded
-// sample, or honor a smaller --limit default.
-//
-//	if cliutil.IsDogfoodEnv() {
-//	    return crawl(ctx, opts.WithMaxPages(1))
-//	}
-//
-// Unlike IsVerifyEnv this does NOT mean "don't hit the network" —
-// dogfood is a real-API matrix. Use this only to bound work, never to
-// substitute mock data for real calls.
-func IsDogfoodEnv() bool {
-	return os.Getenv(DogfoodEnvVar) == "1"
 }
