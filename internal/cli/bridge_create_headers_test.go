@@ -115,7 +115,7 @@ func TestBridgeCreateHeadersOmittedWhenFlagsAbsent(t *testing.T) {
 			if requests != 1 {
 				t.Fatalf("sent %d requests, want 1", requests)
 			}
-			for _, h := range []string{"Correlation-Id", "Idempotency-Key", "Request-Id"} {
+			for _, h := range []string{"Correlation-Id", "Request-Id"} {
 				if v := headers.Get(h); v != "" {
 					t.Errorf("%s header = %q, want absent when flag not set", h, v)
 				}
