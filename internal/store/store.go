@@ -3917,7 +3917,7 @@ func (s *Store) ListField(resourceType, field string) ([]string, error) {
 	}
 	if err != nil || rows == nil {
 		// Fall back to generic resources table via json_extract. Path is
-		// Sprintf'd into the SQL string (matches ResolveByName below).
+		// Sprintf'd into the SQL string.
 		// DISTINCT for the same reason as the typed-column path above.
 		fallback := fmt.Sprintf( //nolint:gosec // field is pinned to identifier shape by validIdentifierRE at entry
 			`SELECT DISTINCT json_extract(data, '$.%s') FROM resources WHERE scope_environment = ? AND scope_account = ? AND resource_type = ? AND json_extract(data, '$.%s') IS NOT NULL`,
@@ -3987,66 +3987,6 @@ func (s *Store) Status() (map[string]int, error) {
 		status[rt] = count
 	}
 	return status, rows.Err()
-}
-
-// ResolveByName resolves a human-readable name to a UUID from synced data.
-// If the input is already a UUID, it is returned as-is.
-// matchFields are JSON field names to search against (e.g., "name", "key", "email").
-//
-// json_extract path components cannot be bound as SQL parameters, so each
-// field is validated against validIdentifierRE before being spliced into
-// the query.
-func (s *Store) ResolveByName(resourceType string, input string, matchFields ...string) (string, error) {
-	if IsUUID(input) {
-		return input, nil
-	}
-
-	var matches []string
-	for _, field := range matchFields {
-		if !validIdentifierRE.MatchString(field) {
-			continue
-		}
-		query := fmt.Sprintf( //nolint:gosec // field is gated by validIdentifierRE in this loop
-			`SELECT id FROM resources WHERE scope_environment = ? AND scope_account = ? AND resource_type = ? AND LOWER(json_extract(data, '$.%s')) = LOWER(?)`,
-			field,
-		)
-		rows, err := s.db.Query(query, s.scope.Environment, s.scope.Account, resourceType, input)
-		if err != nil {
-			continue
-		}
-		for rows.Next() {
-			var id string
-			if rows.Scan(&id) == nil {
-				// Deduplicate
-				found := false
-				for _, m := range matches {
-					if m == id {
-						found = true
-						break
-					}
-				}
-				if !found {
-					matches = append(matches, id)
-				}
-			}
-		}
-		_ = rows.Close()
-	}
-
-	switch len(matches) {
-	case 0:
-		return "", fmt.Errorf("%s %q not found in local store. Run 'sync' first, or use the UUID directly", resourceType, input)
-	case 1:
-		return matches[0], nil
-	default:
-		var hint string
-		if len(matches) > 5 {
-			hint = strings.Join(matches[:5], ", ") + "..."
-		} else {
-			hint = strings.Join(matches, ", ")
-		}
-		return "", fmt.Errorf("ambiguous: %q matches %d %s entries (%s). Use the exact UUID instead", input, len(matches), resourceType, hint)
-	}
 }
 
 // HiddenLegacyCount reports resources stored before local scoping. They
