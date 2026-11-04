@@ -4,6 +4,8 @@ package client
 
 import (
 	"bytes"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -33,12 +35,38 @@ var openFormFile = os.Open
 
 var quoteEscaper = strings.NewReplacer("\\", "\\\\", `"`, "\\\"", "\r", "", "\n", "")
 
+// newBoundary returns a fresh, cryptographically random multipart boundary.
+// A single request reuses one boundary across every (re)open of its form so
+// the framing — and therefore the Content-Type header net/http copies when it
+// follows a 307/308 redirect — matches the replayed body byte-for-byte.
+// Generating a new boundary per open() instead would hand the redirect hop a
+// different boundary than the copied Content-Type, so the server could not
+// parse the replayed body.
+func newBoundary() string {
+	var b [16]byte
+	_, _ = rand.Read(b[:]) //nolint:gosec // boundary strength, not a secret
+	return "straddle-" + hex.EncodeToString(b[:])
+}
+
 // open returns the streamed body with its exact length and Content-Type.
 // Closing the body closes every opened file; net/http closes request bodies
-// even when the request fails.
+// even when the request fails. The boundary is random per call; callers
+// that need a stable boundary across replays (redirects, retries) use
+// openWithBoundary so the Content-Type and the replayed framing agree.
 func (m MultipartForm) open() (io.ReadCloser, int64, string, error) {
+	return m.openWithBoundary(newBoundary())
+}
+
+// openWithBoundary is open() with a caller-chosen boundary, so every
+// (re)open of the same request — the initial send, a 307/308 redirect
+// replay via Request.GetBody, or a retry — produces byte-identical framing
+// and a matching Content-Type.
+func (m MultipartForm) openWithBoundary(boundary string) (io.ReadCloser, int64, string, error) {
 	var framing bytes.Buffer
 	writer := multipart.NewWriter(&framing)
+	if err := writer.SetBoundary(boundary); err != nil {
+		return nil, 0, "", err
+	}
 	var readers []io.Reader
 	var files []*os.File
 	fail := func(err error) (io.ReadCloser, int64, string, error) {
