@@ -3,6 +3,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -59,8 +60,17 @@ func Load(configPath string) (*Config, error) {
 	}
 	cfg.Path = path
 
-	// Try to load config file
+	// Load the config file. A missing file is deliberately tolerated so a
+	// fresh install bootstraps with defaults; any other read failure
+	// (permission denied, path is a directory, I/O error) is surfaced as an
+	// actionable error naming the path instead of silently falling back to
+	// an empty config — which would make an unreadable but existing config
+	// indistinguishable from a first-run install and lets auth set-token
+	// overwrite a file Load was never able to read.
 	data, err := os.ReadFile(path) //nolint:gosec // user-supplied local config path is the feature
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("reading config %s: %w", path, err)
+	}
 	if err == nil {
 		if err := toml.Unmarshal(data, cfg); err != nil {
 			return nil, fmt.Errorf("parsing config %s: %w", path, err)
