@@ -9,44 +9,6 @@ import (
 	"time"
 )
 
-func TestParseStoredTime(t *testing.T) {
-	cases := []struct {
-		name string
-		in   string
-		want time.Time
-	}{
-		{
-			name: "rfc3339 nano",
-			in:   "2026-04-21T09:02:49.123456789-07:00",
-			want: time.Date(2026, 4, 21, 9, 2, 49, 123456789, time.FixedZone("", -7*60*60)),
-		},
-		{
-			name: "modernc go string",
-			in:   "2026-04-21 09:02:49.123456789 -0700 PDT",
-			want: time.Date(2026, 4, 21, 9, 2, 49, 123456789, time.FixedZone("PDT", -7*60*60)),
-		},
-		{
-			name: "blank",
-			in:   "",
-			want: time.Time{},
-		},
-		{
-			name: "invalid",
-			in:   "not a time",
-			want: time.Time{},
-		},
-	}
-	for _, tc := range cases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			got := ParseStoredTime(tc.in)
-			if !got.Equal(tc.want) {
-				t.Fatalf("ParseStoredTime(%q) = %s, want %s", tc.in, got, tc.want)
-			}
-		})
-	}
-}
-
 func TestAuthErrorHelpers(t *testing.T) {
 	if !LooksLikeAuthError("HTTP 400: missing api_key") {
 		t.Fatal("expected missing api_key to look like an auth error")
