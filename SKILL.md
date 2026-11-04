@@ -93,7 +93,7 @@ These capabilities aren't available in any other tool for this API.
   straddle sandbox outcomes --json
   ```
 
-- **`events tail`** — Print notifications (webhook events) from your polling endpoint in order as they arrive, commit only what was shown, and optionally forward each event to a local handler.
+- **`events tail`** — Print notifications (webhook events) from your polling endpoint in order as they arrive, commit only what was shown or forwarded, and optionally forward each event to a local handler.
 
   _Use to confirm a charge or payout changed state (created, paid, returned) from the terminal, or to test a local webhook handler, without deploying a public receiver._
 
