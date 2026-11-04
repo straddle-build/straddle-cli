@@ -16,11 +16,6 @@ import (
 // column indexes and the FTS index, and it has no attached database, so
 // other scopes, legacy rows and FTS shadow data are unreachable from any
 // statement run against it.
-//
-// ponytail: every snapshot copies the current scope's rows, so memory and
-// open time grow with that scope (about 360 ms and 75 MB for 50,000 charges
-// on a laptop). The upgrade path is SQLite's native authorizer over scoped
-// views, once the driver exposes sqlite3_set_authorizer.
 type Snapshot struct {
 	db   *sql.DB
 	conn *sql.Conn
