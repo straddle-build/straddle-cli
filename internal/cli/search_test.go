@@ -59,3 +59,47 @@ func TestSearchLocalCustomTypeFiltersResults(t *testing.T) {
 		t.Fatalf("search results = %+v, want only transaction-1\noutput: %s", output.Data, stdout.String())
 	}
 }
+
+// TestSearchLocalMetacharactersDoNotError is the end-to-end regression for
+// the FTS5 query-syntax bug: a search query containing an unbalanced
+// double quote, parenthesis, or stray punctuation used to abort the whole
+// command with a raw SQLite error ("unterminated string", "fts5: syntax
+// error near …"). After the store-layer escape fix, the command must
+// return a valid JSON envelope (possibly empty) instead of erroring.
+func TestSearchLocalMetacharactersDoNotError(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "data.db")
+	db, err := store.OpenWithContext(context.Background(), dbPath, testStoreScope(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Upsert("transactions", "transaction-1", json.RawMessage(`{"id":"transaction-1","name":"shared search term"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, query := range []string{
+		"dlc\"foo",
+		"(unclosed",
+		"payment;",
+		")(",
+		"hello \"world",
+	} {
+		flags := rootFlags{}
+		cmd := newRootCmd(&flags)
+		var stdout bytes.Buffer
+		cmd.SetOut(&stdout)
+		cmd.SetErr(&bytes.Buffer{})
+		cmd.SetArgs([]string{"--json", "--data-source", "local", "search", query, "--db", dbPath})
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("search %q: %v (must not error on FTS5 metacharacters)", query, err)
+		}
+		var output struct {
+			Results []json.RawMessage `json:"results"`
+		}
+		if err := json.Unmarshal(stdout.Bytes(), &output); err != nil {
+			t.Fatalf("search %q: decode output: %v\noutput: %s", query, err, stdout.String())
+		}
+	}
+}
