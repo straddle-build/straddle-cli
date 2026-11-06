@@ -1359,15 +1359,42 @@ func (s *Store) SearchTyped(resourceType, query string, limit int) ([]json.RawMe
 	return s.search(query, resourceType, limit)
 }
 
+// escapeFTSQuery renders q as a safe FTS5 MATCH expression so natural-language
+// input containing unbalanced double quotes, parentheses, or other FTS5
+// metacharacters can never abort the search with a parse error. Each
+// whitespace-separated token is wrapped as a double-quoted phrase with
+// internal double quotes doubled (the only legal escape inside an FTS5
+// phrase), and phrases are joined with whitespace so multi-token queries
+// keep their implicit-AND semantics. FTS5 query operators (AND/OR/NOT/*/())
+// are intentionally treated as literal terms rather than passed through: the
+// search command is agent-driven, its docs only show plain-term usage, and a
+// stray quote or paren in an agent-generated query must not be able to fail
+// the command — the previous raw passthrough did exactly that.
+func escapeFTSQuery(q string) string {
+	tokens := strings.Fields(q)
+	parts := make([]string, len(tokens))
+	for i, tok := range tokens {
+		parts[i] = `"` + strings.ReplaceAll(tok, `"`, `""`) + `"`
+	}
+	return strings.Join(parts, " ")
+}
+
 func (s *Store) search(query, resourceType string, limit int) ([]json.RawMessage, error) {
 	if limit <= 0 {
 		limit = 50
+	}
+	escaped := escapeFTSQuery(query)
+	if escaped == "" {
+		// An empty query has no terms to match and FTS5 rejects an empty
+		// MATCH expression as a syntax error, so return empty results
+		// rather than aborting the command on a blank/whitespace query.
+		return nil, nil
 	}
 	statement := `SELECT r.data FROM resources r
 		JOIN resources_fts f ON r.id = f.id AND r.resource_type = f.resource_type
 			AND r.scope_environment = f.scope_environment AND r.scope_account = f.scope_account
 		WHERE resources_fts MATCH ? AND f.scope_environment = ? AND f.scope_account = ?`
-	args := []any{query, s.scope.Environment, s.scope.Account}
+	args := []any{escaped, s.scope.Environment, s.scope.Account}
 	if resourceType != "" {
 		statement += ` AND r.resource_type = ?`
 		args = append(args, resourceType)
