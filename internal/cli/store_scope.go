@@ -111,7 +111,7 @@ func localStoreScope(ctx context.Context) (store.Scope, error) {
 	if err != nil {
 		return store.Scope{}, configErr(err)
 	}
-	return storeScopeFor(ctx, cfg.BaseURL, cfg.TemplateVars)
+	return storeScopeFor(ctx, cfg.EffectiveBaseURL(), cfg.TemplateVars)
 }
 
 // storeScopeFor resolves the scope for an explicit API base URL, used by

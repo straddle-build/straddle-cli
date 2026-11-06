@@ -65,8 +65,8 @@ func TestLoad_BaseURLTransportPolicy(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Load() error = %v", err)
 			}
-			if tc.wantBaseURL != "" && cfg.BaseURL != tc.wantBaseURL {
-				t.Fatalf("BaseURL = %q, want %q", cfg.BaseURL, tc.wantBaseURL)
+			if tc.wantBaseURL != "" && cfg.EffectiveBaseURL() != tc.wantBaseURL {
+				t.Fatalf("EffectiveBaseURL() = %q, want %q", cfg.EffectiveBaseURL(), tc.wantBaseURL)
 			}
 		})
 	}
