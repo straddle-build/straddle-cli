@@ -14,12 +14,13 @@ stdout:
   }
 }
 >>>
-stderr_bytes: 206
+stderr_bytes: 223
 stderr:
 <<<
 GET http://golden.test/v1/funding_event_payments/550e8400-e29b-41d4-a716-446655440000
   ?default_sort_order=asc
-  &page_number=0
+  &page_number=1
+  &page_size=100
   &sort_order=asc
   Authorization: ****_key
 
@@ -42,12 +43,13 @@ stdout:
   }
 }
 >>>
-stderr_bytes: 206
+stderr_bytes: 223
 stderr:
 <<<
 GET http://golden.test/v1/funding_event_payments/550e8400-e29b-41d4-a716-446655440000
   ?default_sort_order=asc
-  &page_number=0
+  &page_number=1
+  &page_size=100
   &sort_order=asc
   Authorization: ****_key
 
