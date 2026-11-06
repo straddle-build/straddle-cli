@@ -215,6 +215,13 @@ func newDoctorCmd(flags *rootFlags) *cobra.Command {
 				if clientErr != nil {
 					report["api"] = fmt.Sprintf("client init error: %s", clientErr)
 				} else {
+					// The reachability probe must dial the network — a cached
+					// replay of a prior GET / would report "reachable" while the
+					// endpoint is down, yielding a false-positive health check
+					// (and a stale body for the interstitial-detection step).
+					// Mirror tail.go/sync.go/channel_workflow.go and force the
+					// read-through response cache off for the probe.
+					c.NoCache = true
 					// Step 1: Basic reachability via the configured transport.
 					reachBody, reachErr := c.Get("/", nil)
 					var reachAPIErr *client.APIError
