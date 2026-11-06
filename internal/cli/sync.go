@@ -382,8 +382,19 @@ Resource scoping:
 			if errCount > 0 && !strict && criticalErrCount == 0 && successCount > 0 {
 				if !humanFriendly {
 					msg := fmt.Sprintf("%d resource(s) failed but exit code is 0 because the new default treats non-critical failures as warnings. Pass --strict to restore the old behavior, or annotate critical resources with x-critical: true. See CHANGELOG.", errCount)
-					fmt.Fprintf(os.Stdout, `{"event":"sync_warning","reason":"exit_policy_default_changed","errored":%d,"message":"%s"}`+"\n",
-						errCount, strings.ReplaceAll(msg, `"`, `\"`))
+					payload := struct {
+						Event   string `json:"event"`
+						Reason  string `json:"reason"`
+						Errored int    `json:"errored"`
+						Message string `json:"message"`
+					}{
+						Event:   "sync_warning",
+						Reason:  "exit_policy_default_changed",
+						Errored: errCount,
+						Message: msg,
+					}
+					out, _ := json.Marshal(payload)
+					fmt.Fprintf(os.Stdout, "%s\n", out)
 				} else {
 					fmt.Fprintf(os.Stderr, "warning: %d resource(s) failed but exit code is 0 because the new default treats non-critical failures as warnings. Pass --strict to restore the old behavior, or annotate critical resources with x-critical: true.\n", errCount)
 				}
@@ -541,8 +552,7 @@ func syncResource(c interface {
 		if err != nil {
 			if w, ok := isSyncAccessWarning(err); ok {
 				if !humanFriendly {
-					fmt.Fprintf(os.Stdout, `{"event":"sync_warning","resource":"%s","status":%d,"reason":"%s","message":"%s"}`+"\n",
-						resource, w.Status, w.Reason, strings.ReplaceAll(w.Message, `"`, `\"`))
+					fmt.Fprintln(os.Stdout, syncWarningJSON(resource, "", w))
 				}
 				return syncResult{Resource: resource, Count: totalCount, Warn: fmt.Errorf("skipped %s: %s", resource, w.Reason), Duration: time.Since(started)}
 			}
@@ -1416,8 +1426,7 @@ func syncDependentResource(c interface {
 					if humanFriendly {
 						fmt.Fprintf(os.Stderr, "\n  %s: access denied for parent %s: %s\n", dep.Name, parentID, w.Reason)
 					} else {
-						fmt.Fprintf(os.Stdout, `{"event":"sync_warning","resource":"%s","parent":"%s","status":%d,"reason":"%s","message":"%s"}`+"\n",
-							dep.Name, parentID, w.Status, w.Reason, strings.ReplaceAll(w.Message, `"`, `\"`))
+						fmt.Fprintln(os.Stdout, syncWarningJSON(dep.Name, parentID, w))
 					}
 				} else {
 					// Hard (non-access-denial) error: HTTP 500/502/422, network
