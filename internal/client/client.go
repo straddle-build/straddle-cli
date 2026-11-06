@@ -81,7 +81,7 @@ func New(cfg *config.Config, timeout time.Duration, rateLimit float64) *Client {
 	cacheDir := filepath.Join(homeDir, ".cache", "straddle", "http")
 	httpClient := newHTTPClient(timeout, nil)
 	c := &Client{
-		BaseURL:    strings.TrimRight(cfg.BaseURL, "/"),
+		BaseURL:    strings.TrimRight(cfg.EffectiveBaseURL(), "/"),
 		Config:     cfg,
 		HTTPClient: httpClient,
 		cacheDir:   cacheDir,

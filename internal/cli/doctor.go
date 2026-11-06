@@ -151,7 +151,7 @@ func newDoctorCmd(flags *rootFlags) *cobra.Command {
 			} else {
 				report["config"] = "ok"
 				report["config_path"] = cfg.Path
-				report["base_url"] = cfg.BaseURL
+				report["base_url"] = cfg.EffectiveBaseURL()
 			}
 
 			// Check auth
@@ -210,7 +210,7 @@ func newDoctorCmd(flags *rootFlags) *cobra.Command {
 			// Cloudflare-fronted, Akamai-fronted, or otherwise bot-detected
 			// sites. By going through flags.newClient(), the doctor's
 			// reachability verdict matches what real commands experience.
-			if cfg != nil && cfg.BaseURL != "" {
+			if cfg != nil && cfg.EffectiveBaseURL() != "" {
 				c, clientErr := flags.newClient()
 				if clientErr != nil {
 					report["api"] = fmt.Sprintf("client init error: %s", clientErr)
@@ -261,7 +261,7 @@ func newDoctorCmd(flags *rootFlags) *cobra.Command {
 						}
 					}
 				}
-			} else if cfg != nil && cfg.BaseURL == "" {
+			} else if cfg != nil && cfg.EffectiveBaseURL() == "" {
 				report["api"] = "not configured (set base_url in config file)"
 			}
 			report["runtime_context"] = resolveRuntimeContext(cmd.Context())

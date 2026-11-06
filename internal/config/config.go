@@ -28,6 +28,11 @@ type Config struct {
 	// Keep the environment override separate from legacy file credentials so
 	// saving a token cannot persist a runtime-only key.
 	envAPIKey string
+	// envBaseURL holds the STRADDLE_BASE_URL environment override. Kept
+	// separate from the TOML-serialized BaseURL field so SaveTokens/ClearTokens
+	// never persist a runtime-only override (e.g. a verify-mode mock URL) to
+	// config.toml — same invariant as envAPIKey/envPolling*.
+	envBaseURL string
 	// PollingURL and PollingToken locate and authenticate the notification
 	// polling endpoint shown in the Straddle dashboard (`events tail`). The
 	// token authenticates only that endpoint, never the Straddle API.
@@ -79,17 +84,20 @@ func Load(configPath string) (*Config, error) {
 	// label auth status and doctor report after it.
 	cfg.AuthHeader()
 
-	// Base URL override (used by Straddle verify mode to point at mock/test servers)
+	// Base URL override (used by Straddle verify mode to point at mock/test
+	// servers). Stored in the unexported envBaseURL field so SaveTokens/
+	// ClearTokens never persist the runtime-only override to config.toml —
+	// callers read it via EffectiveBaseURL().
 	if v := os.Getenv("STRADDLE_BASE_URL"); v != "" {
-		cfg.BaseURL = v
+		cfg.envBaseURL = v
 	}
 
 	// Refuse to send credentials over plaintext: the client attaches
-	// Authorization to whatever BaseURL resolves to, so a non-https scheme
+	// Authorization to whatever base URL resolves to, so a non-https scheme
 	// would leak the key on the wire. http stays allowed for loopback hosts
 	// only — Straddle verify mode and tests point STRADDLE_BASE_URL at local
 	// http mock servers.
-	if err := RequireSecureURL("STRADDLE_BASE_URL", cfg.BaseURL); err != nil {
+	if err := RequireSecureURL("STRADDLE_BASE_URL", cfg.EffectiveBaseURL()); err != nil {
 		return nil, err
 	}
 
@@ -205,6 +213,20 @@ func (c *Config) Polling() (endpointURL, token string) {
 		token = c.envPollingToken
 	}
 	return endpointURL, token
+}
+
+// EffectiveBaseURL returns the base URL requests target, preferring the
+// STRADDLE_BASE_URL environment override over the config file's base_url.
+// The override lives in an unexported field so SaveTokens/ClearTokens never
+// persist a runtime-only value to disk — mirroring the envAPIKey/envPolling*
+// invariant. Callers that build requests, derive the response cache key, or
+// report the configured endpoint (doctor) must read through this accessor so
+// the effective URL stays accurate without leaking into config.toml.
+func (c *Config) EffectiveBaseURL() string {
+	if c.envBaseURL != "" {
+		return c.envBaseURL
+	}
+	return c.BaseURL
 }
 
 func (c *Config) SaveTokens(clientID, clientSecret, accessToken, refreshToken string, expiry time.Time) error {
