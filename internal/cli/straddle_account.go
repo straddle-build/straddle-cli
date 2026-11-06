@@ -91,6 +91,16 @@ func straddleAccountPolicyTarget(cmd *cobra.Command, args []string) (string, str
 	if path != "" || method != "" {
 		return path, method, acceptsAccountHeader(path, method)
 	}
+	if cmd.Name() == "tail" && len(args) > 0 {
+		if p, err := syncResourcePath(args[0]); err == nil {
+			return p, "GET", acceptsAccountHeader(p, "GET")
+		}
+	}
+	if cmd.Name() == "import" && len(args) > 0 {
+		if p, err := syncResourcePath(args[0]); err == nil {
+			return p, "POST", acceptsAccountHeader(p, "POST")
+		}
+	}
 	if cmd.Name() != "api" || len(args) != 2 {
 		return path, method, false
 	}

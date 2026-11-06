@@ -43,7 +43,10 @@ still printed and the command exits non-zero.`,
 			c.DryRun = dryRun
 
 			resource := args[0]
-			path := "/" + resource
+			path, err := syncResourcePath(resource)
+			if err != nil {
+				path = "/" + resource
+			}
 
 			var reader io.Reader
 			if inputFile == "-" || inputFile == "" {
