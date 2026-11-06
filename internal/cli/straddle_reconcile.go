@@ -86,6 +86,12 @@ func newReconcileCmd(flags *rootFlags) *cobra.Command {
 			for _, p := range payments {
 				refs := p.fundingRefs()
 				if len(refs) == 0 {
+					// Terminal statuses (failed before funding, cancelled, or
+					// reversed without funding refs) can never settle, so they
+					// must not be reported as "Outstanding (not yet settled)".
+					if isReturnStatus(p.Status) || p.Status == "cancelled" {
+						continue
+					}
 					bucket.Payments = append(bucket.Payments, toReconcilePayment(p))
 					bucket.PaymentCount++
 					bucket.PaymentTotal += p.Amount
