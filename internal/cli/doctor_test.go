@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -478,5 +479,145 @@ func TestDoctorFailOnErrorTripsOnInvalidRuntimeContext(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "FAIL Runtime Context: error") {
 		t.Fatalf("human output missing FAIL runtime context:\n%s", stdout)
+	}
+}
+
+// TestDoctorReachabilityProbeBypassesCache is the core regression for the
+// cached-probe bug: two consecutive doctor runs against a live counting
+// server must each dial out. Before the fix, doctor's c.Get("/", nil) was
+// served from the on-disk read-through response cache (5-minute TTL), so the
+// second run reported "reachable" with zero additional server hits. With
+// c.NoCache = true on the probe, both runs reach the server.
+func TestDoctorReachabilityProbeBypassesCache(t *testing.T) {
+	doctorSetup(t, "")
+	t.Setenv("STRADDLE_API_KEY", "test_key")
+
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("{}"))
+	}))
+	defer server.Close()
+	t.Setenv("STRADDLE_BASE_URL", server.URL)
+
+	// Run 1: doctor dials out and reports reachable.
+	stdout1, _, err := runDoctor(t, []string{"doctor", "--json"})
+	if err != nil {
+		t.Fatalf("doctor run 1 error: %v", err)
+	}
+	var out1 map[string]any
+	if err := json.Unmarshal([]byte(stdout1), &out1); err != nil {
+		t.Fatalf("decode run 1: %v\n%s", err, stdout1)
+	}
+	if out1["api"] != "reachable" {
+		t.Fatalf("run 1 api = %v, want reachable", out1["api"])
+	}
+	if got := requests.Load(); got != 1 {
+		t.Fatalf("after run 1: server requests = %d, want 1", got)
+	}
+
+	// Run 2: doctor must dial out again, not replay the on-disk cache.
+	stdout2, _, err := runDoctor(t, []string{"doctor", "--json"})
+	if err != nil {
+		t.Fatalf("doctor run 2 error: %v", err)
+	}
+	var out2 map[string]any
+	if err := json.Unmarshal([]byte(stdout2), &out2); err != nil {
+		t.Fatalf("decode run 2: %v\n%s", err, stdout2)
+	}
+	if out2["api"] != "reachable" {
+		t.Fatalf("run 2 api = %v, want reachable", out2["api"])
+	}
+	if got := requests.Load(); got != 2 {
+		t.Fatalf("after run 2: server requests = %d, want 2 (probe must bypass cache)", got)
+	}
+}
+
+// TestDoctorReportsUnreachableWhenEndpointDownWithWarmCache is the
+// false-positive regression: the on-disk response cache for "/" is warmed
+// by a prior request (e.g. `straddle api GET /`), the endpoint is then
+// killed, and doctor must report "unreachable" — not "reachable" from the
+// cached body. Before the fix, doctor's probe was served from the cache and
+// reported "reachable" while the endpoint refused connections.
+func TestDoctorReportsUnreachableWhenEndpointDownWithWarmCache(t *testing.T) {
+	doctorSetup(t, "")
+	t.Setenv("STRADDLE_API_KEY", "test_key")
+
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("{}"))
+	}))
+	defer server.Close()
+	t.Setenv("STRADDLE_BASE_URL", server.URL)
+
+	// Warm the on-disk response cache for "/" via the raw API passthrough —
+	// the alternative cache-warming route identified in the bug report. The
+	// passthrough uses the standard cached client (NoCache defaults to
+	// false), so this GET writes the cache entry doctor's probe would read.
+	if _, _, err := runDoctor(t, []string{"api", "GET", "/"}); err != nil {
+		t.Fatalf("api GET / to warm cache: %v", err)
+	}
+	if got := requests.Load(); got != 1 {
+		t.Fatalf("cache warm: server requests = %d, want 1", got)
+	}
+
+	// Kill the server: the endpoint is now completely unreachable.
+	server.Close()
+
+	// doctor must dial out and report unreachable, not replay the cached body.
+	stdout, _, err := runDoctor(t, []string{"doctor", "--json"})
+	if err != nil {
+		t.Fatalf("doctor error: %v", err)
+	}
+	var out map[string]any
+	if err := json.Unmarshal([]byte(stdout), &out); err != nil {
+		t.Fatalf("decode: %v\n%s", err, stdout)
+	}
+	api, _ := out["api"].(string)
+	if !strings.Contains(api, "unreachable") {
+		t.Fatalf("api = %q, want unreachable (probe must not replay cached body)", api)
+	}
+	// credentials must reflect the unreachable verdict, not a cached "present".
+	if creds, _ := out["credentials"].(string); !strings.Contains(creds, "skipped") {
+		t.Fatalf("credentials = %q, want skipped (API unreachable)", creds)
+	}
+}
+
+// TestDoctorFailOnErrorTripsWhenEndpointDownWithWarmCache verifies the
+// --fail-on=error exit gate is not defeated by a warm cache: when the
+// endpoint is down but the "/" cache entry exists, doctor must exit
+// non-zero, not exit 0 on a cached "reachable" verdict.
+func TestDoctorFailOnErrorTripsWhenEndpointDownWithWarmCache(t *testing.T) {
+	doctorSetup(t, "")
+	t.Setenv("STRADDLE_API_KEY", "test_key")
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("{}"))
+	}))
+	defer server.Close()
+	t.Setenv("STRADDLE_BASE_URL", server.URL)
+
+	// Warm the cache for "/".
+	if _, _, err := runDoctor(t, []string{"api", "GET", "/"}); err != nil {
+		t.Fatalf("api GET / to warm cache: %v", err)
+	}
+
+	// Kill the server.
+	server.Close()
+
+	// doctor --fail-on=error must exit non-zero: the endpoint is unreachable.
+	_, _, err := runDoctor(t, []string{"doctor", "--fail-on=error"})
+	if err == nil {
+		t.Fatal("doctor --fail-on=error exited nil with a warm cache and a dead endpoint; expected non-zero")
+	}
+	if !strings.Contains(err.Error(), "--fail-on=error triggered") {
+		t.Fatalf("error = %v, want --fail-on=error triggered", err)
 	}
 }
