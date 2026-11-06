@@ -5404,12 +5404,14 @@ paths:
           schema:
             type: integer
             format: int32
+            default: 1
         - name: page_size
           in: query
           description: Number of results per page. Maximum 1,000. Defaults to 100.
           schema:
             type: integer
             format: int32
+            default: 100
         - name: include_metadata
           in: query
           description: When `true`, includes each payment's metadata. Defaults to `false`.

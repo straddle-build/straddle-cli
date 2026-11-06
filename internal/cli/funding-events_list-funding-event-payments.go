@@ -65,6 +65,7 @@ func init() {
 				Explode:     true,
 				Description: "Results page number.",
 				Format:      "int32",
+				Default:     "1",
 			},
 			{
 				Name:        "page-size",
@@ -75,6 +76,7 @@ func init() {
 				Explode:     true,
 				Description: "Number of results per page.",
 				Format:      "int32",
+				Default:     "100",
 			},
 			{
 				Name:        "sort-by",
@@ -178,6 +180,7 @@ func newFundingEventsListFundingEventPaymentsCmd(flags *rootFlags) *cobra.Comman
 				Explode:     true,
 				Description: "Results page number.",
 				Format:      "int32",
+				Default:     "1",
 			},
 			{
 				Name:        "page-size",
@@ -188,6 +191,7 @@ func newFundingEventsListFundingEventPaymentsCmd(flags *rootFlags) *cobra.Comman
 				Explode:     true,
 				Description: "Number of results per page.",
 				Format:      "int32",
+				Default:     "100",
 			},
 			{
 				Name:        "sort-by",
