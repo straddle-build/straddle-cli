@@ -61,6 +61,80 @@ func TestAuthErrorHelpers(t *testing.T) {
 	}
 }
 
+// TestLooksLikeAuthError pins the heuristic that classifies HTTP 400 responses
+// as auth-related. The patterns must catch genuinely auth-shaped messages
+// (missing/invalid api key, expired/revoked token, unauthorized, forbidden,
+// credentials) while rejecting ordinary validation errors whose JSON bodies
+// happen to carry a field named "key" or "token" — the regression that motivated
+// tightening the bare \bkey\b / \btoken\b patterns.
+func TestLooksLikeAuthError(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		msg  string
+		want bool
+	}{
+		// --- Positive: genuinely auth-shaped 400 bodies ---
+		{"missing api_key", "GET /v1/charges returned HTTP 400: missing api_key", true},
+		{"missing api key space", "GET /v1/charges returned HTTP 400: Missing API key", true},
+		{"api-key hyphen", "GET /v1/charges returned HTTP 400: invalid api-key", true},
+		{"apikey no separator", "GET /v1/charges returned HTTP 400: invalid apikey", true},
+		{"api_key underscore", "GET /v1/charges returned HTTP 400: invalid api_key", true},
+		{"api key is required", "GET /v1/charges returned HTTP 400: API key is required", true},
+		{"missing key", "GET /v1/charges returned HTTP 400: missing key", true},
+		{"required key", "GET /v1/charges returned HTTP 400: required key", true},
+		{"invalid key", "GET /v1/charges returned HTTP 400: invalid key", true},
+		{"unauthorized", "GET /v1/charges returned HTTP 400: Unauthorized", true},
+		{"forbidden", "GET /v1/charges returned HTTP 400: Forbidden", true},
+		{"authentication required", "GET /v1/charges returned HTTP 400: Authentication required", true},
+		{"credential", "GET /v1/charges returned HTTP 400: invalid credential", true},
+		{"credentials", "GET /v1/charges returned HTTP 400: invalid credentials", true},
+		{"missing access token", "GET /v1/charges returned HTTP 400: missing access token", true},
+		{"access_token underscore", "GET /v1/charges returned HTTP 400: missing access_token", true},
+		{"invalid auth token", "GET /v1/charges returned HTTP 400: invalid auth token", true},
+		{"bearer token", "GET /v1/charges returned HTTP 400: invalid bearer token", true},
+		{"missing token", "GET /v1/charges returned HTTP 400: missing token", true},
+		{"invalid token", "GET /v1/charges returned HTTP 400: invalid token", true},
+		{"expired token", "GET /v1/charges returned HTTP 400: expired token", true},
+		{"revoked token", "GET /v1/charges returned HTTP 400: revoked token", true},
+		{"required token", "GET /v1/charges returned HTTP 400: required token", true},
+
+		// --- Negative: non-auth 400 bodies that must NOT be classified as auth ---
+		// The original bug: JSON field named "key" matched \bkey\b because quotes
+		// are word boundaries.
+		{"json key field", `GET /v1/checkout_sessions returned HTTP 400: {"error":{"code":"validation_error","key":"amount"}}`, false},
+		// Prose containing "primary key" — a database concept, not auth.
+		{"primary key constraint", `GET /v1/charges returned HTTP 400: {"error":{"message":"primary key constraint violated"}}`, false},
+		// JSON field named "token" — \btoken\b matched it before the fix.
+		{"json token field", `GET /v1/charges returned HTTP 400: {"token":"abc123"}`, false},
+		// Snake_case field token_expiry — \btoken\b missed this even before the
+		// fix (underscore is a word char), but pin it to guard against future
+		// pattern loosening.
+		{"token_expiry field", `GET /v1/charges returned HTTP 400: {"error":{"field":"token_expiry","reason":"expired"}}`, false},
+		// Idempotency-Key header prose — contains "Key" but is about idempotency.
+		{"idempotency key", `GET /v1/charges returned HTTP 400: The Idempotency-Key header is invalid. It must be between 10 and 40 characters long.`, false},
+		// No auth keywords at all.
+		{"malformed page number", "GET /v1/charges returned HTTP 400: malformed page number", false},
+		{"file signature", "GET /v1/charges returned HTTP 400: File signature does not match its extension", false},
+		// "invalid" without key/token nearby.
+		{"invalid amount", `GET /v1/charges returned HTTP 400: {"error":{"message":"invalid amount"}}`, false},
+		// "expired" without token nearby.
+		{"expired session", `GET /v1/charges returned HTTP 400: {"error":{"message":"session expired"}}`, false},
+		// "key" and "token" as values, not field names or auth terms.
+		{"key as value", `GET /v1/charges returned HTTP 400: {"error":{"sort":"key","direction":"desc"}}`, false},
+		{"token as value", `GET /v1/charges returned HTTP 400: {"error":{"type":"token","position":3}}`, false},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := LooksLikeAuthError(tc.msg); got != tc.want {
+				t.Fatalf("LooksLikeAuthError(%q) = %v, want %v", tc.msg, got, tc.want)
+			}
+		})
+	}
+}
+
 // ---- AdaptiveLimiter / RetryAfter ----
 
 func TestRetryAfter_Seconds(t *testing.T) {

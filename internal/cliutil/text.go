@@ -40,19 +40,28 @@ func ParseStoredTime(s string) time.Time {
 	return time.Time{}
 }
 
-// LooksLikeAuthError checks if an error message body contains auth-related keywords.
+// LooksLikeAuthError checks if an error message body contains auth-related
+// keywords. The key/token patterns require an auth-bearing context (e.g.
+// "api key", "access token", "missing … key") so that ordinary validation
+// errors whose JSON bodies happen to carry a field named "key" or "token" are
+// not misclassified as authentication failures. A bare \bkey\b would match the
+// JSON field name "key" because the surrounding quotes are word boundaries.
 func LooksLikeAuthError(msg string) bool {
 	lower := strings.ToLower(msg)
 	patterns := []string{
-		`\bkey\b`,
-		`\btoken\b`,
 		`\bunauthorized\b`,
-		`\bapi_key\b`,
-		`missing.{0,20}key`,
-		`required.{0,20}key`,
 		`\bforbidden\b`,
 		`\bauthenticat`,
 		`\bcredential`,
+		`\bapi[_\s-]?key`,
+		`\baccess[_\s-]?token`,
+		`\bauth[_\s-]?token`,
+		`\bbearer[_\s-]?token`,
+		`missing.{0,20}(api[_\s-]?key|token|key)`,
+		`required.{0,20}(api[_\s-]?key|token|key)`,
+		`invalid.{0,20}(api[_\s-]?key|token|key)`,
+		`expired.{0,20}token`,
+		`revoked.{0,20}token`,
 	}
 	for _, p := range patterns {
 		if matched, _ := regexp.MatchString(p, lower); matched {
