@@ -272,6 +272,35 @@ func syncErrorJSON(resource, parent string, err error) string {
 	return string(out)
 }
 
+// syncWarningJSON returns a one-line JSON sync_warning event for an access
+// denial. Marshaling the payload as a struct (rather than a hand-rolled
+// Fprintf template) ensures every string field is JSON-escaped: raw
+// newlines in the API error body no longer break NDJSON line framing, and
+// backslash sequences no longer terminate the JSON string early. Mirrors
+// syncErrorJSON, which already uses json.Marshal for the same reason.
+//
+// parent is non-empty only on the dependent-resource path, where it
+// identifies which parent ID's child request was denied.
+func syncWarningJSON(resource, parent string, w *accessWarning) string {
+	payload := struct {
+		Event    string `json:"event"`
+		Resource string `json:"resource,omitempty"`
+		Parent   string `json:"parent,omitempty"`
+		Status   int    `json:"status,omitempty"`
+		Reason   string `json:"reason"`
+		Message  string `json:"message"`
+	}{
+		Event:    "sync_warning",
+		Resource: resource,
+		Parent:   parent,
+		Status:   w.Status,
+		Reason:   w.Reason,
+		Message:  w.Message,
+	}
+	out, _ := json.Marshal(payload)
+	return string(out)
+}
+
 // syncUserParams carries user-supplied query parameters injected into sync
 // HTTP requests. flatGlobal entries come from --param and inject into
 // flat-list requests only; trueGlobal entries come from --global-param and
