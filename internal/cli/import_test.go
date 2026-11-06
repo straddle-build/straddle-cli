@@ -27,7 +27,7 @@ func TestImportJSONDistinguishesDryRunWithoutSendingRequests(t *testing.T) {
 				var requests atomic.Int32
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					requests.Add(1)
-					if r.Method != http.MethodPost || r.URL.Path != "/customers" {
+					if r.Method != http.MethodPost || r.URL.Path != "/v1/customers" {
 						t.Errorf("unexpected import request: %s %s", r.Method, r.URL.Path)
 					}
 					w.Header().Set("Content-Type", "application/json")
