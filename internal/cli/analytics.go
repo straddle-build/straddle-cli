@@ -5,7 +5,6 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"sort"
 
 	"github.com/spf13/cobra"
@@ -49,21 +48,22 @@ Data must be synced first with the sync command.`,
 				if err != nil {
 					return fmt.Errorf("getting status: %w", err)
 				}
-				if flags.asJSON {
-					enc := json.NewEncoder(os.Stdout)
+				if straddleWantsJSON(cmd, flags) {
+					enc := json.NewEncoder(cmd.OutOrStdout())
 					enc.SetIndent("", "  ")
 					return enc.Encode(status)
 				}
-				fmt.Println("Resource Type\tCount")
-				fmt.Println("-------------\t-----")
+				w := cmd.OutOrStdout()
+				fmt.Fprintln(w, "Resource Type\tCount")
+				fmt.Fprintln(w, "-------------\t-----")
 				for rt, count := range status {
-					fmt.Printf("%s\t%d\n", rt, count)
+					fmt.Fprintf(w, "%s\t%d\n", rt, count)
 				}
 				return nil
 			}
 
 			if groupBy != "" {
-				return runGroupBy(db, resourceType, groupBy, limit, flags)
+				return runGroupBy(cmd, db, resourceType, groupBy, limit, flags)
 			}
 
 			count, err := db.Count(resourceType)
@@ -71,14 +71,14 @@ Data must be synced first with the sync command.`,
 				return fmt.Errorf("counting: %w", err)
 			}
 
-			if flags.asJSON {
+			if straddleWantsJSON(cmd, flags) {
 				result := map[string]any{"resource_type": resourceType, "count": count}
-				enc := json.NewEncoder(os.Stdout)
+				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
 				return enc.Encode(result)
 			}
 
-			fmt.Printf("%s: %d records\n", resourceType, count)
+			fmt.Fprintf(cmd.OutOrStdout(), "%s: %d records\n", resourceType, count)
 			return nil
 		},
 	}
@@ -91,7 +91,7 @@ Data must be synced first with the sync command.`,
 	return markStoreScoped(cmd)
 }
 
-func runGroupBy(db *store.Store, resourceType, field string, limit int, flags *rootFlags) error {
+func runGroupBy(cmd *cobra.Command, db *store.Store, resourceType, field string, limit int, flags *rootFlags) error {
 	items, err := db.List(resourceType, 0)
 	if err != nil {
 		return err
@@ -120,16 +120,17 @@ func runGroupBy(db *store.Store, resourceType, field string, limit int, flags *r
 		sorted = sorted[:limit]
 	}
 
-	if flags.asJSON {
-		enc := json.NewEncoder(os.Stdout)
+	if straddleWantsJSON(cmd, flags) {
+		enc := json.NewEncoder(cmd.OutOrStdout())
 		enc.SetIndent("", "  ")
 		return enc.Encode(sorted)
 	}
 
-	fmt.Printf("%s\tCount\n", field)
-	fmt.Println("---\t-----")
+	w := cmd.OutOrStdout()
+	fmt.Fprintf(w, "%s\tCount\n", field)
+	fmt.Fprintln(w, "---\t-----")
 	for _, kv := range sorted {
-		fmt.Printf("%s\t%d\n", kv.Key, kv.Count)
+		fmt.Fprintf(w, "%s\t%d\n", kv.Key, kv.Count)
 	}
 	return nil
 }
