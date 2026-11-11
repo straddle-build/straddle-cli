@@ -13,8 +13,8 @@ require (
 require modernc.org/sqlite v1.60.1
 
 require (
-	github.com/mattn/go-runewidth v0.0.30
-	github.com/spf13/pflag v1.0.10
+	github.com/mattn/go-runewidth v0.0.31
+	github.com/spf13/pflag v1.1.0
 )
 
 require (
