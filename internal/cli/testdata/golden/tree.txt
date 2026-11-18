@@ -1,6 +1,6 @@
 command straddle
   --account type=string default="" usage="Embedded account id sent as the Straddle-Account-Id header (Embed platform scoping)"
-  --agent type=bool default="false" usage="Set all agent-friendly defaults (--json --compact --no-input --no-color --yes)"
+  --agent type=bool default="false" usage="Set agent-friendly defaults (--json --compact --no-input --no-color); production writes still require --yes"
   --allow-partial-failure type=bool default="false" usage="Downgrade response-body partial-failure (e.g. partialFailureError) to a warning instead of a non-zero exit"
   --compact type=bool default="false" usage="Return only key fields (id, name, status, timestamps) for minimal token usage"
   --config type=string default="" usage="Config file path"
@@ -22,7 +22,7 @@ command straddle
   --rate-limit type=float64 default="0" usage="Max requests per second (0 to disable)"
   --select type=string default="" usage="Comma-separated fields of each returned resource to include in output (e.g. --select id,status,amount); CLI envelope paths such as results.id or meta.source are not valid selectors"
   --timeout type=duration default="30s" usage="Request timeout"
-  --yes type=bool default="false" usage="Skip confirmation prompts (for agents and scripts)"
+  --yes type=bool default="false" usage="Explicitly consent to production writes and skip confirmation prompts"
 command straddle account-settings
   --correlation-id type=string default="" usage="Optional client-generated identifier for tracing a series of related requests."
   --help type=bool default="false" usage="help for account-settings"

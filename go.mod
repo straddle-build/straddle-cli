@@ -13,6 +13,7 @@ require (
 require modernc.org/sqlite v1.60.1
 
 require (
+	github.com/mattn/go-isatty v0.0.24
 	github.com/mattn/go-runewidth v0.0.30
 	github.com/spf13/pflag v1.0.10
 )
@@ -23,7 +24,6 @@ require (
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect

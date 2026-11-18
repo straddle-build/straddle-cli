@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"runtime/debug"
 	"strings"
@@ -51,6 +52,7 @@ type rootFlags struct {
 	ignoreMissing bool
 	yes           bool
 	agent         bool
+	confirmWrite  func(method, targetURL string) error
 	// allowPartialFailure downgrades a detected response-body partial-failure
 	// (e.g. Google Ads `partialFailureError`) from a non-zero exit to a
 	// stderr warning. Default false so silent partial successes surface as
@@ -86,7 +88,7 @@ func RootCmd() *cobra.Command {
 	return newRootCmd(&flags)
 }
 
-// Execute runs the CLI in non-interactive mode: never prompts, all values via flags or stdin.
+// Execute runs the CLI. Live production writes require explicit consent.
 func Execute() error {
 	var flags rootFlags
 	rootCmd := newRootCmd(&flags)
@@ -204,10 +206,10 @@ See README.md or the bundled SKILL.md for recipes.`,
 	rootCmd.PersistentFlags().BoolVar(&flags.idempotent, "idempotent", false, "Treat already-existing create results as a successful no-op")
 	rootCmd.PersistentFlags().BoolVar(&flags.ignoreMissing, "ignore-missing", false, "Treat missing delete targets as a successful no-op")
 	rootCmd.PersistentFlags().StringVar(&flags.selectFields, "select", "", "Comma-separated fields of each returned resource to include in output (e.g. --select id,status,amount); CLI envelope paths such as results.id or meta.source are not valid selectors")
-	rootCmd.PersistentFlags().BoolVar(&flags.yes, "yes", false, "Skip confirmation prompts (for agents and scripts)")
+	rootCmd.PersistentFlags().BoolVar(&flags.yes, "yes", false, "Explicitly consent to production writes and skip confirmation prompts")
 	rootCmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "Disable colored output")
 	rootCmd.PersistentFlags().BoolVar(&humanFriendly, "human-friendly", false, "Enable colored output and rich formatting")
-	rootCmd.PersistentFlags().BoolVar(&flags.agent, "agent", false, "Set all agent-friendly defaults (--json --compact --no-input --no-color --yes)")
+	rootCmd.PersistentFlags().BoolVar(&flags.agent, "agent", false, "Set agent-friendly defaults (--json --compact --no-input --no-color); production writes still require --yes")
 	rootCmd.PersistentFlags().BoolVar(&flags.allowPartialFailure, "allow-partial-failure", false, "Downgrade response-body partial-failure (e.g. partialFailureError) to a warning instead of a non-zero exit")
 	rootCmd.PersistentFlags().StringVar(&flags.dataSource, "data-source", "auto", "Data source for read commands: auto (live with local fallback), live (API only), local (synced data only)")
 	rootCmd.PersistentFlags().StringVar(&flags.profileName, "profile", "", "Apply values from a saved profile (see 'straddle profile list')")
@@ -256,9 +258,6 @@ See README.md or the bundled SKILL.md for recipes.`,
 			if !cmd.Flags().Changed("no-input") {
 				flags.noInput = true
 			}
-			if !cmd.Flags().Changed("yes") {
-				flags.yes = true
-			}
 			if !cmd.Flags().Changed("no-color") {
 				noColor = true
 			}
@@ -279,6 +278,7 @@ See README.md or the bundled SKILL.md for recipes.`,
 		// read only on the --human-friendly TTY path). Empty for commands
 		// without a straddle:endpoint annotation.
 		currentResource = resourceFromEndpoint(cmd.Annotations["straddle:endpoint"])
+		flags.confirmWrite = productionWriteConfirmation(cmd, flags)
 		return nil
 	}
 	rootCmd.AddCommand(newAccountsCmd(flags))
@@ -341,6 +341,22 @@ func (f *rootFlags) newClient() (*client.Client, error) {
 	c.Version = Version()
 	c.DryRun = f.dryRun
 	c.NoCache = f.noCache
+	c.ConfirmWrite = f.confirmWrite
+	// A 307/308 can preserve a write while changing its destination. Apply
+	// consent to that resolved target as well, after the client's auth policy.
+	checkRedirect := c.HTTPClient.CheckRedirect
+	c.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if err := checkRedirect(req, via); err != nil {
+			return err
+		}
+		switch req.Method {
+		case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+			if f.confirmWrite != nil {
+				return f.confirmWrite(req.Method, req.URL.String())
+			}
+		}
+		return nil
+	}
 	return c, nil
 }
 

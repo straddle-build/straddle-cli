@@ -54,6 +54,9 @@ type Client struct {
 	HTTPClient *http.Client
 	DryRun     bool
 	NoCache    bool
+	// ConfirmWrite runs once before a live write enters the retry loop.
+	// The CLI supplies its consent policy; dry runs and read-only calls skip it.
+	ConfirmWrite func(method, targetURL string) error
 	// Version is the CLI version reported in the User-Agent header.
 	Version  string
 	cacheDir string
@@ -556,6 +559,11 @@ func (c *Client) doInternalWithValues(method, path string, params map[string]str
 	// like the other transport defaults, so dry-run output stays stable.
 	write := !readOnlyIntent && isMutatingVerb(method)
 	if write {
+		if c.ConfirmWrite != nil {
+			if err := c.ConfirmWrite(method, targetURL); err != nil {
+				return nil, 0, err
+			}
+		}
 		var idempotencyErr error
 		headerOverrides, idempotencyErr = c.withIdempotencyKey(headerOverrides)
 		if idempotencyErr != nil {

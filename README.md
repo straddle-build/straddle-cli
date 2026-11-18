@@ -140,7 +140,9 @@ For API commands, `--dry-run` validates the inputs and prints the request before
 straddle customers list --page-size 1 --data-source live --dry-run --agent
 ```
 
-`--data-source live` keeps this read preview out of the local store. `--agent` defaults to `--json --compact --no-input --no-color --yes`. Because it also enables `--yes`, use `--dry-run` when you want a request preview. Explicit flag values override agent defaults.
+`--data-source live` keeps this read preview out of the local store. `--agent` defaults to `--json --compact --no-input --no-color`. Explicit flag values override agent defaults. Agent mode does not supply consent: production writes require an explicit `--yes`.
+
+A live production write asks a terminal user to type `yes`. Scripts and agents must pass `--yes` deliberately, for example `straddle customers delete <id> --agent --yes`. Without terminal input, or with `--no-input`, an unconfirmed production write exits 2 without sending the request. Sandbox writes and `--dry-run` previews need no production consent. See the [confirmation design and compatibility changes](docs/production-write-confirmation.md).
 
 The repository's [CLI skill](SKILL.md) teaches coding agents to discover commands and use the CLI. Install it with the [skills CLI](https://github.com/vercel-labs/skills):
 

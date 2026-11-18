@@ -185,7 +185,11 @@ Use `--json` for structured output, `--compact` for fewer fields, or `--select i
 
 Human-readable output is the terminal default. Piped output stays JSON, including with `--human-friendly`. Explicit machine-format flags take precedence over human formatting.
 
-`--agent` sets `--json --compact --no-input --no-color --yes`. Explicit values override these defaults. For example, `--agent --json=false --compact=false` selects human output in a terminal. Commands still accept their inputs through flags or stdin.
+`--agent` sets `--json --compact --no-input --no-color`. Explicit values override these defaults. For example, `--agent --json=false --compact=false` selects human output in a terminal. Commands still accept their inputs through flags or stdin. Agent mode does not imply `--yes`.
+
+Live API writes (`POST`, `PUT`, `PATCH`, `DELETE`) outside `sandbox.straddle.com` and loopback require production consent, including when a base URL override selects the destination. At a terminal, the CLI shows the command, HTTP method, destination, and acting account when selected, then asks you to type `yes`. That confirms this invocation's writes to that origin, including every record in an import. Other answers cancel the write. A write-preserving redirect to another origin requires consent for that destination too.
+
+For CI, scripts, and agents, pass `--yes` explicitly after reviewing the target and request. `--no-input` and `--agent` disable prompts; they do not supply consent. Missing consent exits 2 before sending a production request. Piped stdin, including JSON supplied with `--stdin`, cannot answer the prompt: use `--yes` deliberately. The CLI does not open a separate terminal. Neither profiles nor environment variables can grant consent. Existing production automation that used only `--agent` must add `--yes`. Local profile deletion also requires explicit `--yes` now that agent mode no longer implies it.
 
 `--dry-run` prints an API request without sending it. Use `--data-source live` for API read previews to skip local-store initialization and write-through. Required inputs and structured values are still validated. Write commands accept JSON through `--stdin` when their help lists it. `--idempotent` handles an already-existing create result as a successful no-op; `--ignore-missing` does the same for a missing delete target.
 

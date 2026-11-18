@@ -5,6 +5,7 @@ package cli
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -77,6 +78,10 @@ still printed and the command exits non-zero.`,
 
 				_, _, err := c.Post(path, body)
 				if err != nil {
+					var confirmation *productionConfirmationError
+					if errors.As(err, &confirmation) {
+						return usageErr(err)
+					}
 					fmt.Fprintf(os.Stderr, "warning: failed to import record: %v\n", err)
 					failed++
 					continue
