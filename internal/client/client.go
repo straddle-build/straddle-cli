@@ -75,6 +75,25 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("%s %s returned HTTP %d: %s", e.Method, e.Path, e.StatusCode, e.Body)
 }
 
+type nonRetryableError struct {
+	err error
+}
+
+func (e *nonRetryableError) Error() string {
+	return e.err.Error()
+}
+
+func (e *nonRetryableError) Unwrap() error {
+	return e.err
+}
+
+func NonRetryable(err error) error {
+	if err == nil {
+		return nil
+	}
+	return &nonRetryableError{err: err}
+}
+
 func newHTTPClient(timeout time.Duration, jar http.CookieJar) *http.Client {
 	return &http.Client{Timeout: timeout, Jar: jar}
 }
@@ -661,6 +680,10 @@ func (c *Client) doInternalWithValues(method, path string, params map[string]str
 
 		resp, err := c.HTTPClient.Do(req)
 		if err != nil {
+			var nonRetryable *nonRetryableError
+			if errors.As(err, &nonRetryable) {
+				return nil, 0, nonRetryable.Unwrap()
+			}
 			lastErr = fmt.Errorf("%s %s: %w", method, path, err)
 			continue
 		}

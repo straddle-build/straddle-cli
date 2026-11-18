@@ -209,24 +209,35 @@ func TestProductionConsentUsesResolvedTargetAndLiveWriteIntent(t *testing.T) {
 func TestRedirectCannotSupplyProductionConsent(t *testing.T) {
 	isolateProductionConfirmation(t)
 	t.Setenv("STRADDLE_BASE_URL", "https://sandbox.straddle.com")
+	sandboxRequests := 0
 	productionRequests := 0
+	consentedIdempotencyKey := ""
+	explicitConsent := false
 	mockConfirmationTransport(t, func(req *http.Request) (*http.Response, error) {
 		if req.URL.Host == "sandbox.straddle.com" {
+			sandboxRequests++
+			if explicitConsent {
+				consentedIdempotencyKey = req.Header.Get("Idempotency-Key")
+			}
 			resp := confirmationResponse(req)
 			resp.StatusCode = http.StatusTemporaryRedirect
 			resp.Header.Set("Location", "https://production.straddle.com/v1/example")
 			return resp, nil
 		}
 		productionRequests++
+		if got := req.Header.Get("Idempotency-Key"); got == "" || got != consentedIdempotencyKey {
+			t.Errorf("redirect idempotency key = %q, want %q", got, consentedIdempotencyKey)
+		}
 		return confirmationResponse(req), nil
 	})
 	_, _, err := runRootForAPITest(t, []string{"api", "post", "/v1/example", "--agent"}, "")
-	if err == nil || !strings.Contains(err.Error(), "production write confirmation required") || productionRequests != 0 {
-		t.Fatalf("redirect without consent: requests=%d error=%v", productionRequests, err)
+	if err == nil || ExitCode(err) != 2 || !strings.Contains(err.Error(), "production write confirmation required") || sandboxRequests != 1 || productionRequests != 0 {
+		t.Fatalf("redirect without consent: sandbox requests=%d production requests=%d error=%v", sandboxRequests, productionRequests, err)
 	}
+	explicitConsent = true
 	_, _, err = runRootForAPITest(t, []string{"api", "post", "/v1/example", "--agent", "--yes"}, "")
-	if err != nil || productionRequests != 1 {
-		t.Fatalf("redirect with consent: requests=%d error=%v", productionRequests, err)
+	if err != nil || sandboxRequests != 2 || productionRequests != 1 {
+		t.Fatalf("redirect with consent: sandbox requests=%d production requests=%d error=%v", sandboxRequests, productionRequests, err)
 	}
 }
 

@@ -352,7 +352,7 @@ func (f *rootFlags) newClient() (*client.Client, error) {
 		switch req.Method {
 		case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
 			if f.confirmWrite != nil {
-				return f.confirmWrite(req.Method, req.URL.String())
+				return client.NonRetryable(f.confirmWrite(req.Method, req.URL.String()))
 			}
 		}
 		return nil
