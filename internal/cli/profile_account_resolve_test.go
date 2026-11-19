@@ -87,7 +87,7 @@ func TestProfileAccountHonoredByResolve(t *testing.T) {
 	// Case 3: The fix is scoped to `account`. A profile-supplied value for any
 	// other Changed-gated flag must NOT be marked Changed, so existing
 	// Changed-gated consumers keep their current behavior — most notably the
-	// --agent default block in root.go (json/compact/no-input/yes/no-color),
+	// --agent default block in root.go (json/compact/no-input/no-color),
 	// which intentionally overrides profile values because Changed stays false.
 	// This locks in the narrow Option A fix and guards against a broad sweep
 	// (Option B) that would change the documented agent-mode workflow.

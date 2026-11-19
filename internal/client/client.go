@@ -54,6 +54,9 @@ type Client struct {
 	HTTPClient *http.Client
 	DryRun     bool
 	NoCache    bool
+	// ConfirmWrite runs once before a live write enters the retry loop.
+	// The CLI supplies its consent policy; dry runs and read-only calls skip it.
+	ConfirmWrite func(method, targetURL string) error
 	// Version is the CLI version reported in the User-Agent header.
 	Version  string
 	cacheDir string
@@ -70,6 +73,26 @@ type APIError struct {
 
 func (e *APIError) Error() string {
 	return fmt.Sprintf("%s %s returned HTTP %d: %s", e.Method, e.Path, e.StatusCode, e.Body)
+}
+
+type nonRetryableError struct {
+	err error
+}
+
+func (e *nonRetryableError) Error() string {
+	return e.err.Error()
+}
+
+func (e *nonRetryableError) Unwrap() error {
+	return e.err
+}
+
+// NonRetryable marks err for immediate return from the request retry loop.
+func NonRetryable(err error) error {
+	if err == nil {
+		return nil
+	}
+	return &nonRetryableError{err: err}
 }
 
 func newHTTPClient(timeout time.Duration, jar http.CookieJar) *http.Client {
@@ -556,6 +579,11 @@ func (c *Client) doInternalWithValues(method, path string, params map[string]str
 	// like the other transport defaults, so dry-run output stays stable.
 	write := !readOnlyIntent && isMutatingVerb(method)
 	if write {
+		if c.ConfirmWrite != nil {
+			if err := c.ConfirmWrite(method, targetURL); err != nil {
+				return nil, 0, err
+			}
+		}
 		var idempotencyErr error
 		headerOverrides, idempotencyErr = c.withIdempotencyKey(headerOverrides)
 		if idempotencyErr != nil {
@@ -653,6 +681,10 @@ func (c *Client) doInternalWithValues(method, path string, params map[string]str
 
 		resp, err := c.HTTPClient.Do(req)
 		if err != nil {
+			var nonRetryable *nonRetryableError
+			if errors.As(err, &nonRetryable) {
+				return nil, 0, nonRetryable.Unwrap()
+			}
 			lastErr = fmt.Errorf("%s %s: %w", method, path, err)
 			continue
 		}

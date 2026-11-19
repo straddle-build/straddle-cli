@@ -30,7 +30,7 @@ The root command supports both human-friendly and agent-friendly output modes. N
 - `--data-source`
 - `--account`
 
-The root command is deliberately non-interactive in execution mode; prompts are avoided so agents and scripts behave predictably.
+Live production writes prompt when stdin is a terminal. Scripts and agents pass `--yes` explicitly; `--no-input` and `--agent` suppress prompting without granting consent. The shared client invokes the CLI consent policy before its write retry loop, and the CLI checks write-preserving redirects too. See [production-write confirmation](../../docs/production-write-confirmation.md).
 
 Agent integration happens through the CLI itself: `--agent` mode,
 `agent-context` for runtime introspection, and the repo-root `SKILL.md`.
