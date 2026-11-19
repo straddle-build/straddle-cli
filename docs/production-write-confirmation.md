@@ -50,7 +50,7 @@ Without `--yes`, stdin must be a real terminal for the prompt to run. Pipes, red
 
 ## Implementation and evidence
 
-The root pre-run resolves profiles and agent defaults, then installs a consent policy for that invocation. `rootFlags.newClient` attaches it to the shared client and redirect path. The client's live-write boundary calls it once before entering the existing idempotency and retry loop. Import treats a consent refusal as a command error rather than continuing through the remaining records.
+The root pre-run resolves profiles and agent defaults, then installs a consent policy for that invocation. `rootFlags.newClient` attaches it to the shared client and redirect path. The client's live-write boundary calls it once before entering the existing idempotency and retry loop. A refused redirect confirmation is non-retryable, so the source request is not repeated. Import treats a consent refusal as a command error rather than continuing through the remaining records.
 
 Regression tests execute the real command tree with only the HTTP boundary replaced. They cover every mutation verb, explicit script and agent consent, profile restrictions, generated and hand-authored commands, multipart, import, target overrides, redirects, reads, dry runs, and verification no-ops. A child command under a real pseudoterminal proves that a person is asked and that affirmative, negative, and blank answers affect whether a request is sent.
 

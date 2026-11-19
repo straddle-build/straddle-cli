@@ -87,6 +87,7 @@ func (e *nonRetryableError) Unwrap() error {
 	return e.err
 }
 
+// NonRetryable marks err for immediate return from the request retry loop.
 func NonRetryable(err error) error {
 	if err == nil {
 		return nil
